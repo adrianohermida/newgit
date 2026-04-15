@@ -8,7 +8,7 @@ import { collectWorkspaceTabs } from "./browser.js";
 import { renderPendingQueue } from "./pending-queue.js";
 
 const TASK_TOKENS = [
-  "analisar", "extrair", "preencher", "abrir", "navegar",
+  "analisar", "extrair", "preencher", "digitar", "inserir", "clicar", "clique", "abrir", "navegar", "ler",
   "buscar", "executar", "planejar", "automatizar", "/tarefa", "/tarefas",
 ];
 
@@ -144,10 +144,12 @@ function buildTaskReply(text, result) {
   const title = primary?.title || primary?.goal || text;
   const status = primary?.status || "pending";
   const progress = Number(primary?.progressPct || 0);
+  const totalSteps = Array.isArray(primary?.steps) ? primary.steps.length : 0;
+  const waiting = tasks.filter((task) => task.status === "awaiting_approval").length;
   const summary = result.result?.message || result.result?.content || "";
   const suffix = summary ? `\n\n${summary}` : "";
   return {
-    content: `Plano iniciado: ${title}\nStatus: ${status}\nProgresso: ${progress}%\nTasks criadas: ${tasks.length || 1}${suffix}`,
+    content: `Plano iniciado: ${title}\nStatus: ${status}\nProgresso: ${progress}%\nTasks criadas: ${tasks.length || 1}\nPassos no fluxo principal: ${totalSteps || 1}${waiting ? `\nAguardando aprovacao: ${waiting}` : ""}${suffix}`,
     metadata: null,
   };
 }

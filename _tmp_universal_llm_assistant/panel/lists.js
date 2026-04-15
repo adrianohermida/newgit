@@ -296,7 +296,7 @@ function renderTaskCard(task) {
 
 function renderApprovalBox(task, step) {
   const actionDesc = step.approval?.actionLabel || [step.action?.type, step.action?.selector || step.action?.url].filter(Boolean).join(": ");
-  const target = step.approval?.target || step.action?.selector || step.action?.url || step.action?.command || "";
+  const target = step.approval?.target || step.action?.targetText || step.action?.label || step.action?.selector || step.action?.url || step.action?.command || "";
   const reason = step.approval?.reason || "Esta etapa pode alterar a pagina ou o ambiente local.";
   return `
     <div class="approval-box">
@@ -359,7 +359,18 @@ function bindTaskApproval(el) {
 }
 
 async function updateTaskApproval(taskId, approved) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const preferredTabId = String(state.activeWorkspaceTabId || "");
+  let tab = null;
+  if (preferredTabId) {
+    try {
+      tab = await chrome.tabs.get(Number(preferredTabId));
+    } catch {
+      tab = null;
+    }
+  }
+  if (!tab) {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  }
   if (approved && tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
   await fetchJson(`/sessions/${state.sessionId}/tasks/${taskId}/approval`, {
     method: "POST",
@@ -392,11 +403,20 @@ function renderAutomationDetails(automation) {
               <span class="task-step-title">${escHtml(step.label || step.type || "passo")}</span>
             </div>
             ${step.pageTitle || step.pageUrl ? `<div class="task-step-meta">${escHtml(step.pageTitle || step.pageUrl)}</div>` : ""}
-            ${step.selector ? `<div class="task-step-meta">selector ${escHtml(step.selector)}</div>` : ""}
+            <div class="automation-step-meta-grid">
+              ${step.targetLabel ? `<span class="meta-pill subtle">alvo ${escHtml(step.targetLabel)}</span>` : ""}
+              ${step.fieldName ? `<span class="meta-pill subtle">campo ${escHtml(step.fieldName)}</span>` : ""}
+              ${step.placeholder ? `<span class="meta-pill subtle">placeholder ${escHtml(step.placeholder)}</span>` : ""}
+              ${step.inputType ? `<span class="meta-pill subtle">tipo ${escHtml(step.inputType)}</span>` : ""}
+              ${step.selector ? `<span class="meta-pill subtle">selector ${escHtml(step.selector)}</span>` : ""}
+            </div>
+            ${step.value ? `<div class="task-step-output">valor ${escHtml(String(step.value).slice(0, 180))}</div>` : ""}
+            ${step.elementText ? `<div class="task-step-meta">texto ${escHtml(step.elementText)}</div>` : ""}
+            ${step.domPath ? `<div class="task-step-meta">dom ${escHtml(step.domPath)}</div>` : ""}
             <div class="list-item-actions" style="margin-top:8px">
               <button class="btn-list-action" data-replay-step-auto="${escHtml(automation.id)}" data-replay-step-index="${step.index}">Executar 1 passo</button>
               <button class="btn-list-action" data-replay-from-auto="${escHtml(automation.id)}" data-replay-from-step="${step.index}">Replay daqui</button>
-              <button class="btn-list-action" data-edit-auto-step="${escHtml(automation.id)}" data-step-index="${step.index}" data-step-label="${escHtml(step.label || "")}" data-step-selector="${escHtml(step.selector || "")}" data-step-url="${escHtml(step.pageUrl || "")}">Editar</button>
+              <button class="btn-list-action" data-edit-auto-step="${escHtml(automation.id)}" data-step-index="${step.index}" data-step-label="${escHtml(step.label || "")}" data-step-selector="${escHtml(step.selector || "")}" data-step-url="${escHtml(step.pageUrl || "")}" data-step-value="${escHtml(step.value || "")}" data-step-target-label="${escHtml(step.targetLabel || "")}" data-step-placeholder="${escHtml(step.placeholder || "")}" data-step-field-name="${escHtml(step.fieldName || "")}">Editar</button>
               <button class="btn-list-action" data-move-auto-step="${escHtml(automation.id)}" data-move-direction="up" data-step-index="${step.index}">Subir</button>
               <button class="btn-list-action" data-move-auto-step="${escHtml(automation.id)}" data-move-direction="down" data-step-index="${step.index}">Descer</button>
               <button class="btn-list-action danger" data-delete-auto-step="${escHtml(automation.id)}" data-step-index="${step.index}">Excluir passo</button>
@@ -449,14 +469,20 @@ function bindAutomationDetailActions(el, host, addSystemMessage, switchTab) {
     if (label === null) return;
     const selector = window.prompt("Selector CSS do passo:", btn.dataset.stepSelector || "");
     if (selector === null) return;
+    const targetLabel = window.prompt("Alvo humano/rotulo do elemento:", btn.dataset.stepTargetLabel || "");
+    if (targetLabel === null) return;
+    const fieldName = window.prompt("Nome tecnico do campo:", btn.dataset.stepFieldName || "");
+    if (fieldName === null) return;
+    const placeholder = window.prompt("Placeholder do campo:", btn.dataset.stepPlaceholder || "");
+    if (placeholder === null) return;
     const url = window.prompt("URL do passo (se aplicavel):", btn.dataset.stepUrl || "");
     if (url === null) return;
-    const value = window.prompt("Valor/digitacao do passo (se aplicavel):", "");
+    const value = window.prompt("Valor/digitacao do passo (se aplicavel):", btn.dataset.stepValue || "");
     if (value === null) return;
     await fetchJson(`/automations/${btn.dataset.editAutoStep}/steps/${btn.dataset.stepIndex}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label, selector, url, value }),
+      body: JSON.stringify({ label, selector, url, value, targetLabel, fieldName, placeholder }),
     });
     const data = await fetchJson(`/automations/${btn.dataset.editAutoStep}`);
     host.innerHTML = renderAutomationDetails(data.automation || {});
@@ -786,8 +812,37 @@ function elFromHost(host) {
 function formatStepOutput(output) {
   if (typeof output === "string") return escHtml(output.slice(0, 120));
   if (!output || typeof output !== "object") return escHtml(String(output || ""));
+  if (output.page && typeof output.page === "object") {
+    const page = output.page;
+    const parts = [
+      page.title || "",
+      page.url || "",
+      Array.isArray(page.headings) ? `${page.headings.length} titulos` : "",
+      Array.isArray(page.buttons) ? `${page.buttons.length} acoes` : "",
+      Array.isArray(page.fields) ? `${page.fields.length} campos` : "",
+    ].filter(Boolean);
+    return escHtml(parts.join(" | "));
+  }
+  if (output.filled) {
+    return escHtml([
+      output.label || output.fieldName || output.fieldPlaceholder || "campo preenchido",
+      output.value ? `valor: ${String(output.value).slice(0, 60)}` : "",
+      output.pageTitle || "",
+    ].filter(Boolean).join(" | "));
+  }
+  if (output.clicked) {
+    return escHtml([
+      output.label || output.targetText || output.text || "clique executado",
+      output.pageTitle || "",
+    ].filter(Boolean).join(" | "));
+  }
+  if (output.submitted) {
+    return escHtml(["formulario enviado", output.pageTitle || ""].filter(Boolean).join(" | "));
+  }
   const summary = [
     output.action,
+    output.targetText,
+    output.label,
     output.selector,
     output.url,
     output.dispatched ? "despachado" : "",

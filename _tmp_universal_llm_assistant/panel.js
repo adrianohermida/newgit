@@ -1,6 +1,6 @@
 import { buildPanelMarkup } from "./panel/template.js";
 import { state } from "./panel/state.js";
-import { collectElements, addMediaPreview, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip, updateWorkspaceStrip } from "./panel/dom.js";
+import { collectElements, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip, updateWorkspaceStrip } from "./panel/dom.js";
 import { bindChat, enqueueOutgoingMessage } from "./panel/chat.js";
 import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, refreshWorkspaceContext, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks, syncSession } from "./panel/lists.js";
@@ -66,21 +66,7 @@ async function initPanel() {
   el.btnPageText.addEventListener("click", () => injectPageText(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks));
   el.btnAgentTab.addEventListener("click", () => openAgentTab(el, addSystemMessage));
   el.btnSelection.addEventListener("click", () => injectSelection(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks));
-  el.btnScreenshot.addEventListener("click", async () => {
-    const shot = await takeScreenshot(el, addSystemMessage);
-    if (!shot?.dataUrl) return;
-    addMediaPreview(el, "Screenshot capturado", shot.dataUrl, shot.tab?.title || shot.tab?.url || "");
-    enqueueOutgoingMessage(
-      el,
-      {
-        text: `[Screenshot capturado de: ${shot.tab?.title || shot.tab?.url || "aba ativa"}]\n\nDescreva a interface, os elementos relevantes e as proximas acoes recomendadas.`,
-        visibleText: "Analise a captura de tela que acabei de enviar.",
-      },
-      addMessage,
-      addSystemMessage,
-      renderTasks,
-    );
-  });
+  el.btnScreenshot.addEventListener("click", () => takeScreenshot(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks));
   el.btnReplay.addEventListener("click", async () => {
     switchTab(el, "automations");
     await renderAutomations(el, addSystemMessage, switchTab);
@@ -102,8 +88,10 @@ async function initPanel() {
   await bootstrapBridge(el);
 
   // um único intervalo de polling; limpa o anterior se initPanel for chamado de novo
+  stopTaskRefreshLoop();
   if (bootstrapTimer) clearInterval(bootstrapTimer);
   bootstrapTimer = setInterval(() => bootstrapBridge(el).catch(() => {}), 20000);
+  startTaskRefreshLoop(el);
 }
 
 async function bootstrapBridge(el) {
@@ -116,6 +104,21 @@ async function bootstrapBridge(el) {
   updateWorkspaceStrip(el, state.workspaceTabs, state.activeWorkspaceTabId);
   await refreshWorkspaceContext(el).catch(() => {});
   if (state.activeTab === "tasks") await renderTasks(el);
+}
+
+function startTaskRefreshLoop(el) {
+  stopTaskRefreshLoop();
+  state.taskRefreshTimer = window.setInterval(() => {
+    if (!state.bridgeOk) return;
+    if (state.activeTab !== "tasks") return;
+    renderTasks(el).catch(() => {});
+  }, 1500);
+}
+
+function stopTaskRefreshLoop() {
+  if (!state.taskRefreshTimer) return;
+  window.clearInterval(state.taskRefreshTimer);
+  state.taskRefreshTimer = null;
 }
 
 document.addEventListener("DOMContentLoaded", initPanel);

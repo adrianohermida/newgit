@@ -23,6 +23,16 @@
     return null;
   }
 
+  async function refocusReactiveElement(step, current) {
+    if (current && document.contains(current)) return current;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await content.waitForDomSettled(700, 140);
+      const resolved = await resolveReplayElement(step);
+      if (resolved) return resolved;
+    }
+    return current;
+  }
+
   function setNativeValue(element, value) {
     const prototype = element instanceof HTMLTextAreaElement
       ? HTMLTextAreaElement.prototype
@@ -79,6 +89,7 @@
   content.executeTaskStep = async (payload) => {
     const action = payload?.action || {};
     try {
+      content.ensureAgentBadge(`Task ${action.type || "acao"}`);
       if (action.type === "extract") {
         return await content.reportTaskResult(payload, "ok", {
           page: content.collectPageScan(),
@@ -89,15 +100,31 @@
         location.href = action.url;
         return;
       }
-      await content.executeStep({
+      const execution = await content.executeStep({
         type: action.type,
-        selector: action.selector,
+        selector: action.selector || action.selectors || action.cssSelector,
         value: action.value,
         url: action.url,
+        key: action.key,
+        code: action.code,
+        waitBeforeMs: action.waitBeforeMs,
+        waitAfterMs: action.waitAfterMs,
+        submitAfter: action.submitAfter,
+        enterAfter: action.enterAfter,
+        targetText: action.targetText || action.text,
+        label: action.label,
+        placeholder: action.placeholder,
+        name: action.name,
         element: action.element || payload?.element || null,
         pointer: payload?.pointer || null,
       });
-      await content.reportTaskResult(payload, "ok", { action: action.type, selector: action.selector || null });
+      await content.reportTaskResult(payload, "ok", {
+        action: action.type,
+        selector: action.selector || null,
+        targetText: action.targetText || action.text || null,
+        label: action.label || null,
+        ...(execution || {}),
+      });
     } catch (error) {
       console.warn("[LLMAssistant] executeTaskStep falhou:", error?.message || error);
       const normalizedError = normalizeStepError(error, action);
@@ -123,7 +150,7 @@
   };
 
   content.executeStep = async (step) => {
-    await content.sleep(300);
+    await content.sleep(Number(step.waitBeforeMs || 300));
     if (step.type === "navigate" && step.url && step.url !== location.href) {
       location.href = step.url;
       return;
@@ -137,7 +164,8 @@
       throw new Error(`Elemento nao encontrado para selector: ${step.selector || "(nenhum)"}`);
     }
     if (step.type === "click") {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      const clickable = await refocusReactiveElement(step, element);
+      clickable.scrollIntoView({ behavior: "smooth", block: "center" });
       await content.sleep(180);
       const pointer = step?.pointer || {};
       const mouseInit = {
@@ -148,40 +176,91 @@
         clientY: Number(pointer.clientY || 0),
         button: Number(pointer.button || 0),
       };
-      element.dispatchEvent(new MouseEvent("mouseover", mouseInit));
-      element.dispatchEvent(new MouseEvent("mousedown", mouseInit));
-      element.dispatchEvent(new MouseEvent("mouseup", mouseInit));
-      element.click();
+      clickable.dispatchEvent(new MouseEvent("mouseover", mouseInit));
+      clickable.dispatchEvent(new MouseEvent("mousedown", mouseInit));
+      clickable.dispatchEvent(new MouseEvent("mouseup", mouseInit));
+      clickable.click();
+      await content.waitForDomSettled();
+      return {
+        clicked: true,
+        text: String(clickable.innerText || clickable.textContent || clickable.value || "").trim().slice(0, 160),
+        pageTitle: document.title,
+        pageUrl: location.href,
+      };
     }
     if (step.type === "input") {
-      element.focus();
+      const inputTarget = await refocusReactiveElement(step, element);
+      inputTarget.focus();
       const nextValue = String(step.value || "");
-      setNativeValue(element, "");
-      element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, data: nextValue, inputType: "insertText" }));
-      setNativeValue(element, nextValue);
-      element.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", bubbles: true, cancelable: true }));
-      element.dispatchEvent(new Event("input", { bubbles: true }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-      element.dispatchEvent(new Event("blur", { bubbles: true }));
-      element.dispatchEvent(new KeyboardEvent("keyup", { key: "Process", bubbles: true }));
+      setNativeValue(inputTarget, "");
+      typeIntoElement(inputTarget, nextValue);
+      inputTarget.dispatchEvent(new Event("change", { bubbles: true }));
+      inputTarget.dispatchEvent(new Event("blur", { bubbles: true }));
+      if (step.enterAfter) {
+        inputTarget.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
+        inputTarget.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true }));
+      }
+      if (step.submitAfter && inputTarget.form) {
+        if (typeof inputTarget.form.requestSubmit === "function") inputTarget.form.requestSubmit();
+        else inputTarget.form.submit?.();
+      }
+      await content.waitForDomSettled();
+      return {
+        filled: true,
+        value: String(inputTarget.value || "").slice(0, 240),
+        fieldName: inputTarget.getAttribute("name") || null,
+        fieldPlaceholder: inputTarget.getAttribute("placeholder") || null,
+        fieldLabel: inputTarget.getAttribute("aria-label") || inputTarget.getAttribute("name") || inputTarget.getAttribute("placeholder") || null,
+        pageTitle: document.title,
+        pageUrl: location.href,
+      };
     }
     if (step.type === "change") {
-      element.focus();
-      if (typeof step.value !== "undefined") setNativeValue(element, String(step.value));
-      element.dispatchEvent(new Event("input", { bubbles: true }));
-      element.dispatchEvent(new Event("change", { bubbles: true }));
-      element.dispatchEvent(new Event("blur", { bubbles: true }));
+      const changeTarget = await refocusReactiveElement(step, element);
+      changeTarget.focus();
+      if (typeof step.value !== "undefined") setNativeValue(changeTarget, String(step.value));
+      changeTarget.dispatchEvent(new Event("input", { bubbles: true }));
+      changeTarget.dispatchEvent(new Event("change", { bubbles: true }));
+      changeTarget.dispatchEvent(new Event("blur", { bubbles: true }));
+      await content.waitForDomSettled();
+      return {
+        changed: true,
+        value: String(changeTarget.value || "").slice(0, 240),
+        pageTitle: document.title,
+        pageUrl: location.href,
+      };
     }
     if (step.type === "submit") {
       if (typeof element.requestSubmit === "function") element.requestSubmit();
       else if (typeof element.submit === "function") element.submit();
       else element.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await content.waitForDomSettled();
+      return { submitted: true, pageTitle: document.title, pageUrl: location.href };
     }
     if (step.type === "key") {
       element.dispatchEvent(new KeyboardEvent("keydown", { key: step.key, code: step.code || "", bubbles: true }));
       element.dispatchEvent(new KeyboardEvent("keyup", { key: step.key, code: step.code || "", bubbles: true }));
+      await content.waitForDomSettled();
+      return { key: step.key, code: step.code || "", pageTitle: document.title, pageUrl: location.href };
     }
+    if (Number(step.waitAfterMs || 0) > 0) {
+      await content.sleep(Number(step.waitAfterMs));
+    }
+    return { pageTitle: document.title, pageUrl: location.href };
   };
+
+  function typeIntoElement(element, value) {
+    const nextValue = String(value || "");
+    let buffer = "";
+    for (const char of nextValue) {
+      buffer += char;
+      element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, data: char, inputType: "insertText" }));
+      setNativeValue(element, buffer);
+      element.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true, cancelable: true }));
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
+    }
+  }
 
   function normalizeStepError(error, action) {
     const message = String(error?.message || error || "Falha ao executar etapa.");

@@ -34,6 +34,7 @@ export const state = {
   localModelCatalog: [],
   localSkillCatalog: [],
   automationReplayTimers: {},
+  taskRefreshTimer: null,
   settings: {
     runtimeUrl: "http://127.0.0.1:8000",
     runtimeModel: "aetherlab-legal-local-v1",

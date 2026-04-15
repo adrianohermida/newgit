@@ -7,7 +7,16 @@ const { ts } = require("../utils");
 
 function summarizeStep(step, index) {
   const type = String(step?.type || step?.action?.type || "passo");
-  const target = step?.element?.label || step?.element?.selector || step?.href || step?.url || step?.action || "";
+  const target = step?.element?.label
+    || step?.element?.ariaLabel
+    || step?.element?.placeholder
+    || step?.element?.name
+    || step?.element?.text
+    || step?.element?.selector
+    || step?.href
+    || step?.url
+    || step?.action
+    || "";
   const value = step?.value ? ` = ${String(step.value).slice(0, 40)}` : "";
   return {
     index,
@@ -16,6 +25,13 @@ function summarizeStep(step, index) {
     pageTitle: step?.pageTitle || step?.title || "",
     pageUrl: step?.pageUrl || step?.url || "",
     selector: step?.element?.selector || "",
+    domPath: step?.element?.domPath || "",
+    targetLabel: step?.element?.label || step?.element?.ariaLabel || "",
+    fieldName: step?.element?.name || "",
+    placeholder: step?.element?.placeholder || "",
+    elementText: step?.element?.text || "",
+    value: typeof step?.value === "string" ? String(step.value) : "",
+    inputType: step?.inputType || step?.element?.type || "",
     pointer: step?.pointer || null,
     recordedAt: step?.recordedAt || null,
   };
@@ -42,6 +58,14 @@ function patchAutomationStep(step, patch = {}) {
   if (typeof patch.label === "string") next.label = patch.label.trim();
   if (typeof patch.url === "string") next.url = patch.url.trim();
   if (typeof patch.value === "string") next.value = patch.value;
+  if (typeof patch.targetLabel === "string" || typeof patch.placeholder === "string" || typeof patch.fieldName === "string") {
+    next.element = {
+      ...(next.element || {}),
+      label: typeof patch.targetLabel === "string" ? patch.targetLabel.trim() : (next.element?.label || ""),
+      placeholder: typeof patch.placeholder === "string" ? patch.placeholder.trim() : (next.element?.placeholder || ""),
+      name: typeof patch.fieldName === "string" ? patch.fieldName.trim() : (next.element?.name || ""),
+    };
+  }
   if (typeof patch.selector === "string") {
     next.element = {
       ...(next.element || {}),
@@ -154,7 +178,15 @@ function createAutomationsRouter(commandQueue) {
     const step = automation.steps[index];
     if (!step) return res.status(404).json({ ok: false, error: "Passo nao encontrado." });
     const direction = String(req.body?.direction || "").trim();
-    if (req.body && typeof req.body === "object" && (typeof req.body.selector === "string" || typeof req.body.value === "string" || typeof req.body.url === "string" || typeof req.body.label === "string")) {
+    if (req.body && typeof req.body === "object" && (
+      typeof req.body.selector === "string"
+      || typeof req.body.value === "string"
+      || typeof req.body.url === "string"
+      || typeof req.body.label === "string"
+      || typeof req.body.targetLabel === "string"
+      || typeof req.body.fieldName === "string"
+      || typeof req.body.placeholder === "string"
+    )) {
       automation.steps[index] = patchAutomationStep(step, req.body);
       saveAutomation(req.params.id, automation);
       return res.json({ ok: true, automation });

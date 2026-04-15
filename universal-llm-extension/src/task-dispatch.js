@@ -21,7 +21,7 @@ function shouldRequireApproval(step) {
 
 function describeStepAction(step) {
   const action = step?.action || {};
-  const target = action.selector || action.url || action.command || action.value || null;
+  const target = action.selector || action.targetText || action.label || action.url || action.command || action.value || null;
   const pieces = [action.type || step?.description || "acao"];
   if (target) pieces.push(target);
   return pieces.filter(Boolean).join(" -> ");
@@ -82,7 +82,7 @@ function markStepAwaitingApproval(task, step) {
   step.approval = {
     required: true,
     reason: buildApprovalReason(step),
-    target: step.action?.selector || step.action?.url || step.action?.command || null,
+    target: step.action?.targetText || step.action?.label || step.action?.selector || step.action?.url || step.action?.command || null,
     actionLabel: describeStepAction(step),
   };
   task.logs = [
@@ -159,6 +159,7 @@ function buildApprovalReason(step) {
   if (actionType === "input" || actionType === "change") return "Esta etapa vai preencher ou alterar um campo da pagina.";
   if (actionType === "submit") return "Esta etapa pode enviar dados para o site.";
   if (actionType === "click") return "Esta etapa vai interagir com um elemento da interface.";
+  if (actionType === "extract") return "Esta etapa vai ler a pagina ativa e extrair contexto visual ou textual.";
   if (actionType === "command") return "Esta etapa vai executar um comando local autorizado.";
   if (actionType === "key") return "Esta etapa vai simular digitacao ou atalho de teclado.";
   return "Esta etapa pode alterar o estado da pagina ou do ambiente.";

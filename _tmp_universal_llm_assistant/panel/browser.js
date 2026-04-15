@@ -26,7 +26,11 @@ export async function collectWorkspaceTabs() {
 export async function refreshWorkspaceContext(el) {
   const tabs = await collectWorkspaceTabs();
   state.workspaceTabs = tabs;
-  const activeTab = tabs.find((tab) => tab.active) || tabs[0] || null;
+  const preferredTabId = String(state.activeWorkspaceTabId || "").trim();
+  const activeTab = tabs.find((tab) => String(tab.id) === preferredTabId)
+    || tabs.find((tab) => tab.active)
+    || tabs[0]
+    || null;
   state.activeWorkspaceTabId = activeTab?.id || "";
   if (el) {
     updateActiveAssetGroup(el, state.activeAssetGroup);
@@ -42,8 +46,26 @@ async function getActiveTab() {
   return tab;
 }
 
+async function getWorkspaceOperationalTab() {
+  const preferredTabId = String(state.activeWorkspaceTabId || "").trim();
+  if (preferredTabId) {
+    try {
+      const preferred = await chrome.tabs.get(Number(preferredTabId));
+      if (preferred?.id && !isRestrictedUrl(preferred.url)) return preferred;
+    } catch {}
+  }
+  const tabs = await chrome.tabs.query({ currentWindow: true });
+  const candidate = tabs.find((tab) => tab?.id && !isRestrictedUrl(tab.url) && String(tab.id) !== String((tabs.find((item) => item.active) || {}).id || ""));
+  if (candidate?.id) return candidate;
+  return tabs.find((tab) => tab?.id && !isRestrictedUrl(tab.url)) || null;
+}
+
 async function ensureTabPermission(actionLabel) {
-  const tab = await getActiveTab();
+  let tab = await getActiveTab();
+  if (isRestrictedUrl(tab.url)) {
+    const fallbackTab = await getWorkspaceOperationalTab();
+    if (fallbackTab?.id) tab = fallbackTab;
+  }
   state.activeWorkspaceTabId = String(tab.id || "");
   guardSupportedTab(tab, actionLabel);
   const origin = safeOrigin(tab.url);
@@ -98,11 +120,66 @@ async function askContentScript(type) {
   return { tab, result: null };
 }
 
+function buildPageScanSummary(page, tab) {
+  const title = page?.title || tab?.title || "Pagina ativa";
+  const url = page?.url || tab?.url || "";
+  const headings = Array.isArray(page?.headings) ? page.headings.length : 0;
+  const buttons = Array.isArray(page?.buttons) ? page.buttons.length : 0;
+  const fields = Array.isArray(page?.fields) ? page.fields.length : 0;
+  return [title, url, `${headings} titulos`, `${buttons} acoes`, `${fields} campos`].filter(Boolean).join(" | ");
+}
+
+function buildPageScanPrompt(page, tab) {
+  return [
+    `[Pagina: ${page?.title || tab?.title || "sem titulo"}]`,
+    `URL: ${page?.url || tab?.url || ""}`,
+    Array.isArray(page?.headings) && page.headings.length ? `Titulos: ${page.headings.join(" | ")}` : "",
+    Array.isArray(page?.buttons) && page.buttons.length
+      ? `Acoes visiveis: ${page.buttons.map((item) => typeof item === "string" ? item : item?.text || item?.ariaLabel || item?.selector).filter(Boolean).slice(0, 10).join(" | ")}`
+      : "",
+    Array.isArray(page?.fields) && page.fields.length
+      ? `Campos: ${page.fields.map((item) => item.placeholder || item.name || item.selector).filter(Boolean).slice(0, 8).join(" | ")}`
+      : "",
+    "",
+    String(page?.text || "").slice(0, 2200),
+    "",
+    "Analise a pagina acima, explique o que esta acontecendo e proponha os proximos passos operacionais.",
+  ].filter(Boolean).join("\n");
+}
+
+async function captureVisibleTabWithFallback(tab) {
+  const attempts = [
+    () => chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }),
+    () => chrome.tabs.captureVisibleTab({ format: "png" }),
+  ];
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      if (result) return result;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Nao foi possivel capturar a tela.");
+}
+
+async function focusTabForVisualAction(tab) {
+  if (!tab?.id) return tab;
+  const focused = await chrome.tabs.update(tab.id, { active: true });
+  state.activeWorkspaceTabId = String(focused?.id || tab.id || "");
+  await chrome.windows.update((focused?.windowId || tab.windowId), { focused: true }).catch(() => {});
+  await new Promise((resolve) => window.setTimeout(resolve, 280));
+  return focused || tab;
+}
+
 export async function openAgentTab(el, addSystemMessage) {
   const current = await getActiveTab();
   const currentUrl = String(current?.url || "");
   const targetUrl = isRestrictedUrl(currentUrl) ? "https://www.google.com/" : currentUrl || "https://www.google.com/";
   const tab = await chrome.tabs.create({ url: targetUrl, active: true });
+  state.activeWorkspaceTabId = String(tab?.id || "");
+  await refreshWorkspaceContext(el).catch(() => {});
   window.setTimeout(() => {
     if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "MARK_AGENT_TAB", reason: "Guia dedicada ao agente" }).catch(() => {});
   }, 1200);
@@ -123,17 +200,7 @@ export async function injectPageText(el, addSystemMessage, enqueueOutgoingMessag
         buttons,
       };
     })).result || {};
-    const prompt = [
-      `[Pagina: ${page.title || tab.title || "sem titulo"}]`,
-      `URL: ${page.url || tab.url || ""}`,
-      page.headings?.length ? `Titulos: ${page.headings.join(" | ")}` : "",
-      page.buttons?.length ? `Acoes visiveis: ${page.buttons.map((item) => typeof item === "string" ? item : item?.text || item?.ariaLabel || item?.selector).filter(Boolean).slice(0, 10).join(" | ")}` : "",
-      page.fields?.length ? `Campos: ${page.fields.map((item) => item.placeholder || item.name || item.selector).filter(Boolean).slice(0, 8).join(" | ")}` : "",
-      "",
-      String(page.text || "").slice(0, 2200),
-      "",
-      "Analise a pagina acima e proponha os proximos passos.",
-    ].filter(Boolean).join("\n");
+    const prompt = buildPageScanPrompt(page, tab);
     activateContextBundle(el, {
       title: page.title || tab.title || "Pagina ativa",
       type: "page_scan",
@@ -145,6 +212,7 @@ export async function injectPageText(el, addSystemMessage, enqueueOutgoingMessag
         tabTitle: page.title || tab.title || "",
       },
     });
+    addSystemMessage(el, `Pagina lida: ${buildPageScanSummary(page, tab)}`);
     enqueueOutgoingMessage(
       el,
       { text: prompt, visibleText: "Leia a pagina atual e me explique o que encontrou.", skipAssetGroup: true },
@@ -171,6 +239,7 @@ export async function injectSelection(el, addSystemMessage, enqueueOutgoingMessa
     const selected = String(fromContent.result?.text || "").trim() || String((await runInTab(() => window.getSelection()?.toString() || "")).result || "").trim();
     if (!selected) return addSystemMessage(el, "Nenhum texto selecionado.");
     const clipped = selected.slice(0, 1800);
+    addSystemMessage(el, `Selecao capturada: ${clipped.slice(0, 120)}${clipped.length > 120 ? "..." : ""}`);
     enqueueOutgoingMessage(
       el,
       {
@@ -182,6 +251,7 @@ export async function injectSelection(el, addSystemMessage, enqueueOutgoingMessa
       renderTasks,
     );
   } catch (error) {
+    const activeTab = await getActiveTab().catch(() => null);
     pushErrorLog({
       scope: "browser.selection",
       title: "Falha ao capturar selecao",
@@ -189,18 +259,24 @@ export async function injectSelection(el, addSystemMessage, enqueueOutgoingMessa
       actual: error?.message || "Erro ao acessar a selecao atual.",
       trace: "panel/browser.js -> injectSelection()",
       recommendation: "Use uma pagina web comum, selecione um trecho e confirme se o content script esta ativo nesta origem.",
+      details: { activeUrl: activeTab?.url || "", workspaceTabId: state.activeWorkspaceTabId || "" },
     });
     addSystemMessage(el, `Falha ao capturar a selecao: ${error.message}`);
   }
 }
 
-export async function takeScreenshot(el, addSystemMessage) {
+export async function takeScreenshot(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks) {
   try {
-    const tab = await ensureTabPermission("capturar a guia ativa");
+    let tab = await ensureTabPermission("capturar a guia ativa");
     if (isRestrictedUrl(tab.url)) {
       throw new Error("Captura indisponivel em paginas internas do navegador. Abra um site comum e tente novamente.");
     }
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+    if (!tab.active) {
+      addSystemMessage(el, `Alternando para a aba operacional antes da captura: ${tab.title || tab.url || tab.id}`);
+      tab = await focusTabForVisualAction(tab);
+      await refreshWorkspaceContext(el).catch(() => {});
+    }
+    const dataUrl = await captureVisibleTabWithFallback(tab);
     const data = await fetchJson("/screenshot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -217,16 +293,38 @@ export async function takeScreenshot(el, addSystemMessage) {
         tabTitle: tab.title || "",
       },
     });
-    addSystemMessage(el, "Screenshot salvo no bridge.");
+    addMediaPreview(el, "Screenshot capturado", dataUrl, tab.title || tab.url || "");
+    addSystemMessage(el, `Screenshot salvo no bridge: ${tab.title || tab.url || "aba ativa"}`);
+    if (enqueueOutgoingMessage) {
+      enqueueOutgoingMessage(
+        el,
+        {
+          text: [
+            `[Screenshot capturado de: ${tab.title || tab.url || "aba ativa"}]`,
+            `URL: ${tab.url || ""}`,
+            `Asset: ${data.id || "screenshot"}.png`,
+            "",
+            "Analise a interface visivel, identifique elementos relevantes e sugira as proximas acoes operacionais.",
+          ].join("\n"),
+          visibleText: "Analise a captura de tela que acabei de enviar.",
+          skipAssetGroup: true,
+        },
+        addMessage,
+        addSystemMessage,
+        renderTasks,
+      );
+    }
     return { tab, dataUrl };
   } catch (error) {
+    const activeTab = await getActiveTab().catch(() => null);
     pushErrorLog({
       scope: "browser.screenshot",
       title: "Falha ao capturar screenshot",
       expected: "Capturar a area visivel e salvar no bridge /screenshot.",
       actual: error?.message || "Falha ao capturar screenshot.",
       trace: "panel/browser.js -> takeScreenshot()",
-      recommendation: "Use uma aba web comum, recarregue a pagina apos atualizar a extensao e tente novamente.",
+      recommendation: "Use uma aba web comum, recarregue a pagina apos atualizar a extensao e tente novamente. Em paginas internas do navegador, a captura continua bloqueada.",
+      details: { activeUrl: activeTab?.url || "", workspaceTabId: state.activeWorkspaceTabId || "" },
     });
     addSystemMessage(el, `Falha ao capturar screenshot: ${error.message}`);
     return null;
