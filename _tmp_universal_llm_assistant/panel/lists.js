@@ -1,7 +1,7 @@
 import { BRIDGE_URL, state } from "./state.js";
 import { escHtml, formatDate } from "./utils.js";
 import { fetchJson } from "./bridge.js";
-import { updateWorkspaceStrip } from "./dom.js";
+import { updateProjectStrip, updateSkillStrip, updateWorkspaceStrip } from "./dom.js";
 
 export async function syncSession() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -19,6 +19,8 @@ export async function syncSession() {
         tabUrl: tab?.url,
         tabTitle: tab?.title,
         savedAt: new Date().toISOString(),
+        activeSkillNames: Array.isArray(state.sessionSkillNames) ? state.sessionSkillNames : [],
+        project: state.sessionProject && state.sessionProject.name ? state.sessionProject : null,
         browserTabs: Array.isArray(state.workspaceTabs) ? state.workspaceTabs : [],
         activeTabId: state.activeWorkspaceTabId || (tab?.id ? String(tab.id) : ""),
         activeAssetGroup: state.activeAssetGroup ? {
@@ -41,14 +43,17 @@ export async function renderSessions(el, addSystemMessage, switchTab, addMessage
       el.paneSessions.innerHTML = renderEmpty("Sessoes", "Nenhuma sessao salva ainda.");
       return;
     }
+    const filteredSessions = filterSessions(sessions, state.sessionFilters);
+    const groups = groupSessionsByProject(filteredSessions);
     el.paneSessions.innerHTML = `
       <div class="view-toolbar">
         <div class="view-title-wrap">
           <div class="view-title">Sessoes</div>
-          <div class="view-subtitle">Historico salvo do chat, tasks e workspace multi-abas por sessao.</div>
+          <div class="view-subtitle">Historico salvo do chat, tasks, skills e workspace multi-abas por sessao.</div>
         </div>
       </div>
-      ${sessions.map(renderSessionCard).join("")}
+      ${renderSessionFilters(sessions)}
+      ${groups.length ? groups.map(renderSessionGroup).join("") : `<div class="empty-state"><div class="empty-sub">Nenhuma sessao encontrada com os filtros atuais.</div></div>`}
     `;
     bindSessionActions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
   } catch (error) {
@@ -110,21 +115,85 @@ function bindSessionActions(el, addSystemMessage, switchTab, addMessage, updateP
     state.messages = Array.isArray(sessionData.session.messages) ? sessionData.session.messages : [];
     state.provider = sessionData.session.provider || state.provider;
     state.activeAssetGroup = sessionData.session.metadata?.activeAssetGroup || null;
+    state.sessionSkillNames = Array.isArray(sessionData.session.metadata?.activeSkillNames) ? sessionData.session.metadata.activeSkillNames : [];
+    state.sessionProject = normalizeProject(sessionData.session.metadata?.project);
     state.workspaceTabs = Array.isArray(sessionData.session.metadata?.browserTabs) ? sessionData.session.metadata.browserTabs : [];
     state.activeWorkspaceTabId = String(sessionData.session.metadata?.activeTabId || "");
     el.chatArea.innerHTML = "";
     state.messages.forEach((msg) => addMessage(el, msg.role, msg.content));
     updateProviderBadge(el);
+    updateSkillStrip(el, state.sessionSkillNames);
+    updateProjectStrip(el, state.sessionProject);
     updateActiveAssetGroup?.(el, state.activeAssetGroup);
     updateWorkspaceStrip(el, state.workspaceTabs, state.activeWorkspaceTabId);
     switchTab(el, "chat");
     addSystemMessage(el, `Sessao "${sessionData.session.metadata?.tabTitle || sessionData.session.id}" retomada.`);
   }));
 
+  el.paneSessions.querySelectorAll("[data-session-skills]").forEach((btn) => btn.addEventListener("click", async () => {
+    const currentNames = String(btn.dataset.sessionSkills || "").trim();
+    const nextValue = window.prompt("Skills ativas nesta sessao (separe por virgula):", currentNames);
+    if (nextValue === null) return;
+    const activeSkillNames = nextValue.split(",").map((item) => item.trim()).filter(Boolean);
+    await fetchJson(`/sessions/${btn.dataset.sessionSkillsId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activeSkillNames }),
+    });
+    if (String(btn.dataset.sessionSkillsId) === String(state.sessionId)) {
+      state.sessionSkillNames = activeSkillNames;
+      updateSkillStrip(el, state.sessionSkillNames);
+      syncSession().catch(() => {});
+    }
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+
+  el.paneSessions.querySelectorAll("[data-session-project-id]").forEach((btn) => btn.addEventListener("click", async () => {
+    const currentName = String(btn.dataset.sessionProjectName || "").trim();
+    const currentCode = String(btn.dataset.sessionProjectCode || "").trim();
+    const nextName = window.prompt("Projeto da sessao:", currentName);
+    if (nextName === null) return;
+    const cleanName = String(nextName || "").trim();
+    const nextCode = cleanName ? window.prompt("Codigo curto do projeto (opcional):", currentCode) : "";
+    if (nextCode === null) return;
+    const project = cleanName ? normalizeProject({ name: cleanName, code: nextCode || "" }) : null;
+    await fetchJson(`/sessions/${btn.dataset.sessionProjectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project }),
+    });
+    if (String(btn.dataset.sessionProjectId) === String(state.sessionId)) {
+      state.sessionProject = project;
+      updateProjectStrip(el, state.sessionProject);
+      syncSession().catch(() => {});
+    }
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+
   el.paneSessions.querySelectorAll("[data-delete-session]").forEach((btn) => btn.addEventListener("click", async () => {
     await fetchJson(`/sessions/${btn.dataset.deleteSession}`, { method: "DELETE" });
     await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
   }));
+
+  el.paneSessions.querySelector("[data-session-search]")?.addEventListener("input", async (event) => {
+    state.sessionFilters.search = String(event.target.value || "");
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  });
+
+  el.paneSessions.querySelector("[data-session-provider-filter]")?.addEventListener("change", async (event) => {
+    state.sessionFilters.provider = String(event.target.value || "all");
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  });
+
+  el.paneSessions.querySelector("[data-session-project-filter]")?.addEventListener("change", async (event) => {
+    state.sessionFilters.project = String(event.target.value || "all");
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  });
+
+  el.paneSessions.querySelector("[data-clear-session-filters]")?.addEventListener("click", async () => {
+    state.sessionFilters = { search: "", provider: "all", project: "all" };
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  });
 
   el.paneSessions.querySelectorAll("[data-rename-session]").forEach((btn) => btn.addEventListener("click", async () => {
     const nextTitle = window.prompt("Novo nome da sessao:", btn.dataset.currentTitle || "");
@@ -210,26 +279,36 @@ function bindAutomationActions(el, addSystemMessage, switchTab) {
 function renderSessionCard(session) {
   const title = session.metadata?.tabTitle || session.id;
   const url = session.metadata?.tabUrl || "";
+  const project = normalizeProject(session.metadata?.project);
   const tabs = Array.isArray(session.metadata?.browserTabs) ? session.metadata.browserTabs : [];
   const activeTab = tabs.find((tab) => String(tab.id) === String(session.metadata?.activeTabId || "")) || tabs.find((tab) => tab.active) || null;
   const origins = tabs.map((tab) => tab.origin).filter(Boolean);
   const uniqueOrigins = origins.filter((origin, index) => origins.indexOf(origin) === index);
   const metaPills = [
+    project?.name ? project.name : null,
     `${session.messageCount} msg`,
     session.taskCount ? `${session.taskCount} tasks` : null,
+    Array.isArray(session.metadata?.activeSkillNames) && session.metadata.activeSkillNames.length ? `${session.metadata.activeSkillNames.length} skills` : null,
     tabs.length ? `${tabs.length} abas` : null,
     session.provider || "local",
   ].filter(Boolean);
   return `
-    <article class="list-card">
-      <div class="list-item-title">${escHtml(title)}</div>
+    <article class="list-card section-card">
+      <div class="card-title-row">
+        <div class="list-item-title">${escHtml(title)}</div>
+        <span class="card-kicker">Sessao</span>
+      </div>
       <div class="meta-pill-row">${metaPills.map((item) => `<span class="meta-pill">${escHtml(item)}</span>`).join("")}</div>
-      ${url ? `<div class="list-item-meta">${escHtml(url)}</div>` : ""}
-      ${activeTab ? `<div class="list-item-meta">Aba ativa salva: ${escHtml(activeTab.title || activeTab.url || activeTab.id)}</div>` : ""}
-      ${uniqueOrigins.length ? `<div class="list-item-meta">Workspace: ${escHtml(uniqueOrigins.slice(0, 3).join(" | "))}${uniqueOrigins.length > 3 ? ` | +${uniqueOrigins.length - 3}` : ""}</div>` : ""}
-      <div class="list-item-meta">Atualizada em ${formatDate(session.updatedAt)}</div>
-      <div class="list-item-actions" style="margin-top:8px">
+      <div class="card-meta-stack">
+        ${url ? `<div class="list-item-meta">${escHtml(url)}</div>` : ""}
+        ${activeTab ? `<div class="list-item-meta">Aba ativa salva: ${escHtml(activeTab.title || activeTab.url || activeTab.id)}</div>` : ""}
+        ${uniqueOrigins.length ? `<div class="list-item-meta">Workspace: ${escHtml(uniqueOrigins.slice(0, 3).join(" | "))}${uniqueOrigins.length > 3 ? ` | +${uniqueOrigins.length - 3}` : ""}</div>` : ""}
+        <div class="list-item-meta">Atualizada em ${formatDate(session.updatedAt)}</div>
+      </div>
+      <div class="list-item-actions section-actions" style="margin-top:8px">
         <button class="btn-list-action" data-load="${escHtml(session.id)}">Retomar</button>
+        <button class="btn-list-action" data-session-project-id="${escHtml(session.id)}" data-session-project-name="${escHtml(project?.name || "")}" data-session-project-code="${escHtml(project?.code || "")}">Projeto</button>
+        <button class="btn-list-action" data-session-skills="${escHtml(Array.isArray(session.metadata?.activeSkillNames) ? session.metadata.activeSkillNames.join(", ") : "")}" data-session-skills-id="${escHtml(session.id)}">Skills</button>
         <button class="btn-list-action" data-assets-session="${escHtml(session.id)}">Arquivos</button>
         <button class="btn-list-action" data-export-session="${escHtml(session.id)}">Exportar MD</button>
         <button class="btn-list-action" data-rename-session="${escHtml(session.id)}" data-current-title="${escHtml(title)}">Renomear</button>
@@ -240,16 +319,98 @@ function renderSessionCard(session) {
   `;
 }
 
+function renderSessionGroup(group) {
+  return `
+    <section class="session-group">
+      <div class="session-group-head">
+        <div class="session-group-title">${escHtml(group.label)}</div>
+        <div class="session-group-meta">${group.sessions.length} sessoes</div>
+      </div>
+      <div class="list-grid">${group.sessions.map(renderSessionCard).join("")}</div>
+    </section>
+  `;
+}
+
+function groupSessionsByProject(sessions = []) {
+  const buckets = new Map();
+  for (const session of Array.isArray(sessions) ? sessions : []) {
+    const project = normalizeProject(session?.metadata?.project);
+    const key = project?.name ? `project:${project.name}` : "project:__none__";
+    const current = buckets.get(key) || {
+      label: project?.name || "Sem projeto",
+      order: project?.name ? 0 : 1,
+      sessions: [],
+    };
+    current.sessions.push(session);
+    buckets.set(key, current);
+  }
+  return Array.from(buckets.values())
+    .map((group) => ({
+      ...group,
+      sessions: group.sessions.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""))),
+    }))
+    .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, "pt-BR"));
+}
+
+function normalizeProject(project) {
+  const name = String(project?.name || "").trim();
+  if (!name) return null;
+  const code = String(project?.code || "").trim().toUpperCase().slice(0, 12);
+  const color = String(project?.color || "").trim();
+  return { name, code, color };
+}
+
+function filterSessions(sessions = [], filters = {}) {
+  const search = String(filters?.search || "").trim().toLowerCase();
+  const provider = String(filters?.provider || "all");
+  const project = String(filters?.project || "all");
+  return (Array.isArray(sessions) ? sessions : []).filter((session) => {
+    const sessionProject = normalizeProject(session?.metadata?.project);
+    const title = String(session?.metadata?.tabTitle || session?.id || "").toLowerCase();
+    const url = String(session?.metadata?.tabUrl || "").toLowerCase();
+    const providerOk = provider === "all" || String(session?.provider || "") === provider;
+    const projectOk = project === "all" || (project === "__none__" ? !sessionProject?.name : sessionProject?.name === project);
+    const searchOk = !search || [title, url, String(sessionProject?.name || "").toLowerCase()].some((item) => item.includes(search));
+    return providerOk && projectOk && searchOk;
+  });
+}
+
+function renderSessionFilters(sessions = []) {
+  const providerOptions = ["all", ...Array.from(new Set((Array.isArray(sessions) ? sessions : []).map((item) => String(item?.provider || "").trim()).filter(Boolean)))];
+  const projectOptions = Array.from(new Set((Array.isArray(sessions) ? sessions : []).map((item) => normalizeProject(item?.metadata?.project)?.name).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  return `
+    <section class="session-filter-bar">
+      <input class="session-filter-input" data-session-search type="search" placeholder="Buscar sessao, URL ou projeto" value="${escHtml(state.sessionFilters.search || "")}" />
+      <select class="session-filter-select" data-session-provider-filter>
+        ${providerOptions.map((item) => `<option value="${escHtml(item)}" ${state.sessionFilters.provider === item ? "selected" : ""}>${escHtml(item === "all" ? "Todos providers" : item)}</option>`).join("")}
+      </select>
+      <select class="session-filter-select" data-session-project-filter>
+        <option value="all" ${state.sessionFilters.project === "all" ? "selected" : ""}>Todos projetos</option>
+        <option value="__none__" ${state.sessionFilters.project === "__none__" ? "selected" : ""}>Sem projeto</option>
+        ${projectOptions.map((item) => `<option value="${escHtml(item)}" ${state.sessionFilters.project === item ? "selected" : ""}>${escHtml(item)}</option>`).join("")}
+      </select>
+      <button class="btn-list-action" type="button" data-clear-session-filters>Limpar</button>
+    </section>
+  `;
+}
+
 function renderAutomationCard(item) {
   const preview = Array.isArray(item.previewSteps) ? item.previewSteps.join(" | ") : "";
   return `
-    <article class="list-card">
-      <div class="list-item-title">${escHtml(item.title || item.id)}</div>
-      <div class="list-item-meta">${item.stepCount || 0} passos gravados</div>
-      ${item.startUrl ? `<div class="list-item-meta">${escHtml(item.startUrl)}</div>` : ""}
-      ${preview ? `<div class="list-item-meta">Fluxo: ${escHtml(preview)}</div>` : ""}
-      <div class="list-item-meta">Atualizada em ${formatDate(item.updatedAt || item.createdAt)}</div>
-      <div class="list-item-actions" style="margin-top:8px">
+    <article class="list-card section-card">
+      <div class="card-title-row">
+        <div class="list-item-title">${escHtml(item.title || item.id)}</div>
+        <span class="card-kicker">Automacao</span>
+      </div>
+      <div class="meta-pill-row">
+        <span class="meta-pill">${item.stepCount || 0} passos</span>
+      </div>
+      <div class="card-meta-stack">
+        ${item.startUrl ? `<div class="list-item-meta">${escHtml(item.startUrl)}</div>` : ""}
+        ${preview ? `<div class="list-item-meta">Fluxo: ${escHtml(preview)}</div>` : ""}
+        <div class="list-item-meta">Atualizada em ${formatDate(item.updatedAt || item.createdAt)}</div>
+      </div>
+      <div class="list-item-actions section-actions" style="margin-top:8px">
         <button class="btn-list-action" data-replay="${escHtml(item.id)}">Replay</button>
         <button class="btn-list-action" data-inspect-auto="${escHtml(item.id)}">Inspecionar</button>
         <button class="btn-list-action" data-rename-auto="${escHtml(item.id)}" data-current-title="${escHtml(item.title || item.id)}">Renomear</button>
@@ -278,19 +439,38 @@ function renderTaskCard(task) {
     dependsOn,
   ].filter(Boolean);
   return `
-    <article class="list-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+    <article class="list-card section-card">
+      <div class="card-title-row" style="margin-bottom:4px">
         <div class="list-item-title" style="margin:0">${escHtml(task.title || task.goal || task.id)}</div>
         <span class="task-status ${escHtml(status)}">${escHtml(status)}</span>
       </div>
       ${task.goal && task.title && task.goal !== task.title ? `<div class="list-item-meta">${escHtml(task.goal)}</div>` : ""}
-      <div class="list-item-meta">${pct}% concluido | ${completedSteps}/${(task.steps || []).length} passos</div>
+      <div class="meta-pill-row">
+        <span class="meta-pill">${pct}% concluido</span>
+        <span class="meta-pill">${completedSteps}/${(task.steps || []).length} passos</span>
+      </div>
       <div class="task-progress"><span class="task-progress-bar" style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
-      ${currentStep ? `<div class="list-item-meta">Step atual: ${escHtml(currentStep.description || currentStep.action?.type || currentStep.id)}</div>` : ""}
+      ${currentStep ? `<div class="list-item-meta card-highlight">Step atual: ${escHtml(currentStep.description || currentStep.action?.type || currentStep.id)}</div>` : ""}
       ${orchestrationMeta.length ? `<div class="meta-pill-row">${orchestrationMeta.map((item) => `<span class="meta-pill subtle">${escHtml(item)}</span>`).join("")}</div>` : ""}
+      ${renderTaskTimeline(task)}
       ${pendingStep ? renderApprovalBox(task, pendingStep) : ""}
       ${(task.steps || []).length ? renderStepDetails(task, logs) : ""}
     </article>
+  `;
+}
+
+function renderTaskTimeline(task) {
+  const steps = Array.isArray(task?.steps) ? task.steps : [];
+  if (!steps.length) return "";
+  return `
+    <div class="task-timeline">
+      ${steps.map((step, index) => `
+        <div class="task-timeline-item ${escHtml(step.status || "pending")}">
+          <span class="task-timeline-dot"></span>
+          <span class="task-timeline-label">${escHtml(`${index + 1}. ${step.description || step.action?.type || step.id}`)}</span>
+        </div>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -575,7 +755,7 @@ function renderWorkspaceSummary(workspaceTabs = [], activeTabId = "") {
     <section class="workspace-card">
       <div class="workspace-card-head">
         <div class="list-item-title" style="margin:0">Workspace ativo</div>
-        <div class="list-item-meta">${tabs.length} abas conectadas</div>
+        <span class="card-kicker">${tabs.length} abas</span>
       </div>
       ${activeTab ? `<div class="list-item-meta">Aba principal: ${escHtml(activeTab.title || activeTab.url || activeTab.id)}</div>` : ""}
       <div class="workspace-chip-row">

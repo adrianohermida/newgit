@@ -31,6 +31,12 @@ export function collectElements() {
     memoryStrip: $("memory-strip"),
     memoryStripBadge: $("memory-strip-badge"),
     memoryStripText: $("memory-strip-text"),
+    skillStrip: $("skill-strip"),
+    skillStripBadge: $("skill-strip-badge"),
+    skillStripText: $("skill-strip-text"),
+    projectStrip: $("project-strip"),
+    projectStripBadge: $("project-strip-badge"),
+    projectStripText: $("project-strip-text"),
     assetGroupStrip: $("asset-group-strip"),
     assetGroupBadge: $("asset-group-badge"),
     assetGroupText: $("asset-group-text"),
@@ -65,6 +71,8 @@ export function collectElements() {
     cameraCanvas: $("camera-canvas"),
     recorderStatus: $("recorder-status"),
     btnCancelEdit: $("btn-cancel-edit"),
+    composerMode: $("composer-mode"),
+    composerHint: $("composer-hint"),
     inputRuntimeUrl: $("input-runtime-url"),
     inputRuntimeModel: $("input-runtime-model"),
     localModelList: $("local-model-list"),
@@ -140,8 +148,12 @@ export function addMessage(el, role, content) {
   wrap.className = `message ${role}`;
   const bubble = document.createElement("div");
   bubble.className = "message-bubble";
+  const meta = document.createElement("div");
+  meta.className = "message-meta";
+  meta.textContent = role === "assistant" ? "Assistente" : role === "user" ? "Voce" : role;
   if (role === "assistant") bubble.innerHTML = renderMarkdown(content);
   else bubble.textContent = content;
+  wrap.appendChild(meta);
   wrap.appendChild(bubble);
   el.chatArea.appendChild(wrap);
   el.chatArea.scrollTop = el.chatArea.scrollHeight;
@@ -150,7 +162,7 @@ export function addMessage(el, role, content) {
 export function addSystemMessage(el, text) {
   const wrap = document.createElement("div");
   wrap.className = "message system";
-  wrap.innerHTML = `<div class="message-bubble">${escHtml(text)}</div>`;
+  wrap.innerHTML = `<div class="message-meta">Sistema</div><div class="message-bubble">${escHtml(text)}</div>`;
   el.chatArea.appendChild(wrap);
   el.chatArea.scrollTop = el.chatArea.scrollHeight;
 }
@@ -233,6 +245,33 @@ export function updateMemoryStrip(el, metadata) {
   el.memoryStrip.classList.remove("hidden");
   el.memoryStripBadge.textContent = "Memoria local";
   el.memoryStripText.textContent = parts.join(" | ");
+}
+
+export function updateSkillStrip(el, skillNames = []) {
+  if (!el.skillStrip || !el.skillStripText || !el.skillStripBadge) return;
+  const names = Array.isArray(skillNames) ? skillNames.filter(Boolean) : [];
+  if (!names.length) {
+    el.skillStrip.classList.add("hidden");
+    el.skillStripText.textContent = "";
+    return;
+  }
+  el.skillStrip.classList.remove("hidden");
+  el.skillStripBadge.textContent = "Skills";
+  el.skillStripText.textContent = names.slice(0, 4).join(" | ") + (names.length > 4 ? ` | +${names.length - 4}` : "");
+}
+
+export function updateProjectStrip(el, project = null) {
+  if (!el.projectStrip || !el.projectStripText || !el.projectStripBadge) return;
+  const title = String(project?.name || "").trim();
+  if (!title) {
+    el.projectStrip.classList.add("hidden");
+    el.projectStripText.textContent = "";
+    return;
+  }
+  const meta = [project?.code || "", project?.color ? `cor ${project.color}` : ""].filter(Boolean).join(" | ");
+  el.projectStrip.classList.remove("hidden");
+  el.projectStripBadge.textContent = "Projeto";
+  el.projectStripText.textContent = meta ? `${title} | ${meta}` : title;
 }
 
 export function updateActiveAssetGroup(el, group) {

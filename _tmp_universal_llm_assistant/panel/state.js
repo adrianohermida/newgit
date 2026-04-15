@@ -33,6 +33,9 @@ export const state = {
   localMemoryMeta: null,
   localModelCatalog: [],
   localSkillCatalog: [],
+  sessionSkillNames: [],
+  sessionProject: null,
+  sessionFilters: { search: "", provider: "all", project: "all" },
   automationReplayTimers: {},
   taskRefreshTimer: null,
   settings: {

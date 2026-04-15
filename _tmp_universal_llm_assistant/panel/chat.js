@@ -80,7 +80,7 @@ async function pumpQueue(el, addMessage, addSystemMessage, renderTasks) {
     updateMemoryStrip(el, state.localMemoryMeta);
     const memoryHint = buildMemoryHint(reply.metadata);
     if (memoryHint) addSystemMessage(el, memoryHint);
-    syncRuntimeStrip(el, state.pendingMessages.length ? "queued" : "ready", reply.metadata?.degraded ? "Modo seguro ativo para esta resposta." : "Resposta entregue.");
+    syncRuntimeStrip(el, state.pendingMessages.length ? "queued" : "ready", reply.metadata?.degraded ? "Resposta entregue com apoio da memoria local." : "Resposta entregue.");
     if (state.settings.autoSaveSessions) {
       // sync failure nao deve interromper o chat nem mascarar erros LLM
       syncSession().catch(() => {});
@@ -220,6 +220,7 @@ function buildMemoryHint(metadata) {
   if (Number(metadata.memory_entries_used || 0) > 0) parts.push(`${metadata.memory_entries_used} memorias da sessao`);
   if (Number(metadata.conversation_turns_used || 0) > 0) parts.push(`${metadata.conversation_turns_used} turnos recentes`);
   if (Number(metadata.rag_matches_used || 0) > 0) parts.push(`${metadata.rag_matches_used} referencias locais`);
+  if (metadata.degraded) parts.push("modo local seguro");
   if (!metadata.degraded && Array.isArray(metadata.rag_sources) && metadata.rag_sources.length) {
     parts.push(metadata.rag_sources.join(" + "));
   }
@@ -326,5 +327,17 @@ function syncComposerState(el) {
   el.btnSend.textContent = editing ? "Atualizar" : "Enviar";
   if (el.btnCancelEdit) {
     el.btnCancelEdit.style.display = editing ? "inline-flex" : "none";
+  }
+  if (el.composerMode) {
+    if (editing) el.composerMode.textContent = "Editando item da fila";
+    else if (state.isLoading && state.pendingMessages.length) el.composerMode.textContent = `Fila ativa · ${state.pendingMessages.length} aguardando`;
+    else if (state.isLoading) el.composerMode.textContent = "Assistente respondendo";
+    else if (state.pendingMessages.length) el.composerMode.textContent = `Fila pronta · ${state.pendingMessages.length} aguardando`;
+    else el.composerMode.textContent = "Mensagem direta";
+  }
+  if (el.composerHint) {
+    el.composerHint.textContent = editing
+      ? "Atualize o texto e confirme para manter a ordem da fila"
+      : "Enter envia · Shift+Enter quebra linha";
   }
 }

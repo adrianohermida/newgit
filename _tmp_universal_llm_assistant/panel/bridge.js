@@ -75,7 +75,13 @@ export async function callChat(provider, messages, options = {}) {
       model: getModelForProvider(provider),
       messages: providerMessages,
       sessionId: state.sessionId,
-      context: { session_id: state.sessionId, route: "/extension/chat", queue_depth: state.pendingMessages.length },
+      context: {
+        session_id: state.sessionId,
+        route: "/extension/chat",
+        queue_depth: state.pendingMessages.length,
+        activeSkillNames: state.sessionSkillNames,
+        project: state.sessionProject,
+      },
     }),
   }, provider === "local" ? 70000 : 60000);
   const data = await parseJsonResponse(response);

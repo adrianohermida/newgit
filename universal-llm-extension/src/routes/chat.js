@@ -20,6 +20,10 @@ function createChatRouter() {
     const enrichedMessages = stringContext
       ? [...messages.slice(0, -1), { role: "user", content: `${stringContext}\n\n${messages[messages.length - 1].content}` }]
       : messages;
+    const activeSkillNames = Array.isArray(objectContext.activeSkillNames)
+      ? objectContext.activeSkillNames.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    const filteredSkills = filterActiveSkills(configs.local.skills || [], activeSkillNames);
     const localExtensionContext = {
       ...objectContext,
       assistant_profile: buildOperationalProfile(provider, configs, objectContext),
@@ -28,11 +32,12 @@ function createChatRouter() {
         browser_actions: ["ler_pagina", "usar_selecao", "capturar_tela", "anexar", "gravar", "replay", "ai_tasks", "click", "input", "extract", "navigate"],
         local_roots: configs.local.roots || [],
         local_apps: (configs.local.apps || []).map((item) => item.name),
-        local_skills: (configs.local.skills || []).filter((item) => item.enabled !== false).map((item) => ({
+        local_skills: filteredSkills.map((item) => ({
           name: item.name,
           path: item.path,
           description: item.description || "",
         })),
+        active_skill_names: activeSkillNames,
       },
     };
 
@@ -61,6 +66,13 @@ function createChatRouter() {
   });
 
   return router;
+}
+
+function filterActiveSkills(skills, activeSkillNames = []) {
+  const allSkills = Array.isArray(skills) ? skills.filter((item) => item?.enabled !== false) : [];
+  const names = Array.isArray(activeSkillNames) ? activeSkillNames.filter(Boolean) : [];
+  if (!names.length) return allSkills;
+  return allSkills.filter((item) => names.includes(item.name));
 }
 
 function buildOperationalProfile(provider, configs, context) {

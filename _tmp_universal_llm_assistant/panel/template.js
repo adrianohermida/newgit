@@ -5,7 +5,7 @@ export function buildPanelMarkup() {
         <div class="brand-mark">AI</div>
         <div class="brand-copy">
           <div class="brand-title">Universal LLM Assistant</div>
-          <div class="brand-sub">Copiloto operacional do navegador</div>
+          <div class="brand-sub">Copiloto operacional de navegador e tarefas</div>
         </div>
       </div>
       <div class="header-right">
@@ -18,8 +18,8 @@ export function buildPanelMarkup() {
           </select>
           <span id="provider-badge"></span>
         </div>
-        <button id="btn-errors" class="icon-btn" title="Ver logs">LOG</button>
-        <button id="btn-settings" class="icon-btn" title="Configuracoes">CFG</button>
+        <button id="btn-errors" class="icon-btn" title="Ver logs">Erros</button>
+        <button id="btn-settings" class="icon-btn" title="Configuracoes">Ajustes</button>
       </div>
     </div>
     <div class="tabs">
@@ -34,10 +34,10 @@ export function buildPanelMarkup() {
           <div class="chat-hero-top">
             <div>
               <div class="chat-hero-title">Assistente operacional</div>
-              <div class="chat-hero-sub">Memoria local, contexto de pagina, tasks auditaveis e automacoes em um fluxo unico.</div>
+              <div class="chat-hero-sub">Conversa, contexto real da guia, memoria local e execucao auditavel num fluxo unico e discreto.</div>
             </div>
             <div class="chat-hero-badges">
-              <span class="hero-pill">Navegador</span>
+              <span class="hero-pill">Workspace</span>
               <span class="hero-pill">Ai-Tasks</span>
               <span class="hero-pill">Memoria</span>
             </div>
@@ -45,6 +45,14 @@ export function buildPanelMarkup() {
           <div id="memory-strip" class="memory-strip hidden">
             <span id="memory-strip-badge" class="memory-badge">Memoria local</span>
             <span id="memory-strip-text" class="memory-strip-text"></span>
+          </div>
+          <div id="skill-strip" class="memory-strip hidden">
+            <span id="skill-strip-badge" class="memory-badge">Skills</span>
+            <span id="skill-strip-text" class="memory-strip-text"></span>
+          </div>
+          <div id="project-strip" class="memory-strip hidden">
+            <span id="project-strip-badge" class="memory-badge">Projeto</span>
+            <span id="project-strip-text" class="memory-strip-text"></span>
           </div>
           <div id="asset-group-strip" class="asset-group-strip hidden">
             <div class="asset-group-strip-main">
@@ -91,19 +99,19 @@ export function buildPanelMarkup() {
       <div class="input-area">
         <div class="actions-row">
           <div class="action-group">
-            <button id="btn-agent-tab" class="act-btn compact-btn" title="Nova guia do agente">+ Guia</button>
+            <button id="btn-agent-tab" class="act-btn compact-btn" title="Nova guia do agente">Nova guia</button>
             <button id="btn-page-text" class="act-btn">Ler pagina</button>
-            <button id="btn-selection" class="act-btn">Selecao</button>
-            <button id="btn-screenshot" class="act-btn">Tela</button>
+            <button id="btn-selection" class="act-btn">Usar selecao</button>
+            <button id="btn-screenshot" class="act-btn">Capturar tela</button>
             <button id="btn-upload" class="act-btn">Anexar</button>
           </div>
           <div class="action-group action-group-secondary">
             <button id="btn-record" class="act-btn">Gravar</button>
             <button id="btn-replay" class="act-btn ghost-btn">Replay</button>
-            <button id="btn-camera" class="act-btn compact-btn ghost-btn" title="Ativar camera">Cam</button>
-            <button id="btn-voice" class="act-btn compact-btn ghost-btn" title="Audio ligado ou desligado">Som</button>
+            <button id="btn-camera" class="act-btn compact-btn ghost-btn" title="Ativar camera">Camera</button>
+            <button id="btn-voice" class="act-btn compact-btn ghost-btn" title="Audio ligado ou desligado">Audio</button>
             <button id="btn-lang" class="act-btn compact-btn ghost-btn" title="Idioma">PT</button>
-            <button id="btn-mic" class="act-btn compact-btn ghost-btn" title="Falar com o assistente">Mic</button>
+            <button id="btn-mic" class="act-btn compact-btn ghost-btn" title="Falar com o assistente">Voz</button>
           </div>
           <span id="recorder-status" class="inline-status">Parado</span>
         </div>
@@ -111,6 +119,10 @@ export function buildPanelMarkup() {
           <div class="textarea-wrap"><textarea id="msg-input" placeholder="Escreva a meta, pergunta ou instrucao..."></textarea></div>
           <button id="btn-cancel-edit" class="btn-list-action ghost-btn" type="button" style="display:none">Cancelar</button>
           <button id="btn-send" class="btn-send">Enviar</button>
+        </div>
+        <div class="composer-meta">
+          <span id="composer-mode" class="composer-mode">Mensagem direta</span>
+          <span id="composer-hint" class="composer-hint">Enter envia · Shift+Enter quebra linha</span>
         </div>
         <input id="file-input" type="file" multiple />
       </div>

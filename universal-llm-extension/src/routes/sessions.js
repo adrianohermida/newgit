@@ -193,7 +193,21 @@ function createSessionsRouter() {
     const session = safeRead(filePath);
     if (!session) return res.status(404).json({ ok: false, error: "Sessao nao encontrada." });
     const title = String(req.body?.title || "").trim();
-    session.metadata = { ...(session.metadata || {}), tabTitle: title || session.metadata?.tabTitle || session.id };
+    const activeSkillNames = Array.isArray(req.body?.activeSkillNames)
+      ? req.body.activeSkillNames.map((item) => String(item || "").trim()).filter(Boolean)
+      : undefined;
+    const rawProject = req.body?.project && typeof req.body.project === "object" ? req.body.project : undefined;
+    const project = rawProject ? {
+      name: String(rawProject.name || "").trim(),
+      code: String(rawProject.code || "").trim().toUpperCase().slice(0, 12),
+      color: String(rawProject.color || "").trim(),
+    } : undefined;
+    session.metadata = {
+      ...(session.metadata || {}),
+      tabTitle: title || session.metadata?.tabTitle || session.id,
+      ...(activeSkillNames ? { activeSkillNames } : {}),
+      ...(project !== undefined ? { project: project.name ? project : null } : {}),
+    };
     session.updatedAt = ts();
     safeWrite(filePath, session);
     return res.json({ ok: true, session });

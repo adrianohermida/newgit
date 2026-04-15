@@ -1,6 +1,6 @@
 import { buildPanelMarkup } from "./panel/template.js";
 import { state } from "./panel/state.js";
-import { collectElements, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip, updateWorkspaceStrip } from "./panel/dom.js";
+import { collectElements, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProjectStrip, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip, updateSkillStrip, updateWorkspaceStrip } from "./panel/dom.js";
 import { bindChat, enqueueOutgoingMessage } from "./panel/chat.js";
 import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, refreshWorkspaceContext, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks, syncSession } from "./panel/lists.js";
@@ -100,6 +100,8 @@ async function bootstrapBridge(el) {
   fillSettingsInputs(el);
   updateProviderBadge(el);
   updateMemoryStrip(el, state.localMemoryMeta);
+  updateSkillStrip(el, state.sessionSkillNames);
+  updateProjectStrip(el, state.sessionProject);
   updateActiveAssetGroup(el, state.activeAssetGroup);
   updateWorkspaceStrip(el, state.workspaceTabs, state.activeWorkspaceTabId);
   await refreshWorkspaceContext(el).catch(() => {});
