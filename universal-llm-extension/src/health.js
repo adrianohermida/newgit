@@ -42,7 +42,7 @@ function buildHealthPayload() {
   return {
     ok: true,
     service: "universal-llm-extension",
-    version: "0.5.9",
+    version: "0.5.11",
     port: PORT,
     providers: {
       local: {

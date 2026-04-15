@@ -17,16 +17,28 @@ const SETTINGS_PATH = path.join(DATA_DIR, "settings.json");
 
 loadLocalEnvFiles();
 
+function uniqueUrls(values) {
+  return values
+    .map((item) => cleanUrl(item))
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
 const ENV_AICORE_CANDIDATES = [
   process.env.AICORE_API_BASE_URL,
   "http://127.0.0.1:8000",
 ].filter(Boolean);
 
-const LOCAL_RUNTIME_CANDIDATES = [
+const LOCAL_RUNTIME_CANDIDATES = uniqueUrls([
   process.env.LOCAL_LLM_BASE_URL,
   process.env.LLM_BASE_URL,
+  process.env.AICORE_LOCAL_LLM_BASE_URL,
+  process.env.AETHERLAB_LOCAL_RUNTIME_URL,
+  process.env.AETHERLAB_LOCAL_BASE_URL,
+  "http://127.0.0.1:1234",
   "http://127.0.0.1:11434",
-].filter(Boolean);
+  "http://127.0.0.1:8001",
+]);
 
 const DEFAULT_SETTINGS = {
   local: {

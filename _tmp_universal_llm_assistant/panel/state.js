@@ -32,6 +32,7 @@ export const state = {
   errorLog: [],
   localMemoryMeta: null,
   localModelCatalog: [],
+  localModelSources: [],
   localSkillCatalog: [],
   sessionSkillNames: [],
   sessionProject: null,

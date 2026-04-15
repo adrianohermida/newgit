@@ -190,6 +190,7 @@ export async function loadLocalModelCatalog(el) {
     const response = await safeFetch(`${BRIDGE_URL}/settings/local-models`, {}, 8000);
     const data = await parseJsonResponse(response);
     state.localModelCatalog = Array.isArray(data.models) ? data.models : [];
+    state.localModelSources = Array.isArray(data.sources) ? data.sources : [];
     fillSettingsInputs(el);
     if (state.localModelCatalog.length) {
       const configured = String(state.settings.runtimeModel || "").trim();
@@ -205,7 +206,18 @@ export async function loadLocalModelCatalog(el) {
         el.localModelsResult.textContent = `${state.localModelCatalog.length} modelos locais`;
         el.localModelsResult.style.color = "#16a34a";
       }
-      if (el.localModelsDetail) el.localModelsDetail.textContent = `Catalogo: ${data.catalogUrl || "desconhecido"} | Ativo: ${state.settings.runtimeModel}`;
+      if (el.localModelsDetail) {
+        const activeSources = state.localModelSources
+          .filter((item) => item?.ok && Number(item?.count || 0) > 0)
+          .slice(0, 3)
+          .map((item) => `${item.source || item.parser}: ${item.url}`)
+          .join(" | ");
+        el.localModelsDetail.textContent = [
+          `Catalogo: ${data.catalogUrl || "desconhecido"}`,
+          `Ativo: ${state.settings.runtimeModel}`,
+          activeSources ? `Origens: ${activeSources}` : "",
+        ].filter(Boolean).join(" | ");
+      }
       return data;
     }
     if (el.localModelsResult) {
@@ -219,6 +231,7 @@ export async function loadLocalModelCatalog(el) {
       el.localModelsResult.textContent = "Falha ao listar modelos";
       el.localModelsResult.style.color = "#dc2626";
     }
+    state.localModelSources = [];
     if (el.localModelsDetail) el.localModelsDetail.textContent = error.message || "Falha ao consultar o runtime local.";
     throw error;
   }

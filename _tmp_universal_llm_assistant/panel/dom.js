@@ -182,6 +182,21 @@ export function addMediaPreview(el, title, dataUrl, caption = "") {
   el.chatArea.scrollTop = el.chatArea.scrollHeight;
 }
 
+export function addContextPreview(el, title, rows = []) {
+  el.chatArea.querySelector(".empty-state")?.remove();
+  const safeRows = Array.isArray(rows) ? rows.filter(Boolean).slice(0, 5) : [];
+  const wrap = document.createElement("div");
+  wrap.className = "message system preview-row";
+  wrap.innerHTML = `
+    <div class="message-bubble media-preview context-preview">
+      <div class="media-preview-title">${escHtml(title)}</div>
+      ${safeRows.map((row) => `<div class="media-preview-caption">${escHtml(row)}</div>`).join("")}
+    </div>
+  `;
+  el.chatArea.appendChild(wrap);
+  el.chatArea.scrollTop = el.chatArea.scrollHeight;
+}
+
 export function addProgressMessage(el, title, detail = "") {
   el.chatArea.querySelector(".empty-state")?.remove();
   const wrap = document.createElement("div");

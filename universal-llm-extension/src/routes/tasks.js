@@ -419,7 +419,7 @@ async function autoDispatchTasks(commandQueue, session, tasks, tabId) {
     const existing = session.tasks.find((item) => item.id === task.id);
     if (!existing) session.tasks.push(task);
   }
-  await dispatchSessionReadySteps(commandQueue, session, tabId);
+  return dispatchSessionReadySteps(commandQueue, session, tabId);
 }
 
 async function dispatchNextTaskStep(commandQueue, session, task, tabId) {
@@ -504,7 +504,7 @@ function createTasksRouter(commandQueue) {
         });
       }
 
-      await autoDispatchTasks(commandQueue, session, aiTasks, tabId ? String(tabId) : "");
+      const dispatches = await autoDispatchTasks(commandQueue, session, aiTasks, tabId ? String(tabId) : "");
       saveTaskSession(session);
 
       const orchestration = {
@@ -530,6 +530,7 @@ function createTasksRouter(commandQueue) {
         shouldCreateTask: shouldCreateTask(query),
         result,
         tasks: aiTasks,
+        dispatches,
         orchestration,
       });
     } catch (error) {
@@ -548,6 +549,7 @@ function createTasksRouter(commandQueue) {
       const approved = Boolean(req.body?.approved);
       const tabId = req.body?.tabId ? String(req.body.tabId) : "";
       let dispatch = null;
+      let additionalDispatches = [];
       updateTask(session, req.params.taskId, (task) => markApprovalDecision(task, approved));
       if (approved) {
         const task = (session.tasks || []).find((item) => item.id === req.params.taskId);
@@ -559,7 +561,7 @@ function createTasksRouter(commandQueue) {
           stampStepTabContext(step, targetTabId, session?.metadata?.browserTabs || []);
           dispatch = await dispatchApprovedStep({ commandQueue, tabId: targetTabId, task, step });
           normalizeTask(task);
-          await dispatchSessionReadySteps(commandQueue, session, targetTabId || tabId || session.metadata?.activeTabId || "");
+          additionalDispatches = await dispatchSessionReadySteps(commandQueue, session, targetTabId || tabId || session.metadata?.activeTabId || "");
           saveTaskSession(session);
         } catch (error) {
           step.status = "error";
@@ -571,7 +573,7 @@ function createTasksRouter(commandQueue) {
       } else {
         saveTaskSession(session);
       }
-      res.json({ ok: true, tasks: session.tasks, dispatch });
+      res.json({ ok: true, tasks: session.tasks, dispatch, additionalDispatches });
     } catch (error) {
       res.status(500).json({ ok: false, error: error?.message || "Falha ao aplicar aprovacao." });
     }

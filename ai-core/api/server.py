@@ -1160,6 +1160,67 @@ def _provider_runtime_diagnostics(config: CompatibleProviderConfig) -> dict[str,
     return diagnostics
 
 
+def _discover_runtime_models(
+    config: CompatibleProviderConfig,
+    headers: dict[str, str] | None = None,
+    timeout: float = 2.5,
+) -> list[str]:
+    discovered: list[str] = []
+    if not config.base_url:
+        return discovered
+
+    openai_endpoint = _join_url(config.base_url, '/v1/models')
+    if openai_endpoint:
+        try:
+            payload = _json_get_request(openai_endpoint, headers=headers, timeout=timeout)
+            for item in payload.get('data') or []:
+                if isinstance(item, dict):
+                    model_id = _get_clean(item.get('id'))
+                    if model_id:
+                        discovered.append(model_id)
+        except RuntimeError:
+            pass
+
+    ollama_endpoint = _join_url(config.base_url, '/api/tags')
+    if ollama_endpoint:
+        try:
+            payload = _json_get_request(ollama_endpoint, timeout=timeout)
+            for item in payload.get('models') or []:
+                if isinstance(item, dict):
+                    model_id = _get_clean(item.get('name'))
+                    if model_id:
+                        discovered.append(model_id)
+        except RuntimeError:
+            pass
+
+    unique_models: list[str] = []
+    for model_id in discovered:
+        if model_id not in unique_models:
+            unique_models.append(model_id)
+    return unique_models
+
+
+def _pick_local_runtime_model(requested_model: str | None, available_models: list[str]) -> str | None:
+    normalized_requested = _get_clean(requested_model)
+    if not available_models:
+        return normalized_requested
+    if not normalized_requested:
+        return available_models[0]
+
+    requested_base = normalized_requested.split(':', 1)[0].lower()
+    for candidate in available_models:
+        if candidate.lower() == normalized_requested.lower():
+            return candidate
+    for candidate in available_models:
+        if candidate.split(':', 1)[0].lower() == requested_base:
+            return candidate
+    for candidate in available_models:
+        candidate_lower = candidate.lower()
+        if requested_base in candidate_lower or candidate_lower.split(':', 1)[0] in requested_base:
+            return candidate
+    return available_models[0]
+
+
 def _extract_text_from_blocks(blocks: Any) -> str:
     if isinstance(blocks, str):
         return blocks
@@ -1261,6 +1322,9 @@ def _invoke_compatible_provider(
         and transport.mode in {'openai_chat_completions', 'ollama_chat'}
     )
     effective_model = transport_default_model if should_prefer_transport_model else requested_model
+    if config.provider_id == 'local':
+        available_models = _discover_runtime_models(config, headers=headers, timeout=2.5)
+        effective_model = _pick_local_runtime_model(effective_model, available_models) or effective_model
 
     if transport.mode == 'anthropic_messages':
         response = _json_request(

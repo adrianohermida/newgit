@@ -103,6 +103,13 @@ function normalizeLoopbackUrl(value, fallback) {
   return normalized.replace(/^http:\/\/localhost:3000$/i, "http://127.0.0.1:3000");
 }
 
+function uniqueUrls(values) {
+  return values
+    .map((item) => cleanUrl(item))
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
 function normalizeSettings(raw) {
   const merged = mergeSettings(DEFAULT_SETTINGS, raw || {});
   return {
@@ -142,12 +149,11 @@ function saveSettings(settings) {
 
 function getConfigs() {
   const settings = loadSettings();
-  const localCandidates = [settings.local.runtimeUrl, ...ENV_AICORE_CANDIDATES]
-    .filter(Boolean)
-    .filter((value, index, list) => cleanUrl(value) && list.findIndex((item) => cleanUrl(item) === cleanUrl(value)) === index);
-  const runtimeCatalogCandidates = LOCAL_RUNTIME_CANDIDATES
-    .filter(Boolean)
-    .filter((value, index, list) => cleanUrl(value) && list.findIndex((item) => cleanUrl(item) === cleanUrl(value)) === index);
+  const localCandidates = uniqueUrls([settings.local.runtimeUrl, ...ENV_AICORE_CANDIDATES]);
+  const runtimeCatalogCandidates = uniqueUrls([
+    ...LOCAL_RUNTIME_CANDIDATES,
+    settings.local.runtimeUrl,
+  ]);
   return {
     settings,
     local: {

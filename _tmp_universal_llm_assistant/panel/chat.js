@@ -125,8 +125,13 @@ async function sendTaskMessage(el, text, addSystemMessage, renderTasks) {
   if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
   const tabs = await collectWorkspaceTabs().catch(() => []);
   const result = await runTask(state.sessionId, text, { tabId: tab?.id ? String(tab.id) : "", tabs });
+  await startReplayForDispatches(result.dispatches);
   state.sessionId = result.sessionId || state.sessionId;
   if (Array.isArray(result.tasks) && result.tasks.length) await renderTasks(el);
+  const dispatchTabs = [...new Set((Array.isArray(result.dispatches) ? result.dispatches : []).filter((item) => item?.mode === "queued" && item?.tabId).map((item) => String(item.tabId)))];
+  if (dispatchTabs.length) {
+    addSystemMessage(el, `Task enviada para ${dispatchTabs.length} guia(s): ${dispatchTabs.join(" | ")}`);
+  }
   if (result.tasks?.some((task) => task.status === "awaiting_approval")) {
     addSystemMessage(el, "Uma ou mais Tasks ficaram aguardando sua aprovacao.");
   }
@@ -140,18 +145,33 @@ function isTaskIntent(text) {
 
 function buildTaskReply(text, result) {
   const tasks = Array.isArray(result.tasks) ? result.tasks : [];
+  const dispatches = Array.isArray(result.dispatches) ? result.dispatches : [];
   const primary = tasks[0];
   const title = primary?.title || primary?.goal || text;
   const status = primary?.status || "pending";
   const progress = Number(primary?.progressPct || 0);
   const totalSteps = Array.isArray(primary?.steps) ? primary.steps.length : 0;
   const waiting = tasks.filter((task) => task.status === "awaiting_approval").length;
+  const queued = dispatches.filter((item) => item?.mode === "queued").length;
+  const immediate = dispatches.filter((item) => item?.mode === "immediate").length;
   const summary = result.result?.message || result.result?.content || "";
   const suffix = summary ? `\n\n${summary}` : "";
   return {
-    content: `Plano iniciado: ${title}\nStatus: ${status}\nProgresso: ${progress}%\nTasks criadas: ${tasks.length || 1}\nPassos no fluxo principal: ${totalSteps || 1}${waiting ? `\nAguardando aprovacao: ${waiting}` : ""}${suffix}`,
+    content: `Plano iniciado: ${title}\nStatus: ${status}\nProgresso: ${progress}%\nTasks criadas: ${tasks.length || 1}\nPassos no fluxo principal: ${totalSteps || 1}${queued ? `\nEtapas enviadas ao navegador: ${queued}` : ""}${immediate ? `\nEtapas concluidas localmente: ${immediate}` : ""}${waiting ? `\nAguardando aprovacao: ${waiting}` : ""}${suffix}`,
     metadata: null,
   };
+}
+
+async function startReplayForDispatches(dispatches = []) {
+  const queued = (Array.isArray(dispatches) ? dispatches : [])
+    .filter((item) => item?.mode === "queued" && item?.tabId)
+    .map((item) => String(item.tabId));
+  const uniqueTabIds = [...new Set(queued)];
+  await Promise.all(uniqueTabIds.map(async (tabId) => {
+    try {
+      await chrome.tabs.sendMessage(Number(tabId), { type: "START_REPLAY", tabId });
+    } catch {}
+  }));
 }
 
 function setLoading(el, value, userText = "") {

@@ -142,6 +142,7 @@ button,input,textarea,select{font:inherit}
 .preview-row,.progress-row{justify-content:flex-start}
 .media-preview,.upload-progress-card{padding:8px 10px;border:1px solid var(--border);background:var(--surface);border-radius:14px}
 .media-preview{max-width:240px}
+.context-preview{max-width:320px}
 .upload-progress-card{min-width:220px;max-width:260px}
 .media-preview-title{font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px}
 .media-preview-image{display:block;width:100%;border-radius:10px;border:1px solid var(--border)}

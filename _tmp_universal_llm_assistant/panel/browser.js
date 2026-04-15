@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { fetchJson } from "./bridge.js";
 import { pushErrorLog } from "./error-log.js";
-import { addMediaPreview, addProgressMessage, finishProgressMessage, updateActiveAssetGroup, updateProgressMessage, updateWorkspaceStrip } from "./dom.js";
+import { addContextPreview, addMediaPreview, addProgressMessage, finishProgressMessage, updateActiveAssetGroup, updateProgressMessage, updateWorkspaceStrip } from "./dom.js";
 import { syncSession } from "./lists.js";
 
 export async function collectWorkspaceTabs() {
@@ -43,6 +43,16 @@ export async function refreshWorkspaceContext(el) {
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error("Nenhuma aba ativa disponivel.");
+  return tab;
+}
+
+async function resolveOperationalTab(actionLabel) {
+  let tab = await getActiveTab();
+  if (isRestrictedUrl(tab.url)) {
+    const fallbackTab = await getWorkspaceOperationalTab();
+    if (fallbackTab?.id) tab = fallbackTab;
+  }
+  guardSupportedTab(tab, actionLabel);
   return tab;
 }
 
@@ -147,6 +157,23 @@ function buildPageScanPrompt(page, tab) {
   ].filter(Boolean).join("\n");
 }
 
+function buildVisualFallbackPrompt(page, tab) {
+  return [
+    `[Snapshot estrutural da interface]`,
+    `Pagina: ${page?.title || tab?.title || "sem titulo"}`,
+    `URL: ${page?.url || tab?.url || ""}`,
+    Array.isArray(page?.buttons) && page.buttons.length
+      ? `Acoes visiveis: ${page.buttons.map((item) => item?.text || item?.label || item?.ariaLabel || item?.selector).filter(Boolean).slice(0, 12).join(" | ")}`
+      : "",
+    Array.isArray(page?.fields) && page.fields.length
+      ? `Campos visiveis: ${page.fields.map((item) => item?.label || item?.placeholder || item?.name || item?.selector).filter(Boolean).slice(0, 12).join(" | ")}`
+      : "",
+    Array.isArray(page?.headings) && page.headings.length ? `Titulos: ${page.headings.slice(0, 8).join(" | ")}` : "",
+    "",
+    "A captura visual falhou, mas este snapshot estrutural foi lido da pagina ativa. Analise a interface atual, diga o que ela contem e proponha o proximo passo operacional.",
+  ].filter(Boolean).join("\n");
+}
+
 async function captureVisibleTabWithFallback(tab) {
   const attempts = [
     () => chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }),
@@ -158,6 +185,9 @@ async function captureVisibleTabWithFallback(tab) {
       const result = await attempt();
       if (result) return result;
     } catch (error) {
+      if (/activeTab/i.test(String(error?.message || ""))) {
+        throw new Error("A captura visual exige clique direto na extensao e uma aba web comum focada. Tente novamente com a pagina operacional em primeiro plano.");
+      }
       lastError = error;
     }
   }
@@ -188,6 +218,11 @@ export async function openAgentTab(el, addSystemMessage) {
 
 export async function injectPageText(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks) {
   try {
+    const operationalTab = await resolveOperationalTab("ler a pagina atual");
+    const activeTab = await getActiveTab().catch(() => null);
+    if (String(operationalTab?.id || "") !== String(activeTab?.id || "")) {
+      addSystemMessage(el, `Lendo a aba operacional salva: ${operationalTab.title || operationalTab.url || operationalTab.id}`);
+    }
     const { tab, result } = await askContentScript("GET_PAGE_SCAN");
     const page = result?.scan || (await runInTab(() => {
       const headings = Array.from(document.querySelectorAll("h1,h2,h3")).slice(0, 10).map((item) => item.textContent?.trim()).filter(Boolean);
@@ -212,6 +247,13 @@ export async function injectPageText(el, addSystemMessage, enqueueOutgoingMessag
         tabTitle: page.title || tab.title || "",
       },
     });
+    addContextPreview(el, "Leitura da pagina", [
+      page.title || tab.title || "Pagina ativa",
+      page.url || tab.url || "",
+      `${Array.isArray(page?.headings) ? page.headings.length : 0} titulos visiveis`,
+      `${Array.isArray(page?.buttons) ? page.buttons.length : 0} acoes detectadas`,
+      `${Array.isArray(page?.fields) ? page.fields.length : 0} campos detectados`,
+    ]);
     addSystemMessage(el, `Pagina lida: ${buildPageScanSummary(page, tab)}`);
     enqueueOutgoingMessage(
       el,
@@ -235,10 +277,19 @@ export async function injectPageText(el, addSystemMessage, enqueueOutgoingMessag
 
 export async function injectSelection(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks) {
   try {
+    const operationalTab = await resolveOperationalTab("usar a selecao atual");
+    const activeTab = await getActiveTab().catch(() => null);
+    if (String(operationalTab?.id || "") !== String(activeTab?.id || "")) {
+      addSystemMessage(el, `Usando a aba operacional salva para ler a selecao: ${operationalTab.title || operationalTab.url || operationalTab.id}`);
+    }
     const fromContent = await askContentScript("GET_SELECTED_TEXT");
     const selected = String(fromContent.result?.text || "").trim() || String((await runInTab(() => window.getSelection()?.toString() || "")).result || "").trim();
     if (!selected) return addSystemMessage(el, "Nenhum texto selecionado.");
     const clipped = selected.slice(0, 1800);
+    addContextPreview(el, "Selecao capturada", [
+      fromContent.tab?.title || operationalTab.title || "Trecho selecionado",
+      clipped.slice(0, 220),
+    ]);
     addSystemMessage(el, `Selecao capturada: ${clipped.slice(0, 120)}${clipped.length > 120 ? "..." : ""}`);
     enqueueOutgoingMessage(
       el,
@@ -317,6 +368,31 @@ export async function takeScreenshot(el, addSystemMessage, enqueueOutgoingMessag
     return { tab, dataUrl };
   } catch (error) {
     const activeTab = await getActiveTab().catch(() => null);
+    if (/captura visual exige clique direto|activeTab/i.test(String(error?.message || ""))) {
+      try {
+        const { tab, result } = await askContentScript("GET_PAGE_SCAN");
+        const page = result?.scan || {};
+        addContextPreview(el, "Snapshot da interface", [
+          page.title || tab?.title || "Pagina ativa",
+          page.url || tab?.url || "",
+          `${Array.isArray(page?.buttons) ? page.buttons.length : 0} acoes visiveis`,
+          `${Array.isArray(page?.fields) ? page.fields.length : 0} campos visiveis`,
+        ]);
+        addSystemMessage(el, "A captura visual falhou, entao usei um snapshot estrutural da interface.");
+        enqueueOutgoingMessage(
+          el,
+          {
+            text: buildVisualFallbackPrompt(page, tab),
+            visibleText: "Analise a interface atual com base no snapshot estrutural da pagina.",
+            skipAssetGroup: true,
+          },
+          addMessage,
+          addSystemMessage,
+          renderTasks,
+        );
+        return { tab, dataUrl: null, fallback: "page_scan" };
+      } catch {}
+    }
     pushErrorLog({
       scope: "browser.screenshot",
       title: "Falha ao capturar screenshot",

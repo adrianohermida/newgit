@@ -66,7 +66,19 @@ export async function renderTasks(el) {
     const data = await fetchJson(`/sessions/${state.sessionId}/tasks`);
     const tasks = data.tasks || [];
     if (!tasks.length) {
-      el.paneTasks.innerHTML = renderEmpty("Tasks", "Nenhuma AI-Task nesta sessao.");
+      el.paneTasks.innerHTML = `
+        <div class="view-toolbar">
+          <div class="view-title-wrap">
+            <div class="view-title">Tasks</div>
+            <div class="view-subtitle">Execucao viva do agente com passos, aprovacoes e resultado auditavel.</div>
+          </div>
+          <div class="view-actions">
+            <button class="btn-list-action" type="button" data-open-task-lab>Abrir Task Lab</button>
+          </div>
+        </div>
+        <div class="empty-state"><div class="empty-sub">Nenhuma AI-Task nesta sessao.</div></div>
+      `;
+      bindTaskApproval(el);
       return;
     }
     el.paneTasks.innerHTML = `
@@ -74,6 +86,9 @@ export async function renderTasks(el) {
         <div class="view-title-wrap">
           <div class="view-title">Tasks</div>
           <div class="view-subtitle">Execucao viva do agente com passos, aprovacoes e resultado auditavel.</div>
+        </div>
+        <div class="view-actions">
+          <button class="btn-list-action" type="button" data-open-task-lab>Abrir Task Lab</button>
         </div>
       </div>
       ${renderWorkspaceSummary(state.workspaceTabs, state.activeWorkspaceTabId)}
@@ -438,6 +453,7 @@ function renderTaskCard(task) {
     parallelGroup,
     dependsOn,
   ].filter(Boolean);
+  const auditPills = summarizeTaskAudit(task);
   return `
     <article class="list-card section-card">
       <div class="card-title-row" style="margin-bottom:4px">
@@ -449,6 +465,7 @@ function renderTaskCard(task) {
         <span class="meta-pill">${pct}% concluido</span>
         <span class="meta-pill">${completedSteps}/${(task.steps || []).length} passos</span>
       </div>
+      ${auditPills.length ? `<div class="meta-pill-row">${auditPills.map((item) => `<span class="meta-pill subtle">${escHtml(item)}</span>`).join("")}</div>` : ""}
       <div class="task-progress"><span class="task-progress-bar" style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
       ${currentStep ? `<div class="list-item-meta card-highlight">Step atual: ${escHtml(currentStep.description || currentStep.action?.type || currentStep.id)}</div>` : ""}
       ${orchestrationMeta.length ? `<div class="meta-pill-row">${orchestrationMeta.map((item) => `<span class="meta-pill subtle">${escHtml(item)}</span>`).join("")}</div>` : ""}
@@ -502,6 +519,7 @@ function renderStepDetails(task, logs) {
     const meta = [
       step.action?.type ? `acao ${step.action.type}` : "",
       step.action?.tabTitle || step.action?.tabId ? `aba ${step.action?.tabTitle || step.action?.tabId}` : "",
+      step.approval?.target ? `alvo ${step.approval.target}` : "",
       describeStepReason(step),
     ].filter(Boolean);
     const output = step.output ? `<div class="task-step-output">${escHtml(formatStepOutput(step.output))}</div>` : "";
@@ -528,6 +546,9 @@ function renderStepDetails(task, logs) {
 }
 
 function bindTaskApproval(el) {
+  el.paneTasks.querySelectorAll("[data-open-task-lab]").forEach((btn) => btn.addEventListener("click", () => {
+    window.open(`${BRIDGE_URL}/demo/task-lab`, "_blank");
+  }));
   el.paneTasks.querySelectorAll("[data-approve-task]").forEach((btn) => btn.addEventListener("click", async () => {
     await updateTaskApproval(btn.dataset.approveTask, true);
     await renderTasks(el);
@@ -536,6 +557,20 @@ function bindTaskApproval(el) {
     await updateTaskApproval(btn.dataset.denyTask, false);
     await renderTasks(el);
   }));
+}
+
+function summarizeTaskAudit(task) {
+  const steps = Array.isArray(task?.steps) ? task.steps : [];
+  const awaiting = steps.filter((step) => step.status === "awaiting_approval").length;
+  const running = steps.filter((step) => step.status === "running").length;
+  const failed = steps.filter((step) => step.status === "error").length;
+  const browserActions = steps.filter((step) => ["click", "input", "navigate", "extract", "change", "submit", "key"].includes(String(step?.action?.type || ""))).length;
+  return [
+    browserActions ? `${browserActions} acoes de navegador` : "",
+    running ? `${running} em execucao` : "",
+    awaiting ? `${awaiting} aguardando aprovacao` : "",
+    failed ? `${failed} falhas` : "",
+  ].filter(Boolean);
 }
 
 async function updateTaskApproval(taskId, approved) {
@@ -552,11 +587,24 @@ async function updateTaskApproval(taskId, approved) {
     [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   }
   if (approved && tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
-  await fetchJson(`/sessions/${state.sessionId}/tasks/${taskId}/approval`, {
+  const response = await fetchJson(`/sessions/${state.sessionId}/tasks/${taskId}/approval`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ approved, tabId: tab?.id ? String(tab.id) : "" }),
   });
+  await startReplayForTaskDispatches([response.dispatch, ...(Array.isArray(response.additionalDispatches) ? response.additionalDispatches : [])]);
+}
+
+async function startReplayForTaskDispatches(dispatches = []) {
+  const queued = (Array.isArray(dispatches) ? dispatches : [])
+    .filter((item) => item?.mode === "queued" && item?.tabId)
+    .map((item) => String(item.tabId));
+  const uniqueTabIds = [...new Set(queued)];
+  await Promise.all(uniqueTabIds.map(async (tabId) => {
+    try {
+      await chrome.tabs.sendMessage(Number(tabId), { type: "START_REPLAY", tabId });
+    } catch {}
+  }));
 }
 
 function renderEmpty(title, text) {

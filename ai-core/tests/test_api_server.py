@@ -185,7 +185,7 @@ class ApiServerTests(unittest.TestCase):
             )
 
         self.assertEqual(payload['metadata']['performance_profile'], 'low_resource')
-        self.assertEqual(payload['metadata']['effective_max_tokens'], 160)
+        self.assertEqual(payload['metadata']['effective_max_tokens'], 96)
         self.assertEqual(payload['metadata']['history_messages_used'], 3)
 
     def test_messages_json_enriches_local_chat_with_session_memory_and_hybrid_rag(self) -> None:
@@ -352,6 +352,38 @@ class ApiServerTests(unittest.TestCase):
                     },
                     env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
                 )
+
+    def test_messages_json_prefers_runtime_catalog_model_when_local_alias_is_unavailable(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.return_value = {
+                'id': 'chatcmpl_local',
+                'model': 'llama3.1:latest',
+                'choices': [
+                    {
+                        'message': {
+                            'role': 'assistant',
+                            'content': 'Resposta do runtime real',
+                        }
+                    }
+                ],
+            }
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': [{'id': 'llama3.1:latest'}],
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Ol\u00e1 local'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+            )
+
+        self.assertEqual(payload['metadata']['provider'], 'local')
+        self.assertEqual(payload['metadata']['effective_model'], 'llama3.1:latest')
+        self.assertEqual(payload['metadata']['resolved_model'], 'llama3.1:latest')
+        self.assertEqual(payload['content'][0]['text'], 'Resposta do runtime real')
 
     def test_messages_json_routes_to_cloud_provider_when_requested(self) -> None:
         with patch('api.server._json_request') as mocked_request:

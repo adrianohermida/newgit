@@ -3,6 +3,12 @@ const { jsonPost, probeJsonEndpoint, probeJsonGetEndpoint } = require("./http-cl
 const { joinUrl, extractContent, buildProviderError } = require("./utils");
 const { describeAttempt } = require("./provider-diagnostics");
 const { buildProxyTargets, callProxyProvider } = require("./provider-proxy");
+const { appendChatDebug } = require("./chat-debug");
+
+const LOCAL_RUNTIME_CATALOG_CACHE = {
+  expiresAt: 0,
+  value: null,
+};
 
 function isConnectionError(error) {
   const raw = String(error?.message || "").toLowerCase();
@@ -39,9 +45,35 @@ function parseCatalogProbe(probe, parser) {
     : [];
 }
 
+async function discoverAiCoreRuntimeCatalogs(aiCoreCandidates) {
+  const targets = [];
+  const seen = new Set();
+  for (const baseUrl of aiCoreCandidates || []) {
+    const healthUrl = joinUrl(baseUrl, "/health");
+    try {
+      const probe = await probeJsonGetEndpoint(healthUrl, {}, { timeoutMs: 5000 });
+      const transportEndpoint = String(probe?.body?.providers?.local?.diagnostics?.transport_endpoint || "").trim();
+      for (const target of getRuntimeCatalogUrls(transportEndpoint)) {
+        if (!target?.url || seen.has(target.url)) continue;
+        seen.add(target.url);
+        targets.push(target);
+      }
+    } catch {}
+  }
+  return targets;
+}
+
 async function readLocalRuntimeCatalog(configs) {
+  if (LOCAL_RUNTIME_CATALOG_CACHE.value && Date.now() < LOCAL_RUNTIME_CATALOG_CACHE.expiresAt) {
+    return LOCAL_RUNTIME_CATALOG_CACHE.value;
+  }
   const seen = new Set();
   const urls = [];
+  for (const target of await discoverAiCoreRuntimeCatalogs(configs.local.candidates)) {
+    if (!target?.url || seen.has(target.url)) continue;
+    seen.add(target.url);
+    urls.push(target);
+  }
   for (const baseUrl of configs.local.runtimeCatalogCandidates || []) {
     for (const target of getRuntimeCatalogUrls(baseUrl)) {
       if (!target?.url || seen.has(target.url)) continue;
@@ -54,11 +86,17 @@ async function readLocalRuntimeCatalog(configs) {
       const probe = await probeJsonGetEndpoint(target.url, {}, { timeoutMs: 5000 });
       const models = parseCatalogProbe(probe, target.parser);
       if (probe.ok && Array.isArray(models) && models.length) {
-        return { url: target.url, models };
+        const result = { url: target.url, models };
+        LOCAL_RUNTIME_CATALOG_CACHE.value = result;
+        LOCAL_RUNTIME_CATALOG_CACHE.expiresAt = Date.now() + 30000;
+        return result;
       }
     } catch {}
   }
-  return { url: "", models: [] };
+  const fallback = { url: "", models: [] };
+  LOCAL_RUNTIME_CATALOG_CACHE.value = fallback;
+  LOCAL_RUNTIME_CATALOG_CACHE.expiresAt = Date.now() + 10000;
+  return fallback;
 }
 
 async function resolveRequestedLocalModel(requestedModel, configs) {
@@ -80,14 +118,40 @@ async function resolveRequestedLocalModel(requestedModel, configs) {
 
 async function callLocal(messages, model, options = {}) {
   const configs = getConfigs();
+  const startedAt = Date.now();
+  appendChatDebug({
+    scope: "chat.local.start",
+    sessionId: options.sessionId || null,
+    requestedModel: model || null,
+    messageCount: Array.isArray(messages) ? messages.length : 0,
+  });
   const resolvedModelInfo = await resolveRequestedLocalModel(model, configs);
   const effectiveModel = resolvedModelInfo.model || model;
+  appendChatDebug({
+    scope: "chat.local.catalog",
+    sessionId: options.sessionId || null,
+    requestedModel: model || null,
+    effectiveModel,
+    runtimeCatalogUrl: resolvedModelInfo.catalogUrl || null,
+    runtimeCatalogCount: Array.isArray(resolvedModelInfo.catalog) ? resolvedModelInfo.catalog.length : 0,
+    elapsedMs: Date.now() - startedAt,
+  });
   let lastError = null;
   for (const baseUrl of configs.local.candidates) {
     const target = joinUrl(baseUrl, "/v1/messages");
     const attempts = buildLocalAttempts(messages, options);
     for (let index = 0; index < attempts.length; index += 1) {
       const attempt = attempts[index];
+      const attemptStartedAt = Date.now();
+      appendChatDebug({
+        scope: "chat.local.attempt",
+        sessionId: options.sessionId || null,
+        target,
+        profile: attempt.profile,
+        maxTokens: attempt.maxTokens,
+        timeoutMs: attempt.timeoutMs,
+        messageCount: Array.isArray(attempt.messages) ? attempt.messages.length : 0,
+      });
       try {
         const response = await jsonPost(
           target,
@@ -107,6 +171,15 @@ async function callLocal(messages, model, options = {}) {
           ? sanitizeLocalFallbackContent(extractContent(response.body), attempt.messages)
           : extractContent(response.body);
         if (response.status >= 200 && response.status < 300 && content) {
+          appendChatDebug({
+            scope: "chat.local.success",
+            sessionId: options.sessionId || null,
+            target,
+            profile: attempt.profile,
+            status: response.status,
+            elapsedMs: Date.now() - attemptStartedAt,
+            totalElapsedMs: Date.now() - startedAt,
+          });
           return {
             ok: true,
             provider: "local",
@@ -130,9 +203,26 @@ async function callLocal(messages, model, options = {}) {
         lastError.target = target;
         lastError.responseStatus = response.status;
         lastError.responseBody = response.body;
+        appendChatDebug({
+          scope: "chat.local.invalid-response",
+          sessionId: options.sessionId || null,
+          target,
+          profile: attempt.profile,
+          status: response.status,
+          elapsedMs: Date.now() - attemptStartedAt,
+          message: lastError.message,
+        });
         if (!isConnectionError(lastError)) break;
       } catch (error) {
         lastError = error;
+        appendChatDebug({
+          scope: "chat.local.exception",
+          sessionId: options.sessionId || null,
+          target,
+          profile: attempt.profile,
+          elapsedMs: Date.now() - attemptStartedAt,
+          message: error?.message || "Falha ao chamar ai-core local.",
+        });
         if (!isConnectionError(error)) break;
       }
     }
@@ -143,13 +233,22 @@ async function callLocal(messages, model, options = {}) {
 
 function buildLocalAttempts(messages, options = {}) {
   const primaryContext = options.context || null;
+  const compactMessages = trimLocalMessages(messages);
+  const compactTail = compactMessages.slice(-2);
   return [
     {
       profile: "fast_primary",
-      messages: trimLocalMessages(messages),
+      messages: compactMessages,
       maxTokens: 80,
-      timeoutMs: 50000,
+      timeoutMs: 18000,
       context: { ...(primaryContext || {}), retry_profile: "fast_primary", compact_context: true },
+    },
+    {
+      profile: "fast_fallback_minimal",
+      messages: compactTail.length ? compactTail : compactMessages,
+      maxTokens: 64,
+      timeoutMs: 12000,
+      context: { retry_profile: "fast_fallback_minimal", compact_context: true, local_summary_only: true },
     },
   ];
 }
@@ -327,13 +426,16 @@ async function diagnose(provider) {
   const attempts = [];
   for (const test of tests) {
     try {
-      const timeoutMs = provider === "local" ? 20000 : 8000;
-      attempts.push(describeAttempt(
+      const timeoutMs = provider === "local" ? 8000 : 8000;
+      const described = describeAttempt(
         await probeJsonEndpoint(test.url, test.body, test.headers || {}, { timeoutMs }),
         test.hint,
-      ));
+      );
+      attempts.push(described);
+      if (described.ok) break;
     } catch (error) {
-      attempts.push(describeAttempt({ ok: false, url: test.url, error: error?.message || "Falha de conexao." }, test.hint));
+      const described = describeAttempt({ ok: false, url: test.url, error: error?.message || "Falha de conexao." }, test.hint);
+      attempts.push(described);
     }
   }
 

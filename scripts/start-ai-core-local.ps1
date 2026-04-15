@@ -53,6 +53,62 @@ function Resolve-ExistingPath([string[]]$Candidates) {
   return ""
 }
 
+function Test-JsonProbe([string]$Uri, [string]$Method = "GET", [hashtable]$Headers = @{}, [string]$Body = "") {
+  try {
+    $params = @{
+      Uri = $Uri
+      Method = $Method
+      Headers = $Headers
+      TimeoutSec = 4
+      UseBasicParsing = $true
+    }
+    if ($Body) {
+      $params.ContentType = "application/json"
+      $params.Body = $Body
+    }
+    $response = Invoke-WebRequest @params
+    if (-not $response.Content) { return $false }
+    $null = $response.Content | ConvertFrom-Json
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Resolve-LocalRuntimeBaseUrl([string[]]$Candidates, [string]$Model) {
+  $probeBody = (@{
+    model = $Model
+    max_tokens = 8
+    stream = $false
+    messages = @(
+      @{
+        role = "user"
+        content = @(
+          @{
+            type = "text"
+            text = "ok"
+          }
+        )
+      }
+    )
+  } | ConvertTo-Json -Depth 8)
+  $probeHeaders = @{ "x-llm-version" = "2023-06-01" }
+  foreach ($candidate in $Candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    $base = $candidate.Trim().TrimEnd("/")
+    if (Test-JsonProbe -Uri "$base/v1/messages" -Method "POST" -Headers $probeHeaders -Body $probeBody) {
+      return $base
+    }
+    if (Test-JsonProbe -Uri "$base/v1/models" -Method "GET") {
+      return $base
+    }
+    if (Test-JsonProbe -Uri "$base/api/tags" -Method "GET") {
+      return $base
+    }
+  }
+  return ""
+}
+
 Import-LocalEnvFile (Join-Path $root ".local.supabase.env")
 Import-LocalEnvFile (Join-Path $root ".env.offline-local")
 Import-LocalEnvFile (Join-Path $root ".dev.vars")
@@ -86,7 +142,8 @@ $resolvedLocalLlmBaseUrl = First-Value @(
   $env:AICORE_LOCAL_LLM_BASE_URL,
   $env:LOCAL_LLM_BASE_URL,
   $env:LLM_BASE_URL,
-  "http://127.0.0.1:11434"
+  $env:AETHERLAB_LOCAL_RUNTIME_URL,
+  $env:AETHERLAB_LOCAL_BASE_URL
 )
 $resolvedLocalLlmModel = First-Value @(
   $LocalLlmModel,
@@ -95,6 +152,19 @@ $resolvedLocalLlmModel = First-Value @(
   $env:LLM_MODEL,
   "aetherlab-legal-local-v1"
 )
+
+if ([string]::IsNullOrWhiteSpace($resolvedLocalLlmBaseUrl)) {
+  $resolvedLocalLlmBaseUrl = Resolve-LocalRuntimeBaseUrl @(
+    "http://127.0.0.1:1234",
+    "http://127.0.0.1:11434",
+    "http://127.0.0.1:8001",
+    "http://127.0.0.1:8010"
+  ) $resolvedLocalLlmModel
+}
+
+if ([string]::IsNullOrWhiteSpace($resolvedLocalLlmBaseUrl)) {
+  $resolvedLocalLlmBaseUrl = "http://127.0.0.1:11434"
+}
 
 $env:AICORE_API_BASE_URL = $resolvedAiCoreBaseUrl
 $env:AICORE_LOCAL_LLM_BASE_URL = $resolvedLocalLlmBaseUrl

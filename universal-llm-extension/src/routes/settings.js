@@ -17,6 +17,50 @@ function parseCatalogProbe(body, parser) {
     : [];
 }
 
+function uniqueStrings(values) {
+  return values.filter(Boolean).filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function getRuntimeCatalogUrls(runtimeEndpoint) {
+  const endpoint = String(runtimeEndpoint || "").trim();
+  if (!endpoint) return [];
+  const base = endpoint.replace(/\/v1\/chat\/completions$/i, "");
+  return [
+    { url: joinUrl(base, "/v1/models"), parser: "openai" },
+    { url: joinUrl(base, "/api/tags"), parser: "ollama" },
+  ];
+}
+
+async function discoverAiCoreRuntimeCatalogs(configs) {
+  const targets = [];
+  const seen = new Set();
+  for (const baseUrl of configs.local.candidates || []) {
+    try {
+      const probe = await probeJsonGetEndpoint(joinUrl(baseUrl, "/health"), {}, { timeoutMs: 5000 });
+      const transportEndpoint = String(probe?.body?.providers?.local?.diagnostics?.transport_endpoint || "").trim();
+      for (const target of getRuntimeCatalogUrls(transportEndpoint)) {
+        if (!target?.url || seen.has(target.url)) continue;
+        seen.add(target.url);
+        targets.push(target);
+      }
+    } catch {}
+  }
+  return targets;
+}
+
+function buildWindowsLocalRuntimeCandidates(configs) {
+  const defaults = [
+    "http://127.0.0.1:11434",
+    "http://127.0.0.1:1234",
+    "http://127.0.0.1:8001",
+    "http://127.0.0.1:8080",
+  ];
+  return uniqueStrings([...(configs.local.runtimeCatalogCandidates || []), ...defaults]).flatMap((baseUrl) => ([
+    { url: joinUrl(baseUrl, "/v1/models"), parser: "openai", source: `runtime:${baseUrl}` },
+    { url: joinUrl(baseUrl, "/api/tags"), parser: "ollama", source: `runtime:${baseUrl}` },
+  ]));
+}
+
 function createSettingsRouter() {
   const router = express.Router();
 
@@ -32,37 +76,65 @@ function createSettingsRouter() {
 
   router.get("/settings/local-models", async (_req, res) => {
     const configs = getConfigs();
-    const candidates = (configs.local.runtimeCatalogCandidates || []).flatMap((baseUrl) => ([
-      { url: joinUrl(baseUrl, "/v1/models"), parser: "openai" },
-      { url: joinUrl(baseUrl, "/api/tags"), parser: "ollama" },
-    ]));
+    const healthTargets = await discoverAiCoreRuntimeCatalogs(configs);
+    const candidates = [
+      ...healthTargets.map((item) => ({ ...item, source: "ai-core-health" })),
+      ...buildWindowsLocalRuntimeCandidates(configs),
+    ];
     const seen = new Set();
     const attempts = [];
+    const sources = [];
+    const allModels = [];
     for (const candidate of candidates) {
       if (!candidate?.url || seen.has(candidate.url)) continue;
       seen.add(candidate.url);
       try {
         const probe = await probeJsonGetEndpoint(candidate.url, {}, { timeoutMs: 5000 });
         const models = parseCatalogProbe(probe.body, candidate.parser);
+        const sourceInfo = {
+          url: candidate.url,
+          parser: candidate.parser,
+          source: candidate.source || "runtime",
+          ok: probe.ok,
+          count: models.length,
+          models,
+        };
         attempts.push({ url: candidate.url, ok: probe.ok, count: models.length });
+        sources.push(sourceInfo);
         if (probe.ok && models.length) {
-          return res.json({
-            ok: true,
-            configuredModel: configs.local.model,
-            models,
-            catalogUrl: candidate.url,
-            attempts,
-          });
+          allModels.push(...models);
         }
       } catch (error) {
-        attempts.push({ url: candidate.url, ok: false, error: error?.message || "Falha ao consultar catalogo." });
+        const sourceInfo = {
+          url: candidate.url,
+          parser: candidate.parser,
+          source: candidate.source || "runtime",
+          ok: false,
+          count: 0,
+          models: [],
+          error: error?.message || "Falha ao consultar catalogo.",
+        };
+        attempts.push({ url: candidate.url, ok: false, error: sourceInfo.error });
+        sources.push(sourceInfo);
       }
+    }
+    if (allModels.length) {
+      const models = uniqueStrings(allModels);
+      return res.json({
+        ok: true,
+        configuredModel: configs.local.model,
+        models,
+        catalogUrl: sources.find((item) => item.ok && item.count > 0)?.url || "",
+        attempts,
+        sources,
+      });
     }
     return res.json({
       ok: false,
       configuredModel: configs.local.model,
       models: [],
       attempts,
+      sources,
       error: "Nenhum catalogo local de modelos respondeu com sucesso.",
     });
   });
