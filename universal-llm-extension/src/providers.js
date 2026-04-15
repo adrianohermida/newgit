@@ -104,7 +104,7 @@ async function callLocal(messages, model, options = {}) {
         );
         const degraded = Boolean(response.body?.metadata?.degraded);
         const content = degraded
-          ? sanitizeLocalFallbackContent(extractContent(response.body))
+          ? sanitizeLocalFallbackContent(extractContent(response.body), attempt.messages)
           : extractContent(response.body);
         if (response.status >= 200 && response.status < 300 && content) {
           return {
@@ -162,12 +162,29 @@ function trimLocalMessages(messages) {
   return tail.length ? tail : safeMessages.slice(-1);
 }
 
-function sanitizeLocalFallbackContent(content) {
+function sanitizeLocalFallbackContent(content, messages = []) {
   const text = String(content || "").trim();
-  if (!text) return text;
-  const [head] = text.split(/\n\s*Contexto local recuperado:/i);
-  const cleaned = head.trim();
-  return `${cleaned}\n\nResumo: usei memoria local de apoio, mas nao vou despejar trechos crus aqui. Posso seguir com uma resposta curta, perguntas objetivas ou um proximo passo operacional.`.trim();
+  const lastUserMessage = [...(Array.isArray(messages) ? messages : [])]
+    .reverse()
+    .find((item) => item?.role === "user" && String(item?.content || "").trim());
+  const userIntent = String(lastUserMessage?.content || "").replace(/\s+/g, " ").trim();
+  const shortIntent = userIntent.length > 160 ? `${userIntent.slice(0, 160)}...` : userIntent;
+  const cleanedHead = text
+    ? String(text.split(/\n\s*Contexto local recuperado:/i)[0] || "").trim()
+    : "";
+
+  if (!cleanedHead || /provider local nao ficou operacional|modo degradado|contexto local recuperado/i.test(cleanedHead)) {
+    return [
+      "Estou respondendo em modo local seguro enquanto o runtime principal estabiliza.",
+      shortIntent ? `Entendi seu pedido: ${shortIntent}` : "",
+      "Posso continuar de forma objetiva com o contexto recente disponivel e, se for uma acao no navegador, transformar isso em task auditavel.",
+    ].filter(Boolean).join("\n\n");
+  }
+
+  return [
+    cleanedHead,
+    "Usei memoria local de apoio nesta resposta, mas o diagnostico tecnico ficou fora da conversa para manter a experiencia limpa.",
+  ].join("\n\n").trim();
 }
 
 async function callCloud(messages, model) {
