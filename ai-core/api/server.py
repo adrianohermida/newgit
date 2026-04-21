@@ -179,6 +179,16 @@ class ProviderTransportProbe:
 
 _TRANSPORT_PROBE_CACHE: dict[tuple[str, str, str], tuple[float, ProviderTransportProbe]] = {}
 _TRANSPORT_PROBE_TTL_SECONDS = 45.0
+_PROVIDER_DEBUG_LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', '.runtime-logs', 'ai-core-provider.log')
+
+
+def _append_provider_debug(event: str, payload: dict[str, Any]) -> None:
+    try:
+        os.makedirs(os.path.dirname(_PROVIDER_DEBUG_LOG_PATH), exist_ok=True)
+        with open(_PROVIDER_DEBUG_LOG_PATH, 'a', encoding='utf-8') as fh:
+            fh.write(json.dumps({'at': time.time(), 'event': event, **payload}, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
 
 
 def _is_offline_mode(env: Mapping[str, Any]) -> bool:
@@ -1212,7 +1222,7 @@ def _pick_local_runtime_model(requested_model: str | None, available_models: lis
         if candidate.lower() == normalized_requested.lower():
             return candidate
     if normalized_requested.lower() == _DEFAULT_LOCAL_MODEL.lower():
-        for preferred in ('qwen3.5:4b', 'qwen3:4b', 'llama3.2:latest', 'qwen3:8b', 'qwen3.5:cloud'):
+        for preferred in ('qwen3.5:cloud', 'qwen3.5:4b', 'qwen3:4b', 'llama3.2:latest', 'qwen3:8b'):
             for candidate in available_models:
                 if candidate.lower() == preferred:
                     return candidate
@@ -1235,12 +1245,12 @@ def _pick_local_runtime_model(requested_model: str | None, available_models: lis
 
 
 def _pick_local_low_resource_model(current_model: str | None, available_models: list[str]) -> str | None:
-    normalized_current = _get_clean(current_model).lower()
+    normalized_current = (_get_clean(current_model) or '').lower()
     priorities = [
+        'qwen3.5:cloud',
         'qwen3.5:4b',
         'qwen3:4b',
         'qwen3:8b',
-        'qwen3.5:cloud',
         'llama3.2:latest',
         'llama3.1:latest',
         'llama2:latest',
@@ -1406,6 +1416,16 @@ def _invoke_compatible_provider(
                 {'role': 'user', 'content': text},
             ],
         }
+        _append_provider_debug(
+            'provider.openai_chat.start',
+            {
+                'requested_model': requested_model,
+                'effective_model': effective_model,
+                'transport_default_model': transport_default_model,
+                'transport_endpoint': transport.endpoint,
+                'available_models': available_models if config.provider_id == 'local' else [],
+            },
+        )
         try:
             response = _json_request(
                 transport.endpoint,
@@ -1414,12 +1434,26 @@ def _invoke_compatible_provider(
                 timeout=request_timeout,
             )
         except RuntimeError as exc:
+            _append_provider_debug(
+                'provider.openai_chat.error',
+                {
+                    'model': request_payload.get('model'),
+                    'error': str(exc),
+                },
+            )
             if not (config.provider_id == 'local' and _is_provider_memory_error(exc)):
                 raise
             last_exc = exc
             response = None
             for fallback_model in _iter_local_runtime_fallback_models(effective_model, available_models):
                 request_payload['model'] = fallback_model
+                _append_provider_debug(
+                    'provider.openai_chat.retry',
+                    {
+                        'fallback_model': fallback_model,
+                        'previous_error': str(last_exc),
+                    },
+                )
                 try:
                     response = _json_request(
                         transport.endpoint,
@@ -1428,9 +1462,22 @@ def _invoke_compatible_provider(
                         timeout=request_timeout,
                     )
                     effective_model = fallback_model
+                    _append_provider_debug(
+                        'provider.openai_chat.retry_success',
+                        {
+                            'effective_model': effective_model,
+                        },
+                    )
                     break
                 except RuntimeError as retry_exc:
                     last_exc = retry_exc
+                    _append_provider_debug(
+                        'provider.openai_chat.retry_error',
+                        {
+                            'fallback_model': fallback_model,
+                            'error': str(retry_exc),
+                        },
+                    )
                     if not _is_provider_memory_error(retry_exc):
                         raise
             if response is None:
