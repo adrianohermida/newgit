@@ -13,18 +13,18 @@ function SyncBadge({ isLightTheme, remoteSyncSummary }) {
 export default function FocusedConversationHeader({ activeConversation, activeMode, activeProjectLabel, handleQuickAction, isLightTheme, messages, remoteSyncSummary, visibleLegalActions }) {
   const totalAttachments = (remoteSyncSummary?.remoteAttachmentCount || 0) + (remoteSyncSummary?.pendingAttachmentCount || 0);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 max-w-2xl">
         <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#2F7A62]" : "text-[#7FC4AF]"}`}>Conversa ativa</p>
-        <p className={`mt-2 truncate text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
-        <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+        <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
+        <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Fluxo centralizado, leitura limpa e contexto persistido no Cloudflare para retomar a thread sem friccao.</p>
+        <div className={`mt-3 flex flex-wrap items-center gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
           <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D8E0E8] bg-white text-[#51606B]" : "border-[#24312D] text-[#D8DEDA]"}`}>{activeProjectLabel}</span>
           <SyncBadge isLightTheme={isLightTheme} remoteSyncSummary={remoteSyncSummary} />
           {totalAttachments ? <span>R2 {remoteSyncSummary.remoteAttachmentCount}/{totalAttachments}</span> : null}
           <span>{messages.length} mensagens</span>
           <span>modo {activeMode.label}</span>
         </div>
-        <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Continue do ultimo trecho com contexto preservado e foco no fluxo principal.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {visibleLegalActions.slice(0, 3).map((action) => (

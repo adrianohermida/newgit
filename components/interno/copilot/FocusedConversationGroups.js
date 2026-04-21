@@ -2,7 +2,7 @@ import { useState } from "react";
 
 function GroupCard({ activeConversationId, collapsed, group, isLightTheme, onConcatConversation, onSelectConversation, onToggle, renderConversationMenu }) {
   return (
-    <section key={group.key} className={`rounded-[22px] border px-2 pb-3 pt-2 transition-colors duration-200 ${isLightTheme ? "border-[#E3E8EF] bg-[rgba(255,255,255,0.58)]" : "border-[#17211E] bg-[rgba(255,255,255,0.015)]"}`}>
+    <section key={group.key} className={`rounded-[22px] border px-2 pb-3 pt-2 transition-colors duration-200 ${isLightTheme ? "border-[#E3E8EF] bg-[rgba(255,255,255,0.7)]" : "border-[#17211E] bg-[rgba(255,255,255,0.015)]"}`}>
       <div className="flex items-center justify-between gap-2 px-2 py-2">
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
           <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{group.label}</p>
@@ -29,7 +29,10 @@ function GroupCard({ activeConversationId, collapsed, group, isLightTheme, onCon
                 <button type="button" onClick={() => onSelectConversation(conversation)} className="min-w-0 flex-1 text-left transition-transform duration-200 active:scale-[0.995]">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className={`truncate text-sm font-semibold transition-colors duration-200 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex h-2.5 w-2.5 rounded-full ${active ? "bg-[#C5A059]" : isLightTheme ? "bg-[#CBD5E1]" : "bg-[#35554B]"}`} />
+                        <p className={`truncate text-sm font-semibold transition-colors duration-200 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
+                      </div>
                       <p className={`mt-1 line-clamp-2 text-xs leading-5 transition-colors duration-200 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{conversation.preview}</p>
                     </div>
                     <div className="shrink-0 text-right">

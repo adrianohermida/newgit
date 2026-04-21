@@ -1,12 +1,17 @@
 import DotobotMessageBubble from "./DotobotMessageBubble";
 import DotobotConversationCenterHeader from "./DotobotConversationCenterHeader";
 import DotobotConversationComposer from "./DotobotConversationComposer";
+import ConversationStarterCards from "./ConversationStarterCards";
 
-function EmptyState({ isLightTheme }) {
+function EmptyState({ isLightTheme, onSelectPrompt }) {
   return (
-    <div className={`rounded-[20px] border border-dashed p-5 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-      <p className={`text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para conversar.</p>
-      <p className="mt-2 leading-6">Escreva um pedido, continue um contexto existente ou delegue uma acao para o AI Task.</p>
+    <div className="space-y-4">
+      <div className={`rounded-[24px] border p-5 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F7F9FC)] text-[#6B7C88]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(17,22,20,0.98),rgba(10,13,12,0.96))] text-[#9BAEA8]"}`}>
+        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#C5A059]"}`}>Conversa principal</p>
+        <p className={`mt-3 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para conversar.</p>
+        <p className="mt-2 leading-6">Escreva um pedido, continue um contexto existente ou delegue uma acao para o AI Task com o contexto do workspace carregado.</p>
+      </div>
+      <ConversationStarterCards isLightTheme={isLightTheme} onSelectPrompt={onSelectPrompt} />
     </div>
   );
 }
@@ -42,7 +47,7 @@ export default function DotobotStandardConversationCenter(props) {
               onOpenAiTask={handleOpenMessageInAiTask}
               onAction={handleMessageAction}
             />
-          )) : <EmptyState isLightTheme={isLightTheme} />}
+          )) : <EmptyState isLightTheme={isLightTheme} onSelectPrompt={props.onChangeInput} />}
           {loading ? <DotobotMessageBubble message={{ role: "assistant", text: "", createdAt: null }} isTyping={true} isLightTheme={isLightTheme} /> : null}
           {localInferenceAlert && !messages.length ? <LocalInferenceAlert alert={localInferenceAlert} handleLocalStackAction={handleLocalStackAction} isLightTheme={isLightTheme} /> : null}
           {error ? <div className={`rounded-[24px] border px-4 py-3 text-sm ${isLightTheme ? "border-[#E9B4B4] bg-[#FFF1F1] text-[#B94A48]" : "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"}`}>{error}</div> : null}
