@@ -50,6 +50,8 @@ export function enqueueOutgoingMessage(el, payload, addMessage, addSystemMessage
     visibleText,
     skipAssetGroup: Boolean(payload?.skipAssetGroup),
     kind: payload?.kind || "chat",
+    // preserve extra context (e.g. camera image dataUrl) for bridge forwarding
+    extraContext: (payload?.context && typeof payload.context === "object") ? payload.context : null,
     createdAt: new Date().toISOString(),
   });
   renderQueueState(el, addMessage, addSystemMessage, renderTasks);
@@ -72,7 +74,7 @@ async function pumpQueue(el, addMessage, addSystemMessage, renderTasks) {
   try {
     const reply = isTaskIntent(finalText)
       ? await sendTaskMessage(el, finalText, addSystemMessage, renderTasks)
-      : await sendChatMessage(finalText, (phase, text) => syncRuntimeStrip(el, phase, text));
+      : await sendChatMessage(finalText, (phase, text) => syncRuntimeStrip(el, phase, text), current?.extraContext || null);
     state.messages.push({ role: "assistant", content: reply.content });
     addMessage(el, "assistant", reply.content);
     maybeSpeakAssistantReply(reply.content);
@@ -112,8 +114,8 @@ async function pumpQueue(el, addMessage, addSystemMessage, renderTasks) {
   }
 }
 
-async function sendChatMessage(text, onPhase) {
-  const result = await callChat(state.provider, state.messages, { onPhase });
+async function sendChatMessage(text, onPhase, extraContext = null) {
+  const result = await callChat(state.provider, state.messages, { onPhase, extraContext });
   return {
     content: result.content || "(sem resposta)",
     metadata: result.metadata || null,

@@ -5,6 +5,40 @@ const { mergeSettings, loadSettings, saveSettings } = require("../storage");
 const { getConfigs } = require("../storage");
 const { probeJsonGetEndpoint } = require("../http-client");
 const { joinUrl } = require("../utils");
+const { getLocalProviderLabel } = require("../local-provider");
+
+function redactSecret(value) {
+  return value ? "[configured]" : "";
+}
+
+function sanitizeSettings(settings) {
+  return {
+    local: {
+      providerLabel: settings?.local?.providerLabel || "",
+      runtimeUrl: settings?.local?.runtimeUrl || "",
+      chatPath: settings?.local?.chatPath || "",
+      executePath: settings?.local?.executePath || "",
+      runtimeModel: settings?.local?.runtimeModel || "",
+      alwaysAllowTabAccess: Boolean(settings?.local?.alwaysAllowTabAccess),
+      trustedTabOrigins: Array.isArray(settings?.local?.trustedTabOrigins) ? settings.local.trustedTabOrigins : [],
+      roots: Array.isArray(settings?.local?.roots) ? settings.local.roots : [],
+      skillRoots: Array.isArray(settings?.local?.skillRoots) ? settings.local.skillRoots : [],
+      skills: Array.isArray(settings?.local?.skills) ? settings.local.skills : [],
+      apps: Array.isArray(settings?.local?.apps) ? settings.local.apps : [],
+    },
+    cloud: {
+      appUrl: settings?.cloud?.appUrl || "",
+      baseUrl: settings?.cloud?.baseUrl || "",
+      model: settings?.cloud?.model || "",
+      authToken: redactSecret(settings?.cloud?.authToken),
+    },
+    cloudflare: {
+      model: settings?.cloudflare?.model || "",
+      accountId: redactSecret(settings?.cloudflare?.accountId),
+      apiToken: redactSecret(settings?.cloudflare?.apiToken),
+    },
+  };
+}
 
 function parseCatalogProbe(body, parser) {
   if (parser === "openai") {
@@ -21,6 +55,16 @@ function uniqueStrings(values) {
   return values.filter(Boolean).filter((item, index, list) => list.indexOf(item) === index);
 }
 
+function buildPreferredLocalProfiles(configs, discoveredModels) {
+  const configured = String(configs.local.model || "").trim();
+  const models = Array.isArray(discoveredModels) ? discoveredModels : [];
+  const preferred = [];
+  if (configured) preferred.push(configured);
+  if (!preferred.includes("aetherlab-legal-local-v1")) preferred.push("aetherlab-legal-local-v1");
+  if (models.includes("qwen3.5:cloud")) preferred.push("qwen3.5:cloud");
+  return uniqueStrings(preferred);
+}
+
 function getRuntimeCatalogUrls(runtimeEndpoint) {
   const endpoint = String(runtimeEndpoint || "").trim();
   if (!endpoint) return [];
@@ -31,7 +75,7 @@ function getRuntimeCatalogUrls(runtimeEndpoint) {
   ];
 }
 
-async function discoverAiCoreRuntimeCatalogs(configs) {
+async function discoverLocalProviderRuntimeCatalogs(configs) {
   const targets = [];
   const seen = new Set();
   for (const baseUrl of configs.local.candidates || []) {
@@ -65,20 +109,22 @@ function createSettingsRouter() {
   const router = express.Router();
 
   router.get("/settings", (_req, res) => {
-    res.json({ ok: true, settings: loadSettings() });
+    res.setHeader("X-Settings-Route", "router-safe");
+    res.json({ ok: true, settings: sanitizeSettings(loadSettings()) });
   });
 
   router.post("/settings", (req, res) => {
     const current = loadSettings();
     const settings = saveSettings(mergeSettings(current, req.body?.settings || {}));
-    res.json({ ok: true, settings });
+    res.setHeader("X-Settings-Route", "router-save");
+    res.json({ ok: true, settings: sanitizeSettings(settings) });
   });
 
   router.get("/settings/local-models", async (_req, res) => {
     const configs = getConfigs();
-    const healthTargets = await discoverAiCoreRuntimeCatalogs(configs);
+    const healthTargets = await discoverLocalProviderRuntimeCatalogs(configs);
     const candidates = [
-      ...healthTargets.map((item) => ({ ...item, source: "ai-core-health" })),
+      ...healthTargets.map((item) => ({ ...item, source: "local-provider-health" })),
       ...buildWindowsLocalRuntimeCandidates(configs),
     ];
     const seen = new Set();
@@ -119,9 +165,13 @@ function createSettingsRouter() {
       }
     }
     if (allModels.length) {
-      const models = uniqueStrings(allModels);
+      const models = uniqueStrings([
+        ...buildPreferredLocalProfiles(configs, allModels),
+        ...allModels,
+      ]);
       return res.json({
         ok: true,
+        providerLabel: getLocalProviderLabel(configs),
         configuredModel: configs.local.model,
         models,
         catalogUrl: sources.find((item) => item.ok && item.count > 0)?.url || "",
@@ -131,8 +181,9 @@ function createSettingsRouter() {
     }
     return res.json({
       ok: false,
+      providerLabel: getLocalProviderLabel(configs),
       configuredModel: configs.local.model,
-      models: [],
+      models: buildPreferredLocalProfiles(configs, []),
       attempts,
       sources,
       error: "Nenhum catalogo local de modelos respondeu com sucesso.",

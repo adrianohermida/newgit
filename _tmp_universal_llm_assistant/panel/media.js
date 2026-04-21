@@ -1,10 +1,13 @@
 import { state } from "./state.js";
 import { fetchJson } from "./bridge.js";
+import { addMediaPreview } from "./dom.js";
 
 let recognition = null;
 let cameraStream = null;
 
-export function bindMediaControls(el, addSystemMessage, sendMessage) {
+// sendMessage: () => void (triggers btn-send click for voice STT)
+// enqueueOutgoingMessage: function(el, opts, addMsg, addSys, renderTasks) — for camera frame context
+export function bindMediaControls(el, addSystemMessage, sendMessage, enqueueOutgoingMessage, addMessage, renderTasks) {
   el.btnVoice?.addEventListener("click", () => {
     state.speakResponses = !state.speakResponses;
     syncMediaButtons(el);
@@ -46,14 +49,42 @@ export function bindMediaControls(el, addSystemMessage, sendMessage) {
   el.btnCaptureCamera?.addEventListener("click", async () => {
     try {
       const dataUrl = captureCameraFrame(el);
-      await fetchJson("/upload", {
+      const ts = Date.now();
+      const fileName = `camera-${ts}.png`;
+      const data = await fetchJson("/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataUrl, fileName: `camera-${Date.now()}.png`, mimeType: "image/png", sessionId: state.sessionId }),
+        body: JSON.stringify({ dataUrl, fileName, mimeType: "image/png", sessionId: state.sessionId }),
       }, 15000);
-      el.msgInput.value = "[Frame da camera capturado]\n\nAnalise esta imagem capturada pela camera e descreva os elementos visuais relevantes para a tarefa atual.";
-      el.msgInput.focus();
+      addMediaPreview(el, "Frame da camera capturado", dataUrl, "image/png");
       addSystemMessage(el, "Frame da camera enviado ao bridge.");
+      const promptText = [
+        `[Frame da camera capturado]`,
+        `Asset: ${data?.id || fileName}`,
+        `Timestamp: ${new Date(ts).toLocaleTimeString("pt-BR")}`,
+        "",
+        "Analise esta imagem capturada pela camera. Descreva os elementos visuais relevantes e sugira as proximas acoes operacionais com base no que e visivel.",
+      ].join("\n");
+      if (enqueueOutgoingMessage) {
+        // store the dataUrl so bridge context picks it up
+        state.pendingCameraFrame = dataUrl;
+        enqueueOutgoingMessage(
+          el,
+          {
+            text: promptText,
+            visibleText: "Analise o frame da camera que acabei de capturar.",
+            context: { image: dataUrl, cameraFrameId: data?.id || fileName },
+            skipAssetGroup: false,
+          },
+          addMessage,
+          addSystemMessage,
+          renderTasks,
+        );
+        state.pendingCameraFrame = null;
+      } else {
+        el.msgInput.value = promptText;
+        el.msgInput.focus();
+      }
     } catch (error) {
       addSystemMessage(el, `Falha ao capturar frame da camera: ${error.message}`);
     }

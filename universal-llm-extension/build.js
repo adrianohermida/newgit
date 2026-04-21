@@ -1,67 +1,60 @@
 /**
- * build.js — Empacota a extensão Chrome/Edge em um .zip instalável.
- * Usa apenas Node.js built-ins (fs, path, zlib, crypto) — sem dependências extras.
+ * build.js - Empacota a extensao Chrome/Edge em um .zip instalavel.
+ * Usa apenas Node.js built-ins (fs, path, zlib).
  *
- * Execução: node build.js
- * Saída:    dist/universal-llm-assistant-v{versão}.zip
+ * Execucao: node build.js
+ * Saida:    dist/universal-llm-assistant-v{versao}.zip
  */
 
-const fs     = require("fs");
-const path   = require("path");
-const zlib   = require("zlib");
-const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+const zlib = require("zlib");
+const { getExtensionSourceDir } = require("./extension-paths");
 
-const EXT_DIR  = path.resolve(__dirname, "../_tmp_universal_llm_assistant");
+const EXT_DIR = getExtensionSourceDir();
 const DIST_DIR = path.resolve(__dirname, "dist");
 
-// Arquivos incluídos no pacote
-const INCLUDE_FILES = [
+const ROOT_FILES = [
   "manifest.json",
   "bg.js",
   "panel.html",
   "panel.js",
-  "panel/bridge.js",
-  "panel/browser.js",
-  "panel/chat.js",
-  "panel/dom.js",
-  "panel/error-log.js",
-  "panel/media.js",
-  "panel/lists.js",
-  "panel/panel.css",
-  "panel/settings.js",
-  "panel/state.js",
-  "panel/template.js",
-  "panel/utils.js",
   "content.js",
-  "content/shared.js",
-  "content/recording.js",
-  "content/replay.js",
-  "icons/icon-16.png",
-  "icons/icon-48.png",
-  "icons/icon-128.png",
 ];
 
-// ─── Mini implementação de ZIP (PKWARE .zip format) ──────────────────────────
-// Suporte: deflate + stored. Suficiente para extensões Chrome/Edge.
+const RECURSIVE_DIRS = [
+  "panel",
+  "content",
+  "icons",
+];
 
 const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
     let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c;
   }
-  return t;
+  return table;
 })();
 
 function crc32(buf, initial = 0xffffffff) {
   let c = initial;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  for (let i = 0; i < buf.length; i += 1) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function u16LE(n) { const b = Buffer.alloc(2); b.writeUInt16LE(n, 0); return b; }
-function u32LE(n) { const b = Buffer.alloc(4); b.writeUInt32LE(n >>> 0, 0); return b; }
+function u16LE(n) {
+  const b = Buffer.alloc(2);
+  b.writeUInt16LE(n, 0);
+  return b;
+}
+
+function u32LE(n) {
+  const b = Buffer.alloc(4);
+  b.writeUInt32LE(n >>> 0, 0);
+  return b;
+}
 
 function dosDateTime() {
   const d = new Date();
@@ -71,44 +64,24 @@ function dosDateTime() {
 }
 
 function buildZip(entries) {
-  // entries: [{ name, data: Buffer }]
   const localHeaders = [];
   const centralHeaders = [];
   let offset = 0;
 
   for (const entry of entries) {
-    const nameBuf   = Buffer.from(entry.name, "utf8");
-    const data      = entry.data;
-    const crc       = crc32(data);
+    const nameBuf = Buffer.from(entry.name, "utf8");
+    const data = entry.data;
+    const crc = crc32(data);
     const compressed = zlib.deflateRawSync(data, { level: 9 });
     const useDeflate = compressed.length < data.length;
-    const compData   = useDeflate ? compressed : data;
-    const method     = useDeflate ? 8 : 0;
+    const compData = useDeflate ? compressed : data;
+    const method = useDeflate ? 8 : 0;
     const { date, time } = dosDateTime();
 
-    // Local file header
     const local = Buffer.concat([
-      Buffer.from([0x50, 0x4b, 0x03, 0x04]), // signature
-      u16LE(20),           // version needed
-      u16LE(0),            // flags
-      u16LE(method),       // compression
-      u16LE(time),
-      u16LE(date),
-      u32LE(crc),
-      u32LE(compData.length),
-      u32LE(data.length),
-      u16LE(nameBuf.length),
-      u16LE(0),            // extra length
-      nameBuf,
-      compData,
-    ]);
-
-    // Central directory header
-    const central = Buffer.concat([
-      Buffer.from([0x50, 0x4b, 0x01, 0x02]), // signature
-      u16LE(20),           // version made by
-      u16LE(20),           // version needed
-      u16LE(0),            // flags
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+      u16LE(20),
+      u16LE(0),
       u16LE(method),
       u16LE(time),
       u16LE(date),
@@ -116,12 +89,29 @@ function buildZip(entries) {
       u32LE(compData.length),
       u32LE(data.length),
       u16LE(nameBuf.length),
-      u16LE(0),            // extra length
-      u16LE(0),            // comment length
-      u16LE(0),            // disk start
-      u16LE(0),            // int attr
-      u32LE(0),            // ext attr
-      u32LE(offset),       // local header offset
+      u16LE(0),
+      nameBuf,
+      compData,
+    ]);
+
+    const central = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x01, 0x02]),
+      u16LE(20),
+      u16LE(20),
+      u16LE(0),
+      u16LE(method),
+      u16LE(time),
+      u16LE(date),
+      u32LE(crc),
+      u32LE(compData.length),
+      u32LE(data.length),
+      u16LE(nameBuf.length),
+      u16LE(0),
+      u16LE(0),
+      u16LE(0),
+      u16LE(0),
+      u32LE(0),
+      u32LE(offset),
       nameBuf,
     ]);
 
@@ -130,13 +120,12 @@ function buildZip(entries) {
     offset += local.length;
   }
 
-  const centralDir   = Buffer.concat(centralHeaders);
+  const centralDir = Buffer.concat(centralHeaders);
   const centralStart = offset;
-
-  // End of central directory
   const eocd = Buffer.concat([
-    Buffer.from([0x50, 0x4b, 0x05, 0x06]), // signature
-    u16LE(0), u16LE(0),
+    Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+    u16LE(0),
+    u16LE(0),
     u16LE(entries.length),
     u16LE(entries.length),
     u32LE(centralDir.length),
@@ -147,64 +136,25 @@ function buildZip(entries) {
   return Buffer.concat([...localHeaders, centralDir, eocd]);
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-function main() {
-  // 1. Verifica que os ícones existem; se não, tenta gerá-los
-  const iconsDir = path.join(EXT_DIR, "icons");
-  const missingIcons = INCLUDE_FILES
-    .filter(f => f.startsWith("icons/"))
-    .filter(f => !fs.existsSync(path.join(EXT_DIR, f)));
+function collectIncludeFiles() {
+  const output = [];
+  ROOT_FILES.forEach((file) => output.push(file));
+  RECURSIVE_DIRS.forEach((dir) => walkDir(path.join(EXT_DIR, dir), dir, output));
+  return [...new Set(output)].sort((a, b) => a.localeCompare(b));
+}
 
-  if (missingIcons.length > 0) {
-    console.log("Ícones ausentes. Gerando...");
-    try {
-      require("./generate-icons.js");
-    } catch (e) {
-      console.error("Falha ao gerar ícones:", e.message);
-      console.error("Execute: node generate-icons.js");
-      process.exit(1);
+function walkDir(absDir, relDir, output) {
+  if (!fs.existsSync(absDir)) return;
+  const entries = fs.readdirSync(absDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const absPath = path.join(absDir, entry.name);
+    const relPath = path.posix.join(relDir.replace(/\\/g, "/"), entry.name);
+    if (entry.isDirectory()) {
+      walkDir(absPath, relPath, output);
+      continue;
     }
+    output.push(relPath);
   }
-
-  // 2. Lê a versão do manifest
-  const manifestPath = path.join(EXT_DIR, "manifest.json");
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  const version = manifest.version || "0.0.0";
-
-  // 3. Coleta os arquivos
-  const missing = INCLUDE_FILES.filter(f => !fs.existsSync(path.join(EXT_DIR, f)));
-  if (missing.length > 0) {
-    console.error("Arquivos ausentes:", missing.join(", "));
-    process.exit(1);
-  }
-
-  const entries = INCLUDE_FILES.map(f => ({
-    name: f,
-    data: fs.readFileSync(path.join(EXT_DIR, f)),
-  }));
-
-  // 4. Monta o zip
-  const zipBuf = buildZip(entries);
-
-  // 5. Salva
-  if (!fs.existsSync(DIST_DIR)) fs.mkdirSync(DIST_DIR, { recursive: true });
-  const outName = `universal-llm-assistant-v${version}.zip`;
-  const outPath = path.join(DIST_DIR, outName);
-  const unpackedDir = path.join(DIST_DIR, `universal-llm-assistant-v${version}`);
-  fs.writeFileSync(outPath, zipBuf);
-  syncUnpacked(entries, unpackedDir);
-
-  const kb = (zipBuf.length / 1024).toFixed(1);
-  console.log(`\n✓ Extensão empacotada: ${outPath}  (${kb} KB)`);
-  console.log("\nPara instalar no Chrome:");
-  console.log("  1. Extraia o zip em uma pasta");
-  console.log("  2. Abra chrome://extensions");
-  console.log("  3. Ative 'Modo do desenvolvedor'");
-  console.log("  4. Clique em 'Carregar sem compactação' → selecione a pasta extraída");
-  console.log("\nPara instalar no Edge:");
-  console.log("  1. Abra edge://extensions");
-  console.log("  2. Ative 'Modo do desenvolvedor'");
-  console.log("  3. Clique em 'Carregar sem compactação' → selecione a pasta extraída");
 }
 
 function syncUnpacked(entries, outDir) {
@@ -215,6 +165,34 @@ function syncUnpacked(entries, outDir) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, entry.data);
   }
+}
+
+function main() {
+  const includeFiles = collectIncludeFiles();
+  const manifestPath = path.join(EXT_DIR, "manifest.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const version = manifest.version || "0.0.0";
+  const missing = includeFiles.filter((file) => !fs.existsSync(path.join(EXT_DIR, file)));
+  if (missing.length) {
+    console.error("Arquivos ausentes:", missing.join(", "));
+    process.exit(1);
+  }
+
+  const entries = includeFiles.map((file) => ({
+    name: file,
+    data: fs.readFileSync(path.join(EXT_DIR, file)),
+  }));
+
+  const zipBuf = buildZip(entries);
+  if (!fs.existsSync(DIST_DIR)) fs.mkdirSync(DIST_DIR, { recursive: true });
+  const outName = `universal-llm-assistant-v${version}.zip`;
+  const outPath = path.join(DIST_DIR, outName);
+  const unpackedDir = path.join(DIST_DIR, `universal-llm-assistant-v${version}`);
+  fs.writeFileSync(outPath, zipBuf);
+  syncUnpacked(entries, unpackedDir);
+
+  const kb = (zipBuf.length / 1024).toFixed(1);
+  console.log(`\nExtensao empacotada: ${outPath} (${kb} KB)`);
 }
 
 main();

@@ -25,21 +25,26 @@ async function extractUploadedText(filePath, safeName, mimeType) {
   return null;
 }
 
+function findLatestExtensionZip(distDir) {
+  if (!fs.existsSync(distDir)) return null;
+  const candidates = fs.readdirSync(distDir)
+    .filter((file) => /^universal-llm-assistant-v.+\.zip$/i.test(file))
+    .map((file) => {
+      const filePath = path.join(distDir, file);
+      return { file, filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+    })
+    .sort((left, right) => right.mtimeMs - left.mtimeMs || right.file.localeCompare(left.file));
+  return candidates[0]?.filePath || null;
+}
+
 function createAssetsRouter() {
   const router = express.Router();
 
   router.get("/download", (_req, res) => {
     const distDir = path.join(DIR, "dist");
-    let zipPath = null;
-    if (fs.existsSync(distDir)) {
-      const found = fs.readdirSync(distDir).find((f) => f.startsWith("universal-llm-assistant-v") && f.endsWith(".zip"));
-      if (found) zipPath = path.join(distDir, found);
-    }
+    let zipPath = findLatestExtensionZip(distDir);
     if (!zipPath) { try { require(path.join(DIR, "build-all.js")); } catch {} }
-    if (!zipPath) {
-      const retry = fs.existsSync(distDir) ? fs.readdirSync(distDir).find((f) => f.startsWith("universal-llm-assistant-v") && f.endsWith(".zip")) : null;
-      if (retry) zipPath = path.join(distDir, retry);
-    }
+    if (!zipPath) zipPath = findLatestExtensionZip(distDir);
     if (!zipPath || !fs.existsSync(zipPath)) return res.status(404).json({ ok: false, error: "Extensao nao empacotada. Execute: npm run build:extension" });
     const zipName = path.basename(zipPath);
     const stat = fs.statSync(zipPath);

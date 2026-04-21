@@ -516,6 +516,26 @@ function mergeContextItems(existing, nextItem) {
   return items.slice(0, 12);
 }
 
+// Sync recorder UI state with actual content script recording state.
+// Call this on panel open / bridge reconnect to avoid UI desync.
+export async function syncRecorderState(el) {
+  try {
+    const tab = await getActiveTab();
+    if (!tab?.id || isRestrictedUrl(tab.url)) return;
+    const result = await chrome.tabs.sendMessage(tab.id, { type: "GET_RECORDING_STATE" }).catch(() => null);
+    const actuallyRecording = Boolean(result?.isRecording);
+    if (actuallyRecording !== state.isRecording) {
+      state.isRecording = actuallyRecording;
+      if (el.btnRecord) {
+        el.btnRecord.textContent = actuallyRecording ? "Parar" : "Gravar";
+        actuallyRecording ? el.btnRecord.classList.add("recording") : el.btnRecord.classList.remove("recording");
+      }
+      if (el.recorderStatus) el.recorderStatus.textContent = actuallyRecording ? "Gravando" : "Parado";
+      if (actuallyRecording && result?.automationId) state.currentAutomation = result.automationId;
+    }
+  } catch {}
+}
+
 export function bindRecorder(el, addSystemMessage) {
   el.btnRecord.addEventListener("click", async () => {
     try {

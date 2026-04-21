@@ -2,6 +2,8 @@ const fs = require("fs");
 const { PORT, SCREENSHOTS_DIR, UPLOADS_DIR } = require("./config");
 const { getConfigs, loadSettings, listJsonDir } = require("./storage");
 const { SESSIONS_DIR, AUTOMATIONS_DIR } = require("./config");
+const { getLocalChatPath, getLocalExecutePath, getLocalProviderLabel } = require("./local-provider");
+const { getLocalRuntimeBootstrapState } = require("./local-runtime-bootstrap");
 
 function redactSecret(value) {
   return value ? "[configured]" : "";
@@ -10,7 +12,10 @@ function redactSecret(value) {
 function sanitizeSettings(settings) {
   return {
     local: {
+      providerLabel: settings?.local?.providerLabel || "",
       runtimeUrl: settings?.local?.runtimeUrl || "",
+      chatPath: settings?.local?.chatPath || "",
+      executePath: settings?.local?.executePath || "",
       runtimeModel: settings?.local?.runtimeModel || "",
       alwaysAllowTabAccess: Boolean(settings?.local?.alwaysAllowTabAccess),
       trustedTabOrigins: Array.isArray(settings?.local?.trustedTabOrigins) ? settings.local.trustedTabOrigins : [],
@@ -42,13 +47,17 @@ function buildHealthPayload() {
   return {
     ok: true,
     service: "universal-llm-extension",
-    version: "0.5.11",
+    version: "0.5.14",
     port: PORT,
     providers: {
       local: {
         configured: Boolean(configs.local.candidates.length),
+        providerLabel: getLocalProviderLabel(configs),
         candidates: configs.local.candidates,
+        chatPath: getLocalChatPath(configs),
+        executePath: getLocalExecutePath(configs),
         model: configs.local.model,
+        bootstrap: getLocalRuntimeBootstrapState(),
         roots: configs.local.roots,
         apps: configs.local.apps.map((item) => item.name),
         skillRoots: Array.isArray(configs.local.skillRoots) ? configs.local.skillRoots : [],

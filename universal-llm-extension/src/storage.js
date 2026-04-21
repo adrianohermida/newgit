@@ -112,9 +112,16 @@ function uniqueUrls(values) {
 
 function normalizeSettings(raw) {
   const merged = mergeSettings(DEFAULT_SETTINGS, raw || {});
+  const providerLabel = String(merged.local.providerLabel || DEFAULT_SETTINGS.local.providerLabel).trim();
+  const normalizedProviderLabel = providerLabel === "Local Agent Runtime"
+    ? DEFAULT_SETTINGS.local.providerLabel
+    : providerLabel || DEFAULT_SETTINGS.local.providerLabel;
   return {
     local: {
       runtimeUrl: cleanUrl(merged.local.runtimeUrl, DEFAULT_SETTINGS.local.runtimeUrl),
+      chatPath: String(merged.local.chatPath || DEFAULT_SETTINGS.local.chatPath).trim() || DEFAULT_SETTINGS.local.chatPath,
+      executePath: String(merged.local.executePath || DEFAULT_SETTINGS.local.executePath).trim() || DEFAULT_SETTINGS.local.executePath,
+      providerLabel: normalizedProviderLabel,
       runtimeModel: String(merged.local.runtimeModel || DEFAULT_SETTINGS.local.runtimeModel).trim(),
       alwaysAllowTabAccess: Boolean(merged.local.alwaysAllowTabAccess),
       trustedTabOrigins: normalizeStringList(merged.local.trustedTabOrigins),
@@ -159,6 +166,9 @@ function getConfigs() {
     local: {
       candidates: localCandidates,
       runtimeCatalogCandidates,
+      chatPath: settings.local.chatPath,
+      executePath: settings.local.executePath,
+      providerLabel: settings.local.providerLabel,
       model: settings.local.runtimeModel,
       alwaysAllowTabAccess: settings.local.alwaysAllowTabAccess,
       trustedTabOrigins: settings.local.trustedTabOrigins,

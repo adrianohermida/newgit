@@ -14,11 +14,11 @@ function classifyAttempt(attempt, hint) {
   const apiMessage = String(apiErrors[0]?.message || "").toLowerCase();
   const attemptUrl = String(attempt?.url || "");
   if (raw.includes("<!doctype") || raw.includes("<html")) {
-    return {
-      issue: "html_response",
-      summary: "A URL respondeu HTML, provavelmente uma pagina web e nao uma API JSON.",
-      recommendation: "Ajuste para um endpoint de API real. Ex.: ai-core em /v1/messages ou proxy que responda JSON.",
-    };
+      return {
+        issue: "html_response",
+        summary: "A URL respondeu HTML, provavelmente uma pagina web e nao uma API JSON.",
+        recommendation: "Ajuste para um endpoint de API real. Ex.: provider local em /v1/messages ou proxy que responda JSON.",
+      };
   }
   if (raw.includes("error code: 1101")) {
     return {
@@ -77,13 +77,13 @@ function classifyAttempt(attempt, hint) {
     };
   }
   if (detail.includes("model") && detail.includes("not found")) {
-    return {
-      issue: "model_not_found",
-      summary: "O servico respondeu, mas o modelo configurado nao existe neste runtime.",
-      recommendation: attemptUrl.includes(":8000")
-        ? "O ai-core respondeu, mas o runtime local configurado por tras dele nao tem esse modelo carregado. Revise LOCAL_LLM_MODEL e confira o catalogo exposto pelo runtime local informado no health do ai-core."
-        : "Revise o nome do modelo configurado para este provider.",
-    };
+      return {
+        issue: "model_not_found",
+        summary: "O servico respondeu, mas o modelo configurado nao existe neste runtime.",
+        recommendation: attemptUrl.includes(":8000")
+          ? "O provider local respondeu, mas o runtime configurado por tras dele nao tem esse modelo carregado. Revise LOCAL_LLM_MODEL e confira o catalogo exposto pelo runtime local informado no health."
+          : "Revise o nome do modelo configurado para este provider.",
+      };
   }
   if (attempt?.status >= 500) {
     return {

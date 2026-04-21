@@ -467,7 +467,7 @@ def build_cloud_provider_config(env: Mapping[str, Any]) -> CompatibleProviderCon
     max_tokens = _int_env(env, 'CUSTOM_LLM_MAX_TOKENS', 'AICORE_CLOUD_MAX_TOKENS', default=1400)
     return CompatibleProviderConfig(
         provider_id='cloud',
-        label='AetherLab Cloud',
+        label='Ai-Core Cloud',
         base_url=base_url,
         model=model or _DEFAULT_CLOUD_MODEL,
         api_key=api_key,
@@ -861,7 +861,7 @@ def _is_provider_unavailable_error(error: Exception) -> bool:
 def _search_local_rag_matches(query: str) -> list[dict[str, Any]]:
     supabase_context = None
     obsidian_context = None
-    if supabase_rag_is_configured():
+    if supabase_rag_is_configured() and not _is_local_low_resource_mode(os.environ):
         try:
             supabase_context = search_supabase_context(query, top_k=_DEFAULT_LOCAL_RAG_TOP_K)
         except Exception:
@@ -1205,12 +1205,25 @@ def _pick_local_runtime_model(requested_model: str | None, available_models: lis
     if not available_models:
         return normalized_requested
     if not normalized_requested:
-        return available_models[0]
+        return _pick_local_low_resource_model(None, available_models) or available_models[0]
 
     requested_base = normalized_requested.split(':', 1)[0].lower()
     for candidate in available_models:
         if candidate.lower() == normalized_requested.lower():
             return candidate
+    if normalized_requested.lower() == _DEFAULT_LOCAL_MODEL.lower():
+        for preferred in ('qwen3.5:4b', 'qwen3:4b', 'llama3.2:latest', 'qwen3:8b', 'qwen3.5:cloud'):
+            for candidate in available_models:
+                if candidate.lower() == preferred:
+                    return candidate
+    if requested_base == 'qwen3.5':
+        for preferred in ('qwen3.5:4b', 'qwen3.5:latest'):
+            for candidate in available_models:
+                if candidate.lower() == preferred:
+                    return candidate
+        for candidate in available_models:
+            if candidate.lower().startswith('qwen3.5:') and ':cloud' not in candidate.lower():
+                return candidate
     for candidate in available_models:
         if candidate.split(':', 1)[0].lower() == requested_base:
             return candidate
@@ -1219,6 +1232,43 @@ def _pick_local_runtime_model(requested_model: str | None, available_models: lis
         if requested_base in candidate_lower or candidate_lower.split(':', 1)[0] in requested_base:
             return candidate
     return available_models[0]
+
+
+def _pick_local_low_resource_model(current_model: str | None, available_models: list[str]) -> str | None:
+    normalized_current = _get_clean(current_model).lower()
+    priorities = [
+        'qwen3.5:4b',
+        'qwen3:4b',
+        'qwen3:8b',
+        'qwen3.5:cloud',
+        'llama3.2:latest',
+        'llama3.1:latest',
+        'llama2:latest',
+    ]
+    for preferred in priorities:
+        for candidate in available_models:
+            normalized_candidate = _get_clean(candidate).lower()
+            if normalized_candidate == preferred and normalized_candidate != normalized_current:
+                return candidate
+    for candidate in available_models:
+        normalized_candidate = _get_clean(candidate).lower()
+        if normalized_candidate and normalized_candidate != normalized_current and 'gemma4' not in normalized_candidate:
+            return candidate
+    return None
+
+
+def _iter_local_runtime_fallback_models(current_model: str | None, available_models: list[str]) -> list[str]:
+    normalized_current = _get_clean(current_model).lower()
+    ordered: list[str] = []
+    first = _pick_local_low_resource_model(current_model, available_models)
+    if first:
+      ordered.append(first)
+    for candidate in available_models:
+        normalized_candidate = _get_clean(candidate).lower()
+        if not normalized_candidate or normalized_candidate == normalized_current or candidate in ordered:
+            continue
+        ordered.append(candidate)
+    return ordered
 
 
 def _extract_text_from_blocks(blocks: Any) -> str:
@@ -1347,42 +1397,95 @@ def _invoke_compatible_provider(
         response_content = response.get('content')
         response_model = response.get('model') or requested_model
     elif transport.mode == 'openai_chat_completions':
-        response = _json_request(
-            transport.endpoint,
-            {
-                'model': effective_model,
-                'max_tokens': max_tokens,
-                'stream': False,
-                'messages': [
-                    *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
-                    {'role': 'user', 'content': text},
-                ],
-            },
-            headers=headers,
-            timeout=request_timeout,
-        )
+        request_payload = {
+            'model': effective_model,
+            'max_tokens': max_tokens,
+            'stream': False,
+            'messages': [
+                *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
+                {'role': 'user', 'content': text},
+            ],
+        }
+        try:
+            response = _json_request(
+                transport.endpoint,
+                request_payload,
+                headers=headers,
+                timeout=request_timeout,
+            )
+        except RuntimeError as exc:
+            if not (config.provider_id == 'local' and _is_provider_memory_error(exc)):
+                raise
+            last_exc = exc
+            response = None
+            for fallback_model in _iter_local_runtime_fallback_models(effective_model, available_models):
+                request_payload['model'] = fallback_model
+                try:
+                    response = _json_request(
+                        transport.endpoint,
+                        request_payload,
+                        headers=headers,
+                        timeout=request_timeout,
+                    )
+                    effective_model = fallback_model
+                    break
+                except RuntimeError as retry_exc:
+                    last_exc = retry_exc
+                    if not _is_provider_memory_error(retry_exc):
+                        raise
+            if response is None:
+                raise last_exc
         choices = response.get('choices') if isinstance(response.get('choices'), list) else []
         message = choices[0].get('message') if choices and isinstance(choices[0], dict) else {}
         response_text = _get_clean(message.get('content')) or response.get('message') or response.get('result') or ''
-        response_content = [{'type': 'text', 'text': response_text or json.dumps(response)}]
+        if not response_text:
+            response_text = (
+                "O modelo local concluiu o processamento sem texto final visivel. "
+                "Tente uma pergunta mais direta ou selecione outro modelo local."
+            )
+        response_content = [{'type': 'text', 'text': response_text}]
         response_model = response.get('model') or requested_model
     elif transport.mode == 'ollama_chat':
-        response = _json_request(
-            transport.endpoint,
-            {
-                'model': effective_model,
-                'stream': False,
-                'messages': [
-                    *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
-                    {'role': 'user', 'content': text},
-                ],
-                'options': {
-                    'num_predict': max_tokens,
-                },
+        request_payload = {
+            'model': effective_model,
+            'stream': False,
+            'messages': [
+                *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
+                {'role': 'user', 'content': text},
+            ],
+            'options': {
+                'num_predict': max_tokens,
             },
-            headers=headers,
-            timeout=request_timeout,
-        )
+        }
+        try:
+            response = _json_request(
+                transport.endpoint,
+                request_payload,
+                headers=headers,
+                timeout=request_timeout,
+            )
+        except RuntimeError as exc:
+            if not (config.provider_id == 'local' and _is_provider_memory_error(exc)):
+                raise
+            last_exc = exc
+            response = None
+            for fallback_model in _iter_local_runtime_fallback_models(effective_model, available_models):
+                request_payload['model'] = fallback_model
+                try:
+                    response = _json_request(
+                        transport.endpoint,
+                        request_payload,
+                        headers=headers,
+                        timeout=request_timeout,
+                    )
+                    effective_model = fallback_model
+                    break
+                except RuntimeError as retry_exc:
+                    last_exc = retry_exc
+                    if not _is_provider_memory_error(retry_exc):
+                        raise
+            if response is None:
+                raise last_exc
         message = response.get('message') if isinstance(response.get('message'), dict) else {}
         response_text = _get_clean(message.get('content')) or response.get('response') or response.get('message') or ''
         response_content = [{'type': 'text', 'text': response_text or json.dumps(response)}]

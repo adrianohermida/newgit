@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
+import traceback
+from datetime import datetime, timezone
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,6 +28,23 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+_RUNTIME_LOG_DIR = Path(__file__).resolve().parents[2] / ".runtime-logs"
+_RUNTIME_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_HTTP_LOG_PATH = _RUNTIME_LOG_DIR / "ai-core-http.log"
+
+
+def _append_http_log(event: str, payload: dict) -> None:
+    try:
+        entry = {
+            "at": datetime.now(timezone.utc).isoformat(),
+            "event": event,
+            **payload,
+        }
+        with _HTTP_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 async def _read_json(request: Request) -> dict:
@@ -72,9 +95,47 @@ async def rag_context_route(request: Request) -> dict:
 
 @app.post('/v1/messages')
 async def messages_route(request: Request) -> dict:
+    body = await _read_json(request)
+    model = body.get("model")
+    provider = body.get("provider")
+    messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+    _append_http_log(
+        "messages.start",
+        {
+            "provider": provider,
+            "model": model,
+            "message_count": len(messages),
+            "route": ((body.get("context") or {}) if isinstance(body.get("context"), dict) else {}).get("route"),
+            "pid": os.getpid(),
+        },
+    )
     try:
-        return messages_json(await _read_json(request))
+        response = messages_json(body)
+        metadata = response.get("metadata") if isinstance(response.get("metadata"), dict) else {}
+        _append_http_log(
+            "messages.success",
+            {
+                "provider": provider,
+                "model": model,
+                "resolved_model": metadata.get("resolved_model"),
+                "effective_model": metadata.get("effective_model"),
+                "route_name": metadata.get("route"),
+                "degraded": bool(metadata.get("degraded")),
+                "pid": os.getpid(),
+            },
+        )
+        return response
     except Exception as error:  # pragma: no cover - HTTP wrapper
+        _append_http_log(
+            "messages.error",
+            {
+                "provider": provider,
+                "model": model,
+                "error": str(error),
+                "traceback": traceback.format_exc(limit=8),
+                "pid": os.getpid(),
+            },
+        )
         _raise_http_error(error)
 
 

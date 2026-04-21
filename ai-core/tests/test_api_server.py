@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 from adapters.obsidian_adapter import ObsidianMatch, ObsidianRagContext
 
@@ -384,6 +385,82 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(payload['metadata']['effective_model'], 'llama3.1:latest')
         self.assertEqual(payload['metadata']['resolved_model'], 'llama3.1:latest')
         self.assertEqual(payload['content'][0]['text'], 'Resposta do runtime real')
+
+    def test_messages_json_retries_with_low_resource_model_before_degraded(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.side_effect = [
+                RuntimeError('model requires more system memory (38.9 GiB) than is available (5.5 GiB)'),
+                {
+                    'id': 'chatcmpl_local',
+                    'model': 'qwen3:4b',
+                    'choices': [
+                        {
+                            'message': {
+                                'role': 'assistant',
+                                'content': 'Resposta leve',
+                            }
+                        }
+                    ],
+                },
+            ]
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': [{'id': 'gemma4:e2b'}, {'id': 'qwen3:4b'}, {'id': 'llama3.1:latest'}],
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Ol\u00e1 local'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+            )
+
+        self.assertEqual(payload['metadata']['provider'], 'local')
+        self.assertEqual(payload['metadata']['effective_model'], 'qwen3:4b')
+        self.assertEqual(payload['metadata']['resolved_model'], 'qwen3:4b')
+        self.assertEqual(payload['content'][0]['text'], 'Resposta leve')
+        self.assertEqual(payload['metadata']['route'], 'openai_chat_completions')
+
+    def test_messages_json_retries_multiple_low_resource_models_until_one_succeeds(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get, patch('api.server._probe_provider_transport') as mocked_probe:
+            mocked_probe.return_value = SimpleNamespace(
+                endpoint='http://127.0.0.1:11434/v1/chat/completions',
+                mode='openai_chat_completions',
+                model='gemma4:e2b',
+            )
+            mocked_request.side_effect = [
+                RuntimeError('model requires more system memory (38.9 GiB) than is available (5.5 GiB)'),
+                RuntimeError('model requires more system memory (38.9 GiB) than is available (5.5 GiB)'),
+                {
+                    'id': 'chatcmpl_local',
+                    'model': 'qwen3.5:cloud',
+                    'choices': [
+                        {
+                            'message': {
+                                'role': 'assistant',
+                                'content': 'Resposta local viavel',
+                            }
+                        }
+                    ],
+                },
+            ]
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': [{'id': 'gemma4:e2b'}, {'id': 'qwen3:4b'}, {'id': 'qwen3.5:cloud'}],
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Ol\u00e1 local'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+            )
+
+        self.assertEqual(payload['content'][0]['text'], 'Resposta local viavel')
+        self.assertIn(payload['metadata']['effective_model'], {'qwen3:4b', 'qwen3.5:cloud'})
+        self.assertIn(payload['metadata']['resolved_model'], {'qwen3:4b', 'qwen3.5:cloud'})
 
     def test_messages_json_routes_to_cloud_provider_when_requested(self) -> None:
         with patch('api.server._json_request') as mocked_request:

@@ -2,6 +2,8 @@ const express = require("express");
 const { getConfigs } = require("../storage");
 const { callLocal, callCloud, callCloudflare, diagnose } = require("../providers");
 const { appendChatDebug, readChatDebug } = require("../chat-debug");
+const { getLocalProviderLabel } = require("../local-provider");
+const { ensureLocalRuntimeStarted } = require("../local-runtime-bootstrap");
 
 function createChatRouter() {
   const router = express.Router();
@@ -41,10 +43,11 @@ function createChatRouter() {
 
     try {
       if (provider === "local") {
+        await ensureLocalRuntimeStarted(configs, "chat_local");
         const result = await withRouteTimeout(
           callLocal(enrichedMessages, model || configs.local.model, { context: localExtensionContext, sessionId }),
-          26000,
-          "O chat local excedeu o tempo esperado. O ai-core pode estar ocupado ou o contexto ficou pesado demais.",
+          52000,
+          "O chat local excedeu o tempo esperado. O provider local pode estar ocupado ou o contexto ficou pesado demais.",
         );
         appendChatDebug({
           scope: "chat.response",
@@ -147,7 +150,7 @@ function buildLocalContext(objectContext, configs, filteredSkills, activeSkillNa
     ...objectContext,
     assistant_profile: assistantProfile,
     extension: {
-      provider: "Ai-Core Local",
+      provider: getLocalProviderLabel(configs),
       browser_actions: ["ler_pagina", "usar_selecao", "capturar_tela", "anexar", "gravar", "replay", "ai_tasks", "click", "input", "extract", "navigate"],
       local_roots: configs.local.roots || [],
       local_apps: (configs.local.apps || []).map((item) => item.name),

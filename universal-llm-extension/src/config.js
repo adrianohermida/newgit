@@ -25,11 +25,15 @@ function uniqueUrls(values) {
 }
 
 const ENV_AICORE_CANDIDATES = [
+  process.env.LOCAL_PROVIDER_URL,
+  process.env.LOCAL_AGENT_URL,
   process.env.AICORE_API_BASE_URL,
   "http://127.0.0.1:8000",
 ].filter(Boolean);
 
 const LOCAL_RUNTIME_CANDIDATES = uniqueUrls([
+  process.env.LOCAL_PROVIDER_BASE_URL,
+  process.env.LOCAL_RUNTIME_URL,
   process.env.LOCAL_LLM_BASE_URL,
   process.env.LLM_BASE_URL,
   process.env.AICORE_LOCAL_LLM_BASE_URL,
@@ -43,7 +47,24 @@ const LOCAL_RUNTIME_CANDIDATES = uniqueUrls([
 const DEFAULT_SETTINGS = {
   local: {
     runtimeUrl: ENV_AICORE_CANDIDATES[0] || "http://127.0.0.1:8000",
+    chatPath: String(
+      process.env.LOCAL_PROVIDER_CHAT_PATH ||
+      process.env.LOCAL_AGENT_CHAT_PATH ||
+      "/v1/messages"
+    ).trim() || "/v1/messages",
+    executePath: String(
+      process.env.LOCAL_PROVIDER_EXECUTE_PATH ||
+      process.env.LOCAL_AGENT_EXECUTE_PATH ||
+      "/execute"
+    ).trim() || "/execute",
+    providerLabel: String(
+      process.env.LOCAL_PROVIDER_LABEL ||
+      process.env.LOCAL_AGENT_LABEL ||
+      "Ai-Core Local"
+    ).trim() || "Ai-Core Local",
     runtimeModel: String(
+      process.env.LOCAL_PROVIDER_MODEL ||
+      process.env.LOCAL_AGENT_MODEL ||
       process.env.LOCAL_LLM_MODEL ||
       process.env.LLM_MODEL ||
       process.env.AICORE_LOCAL_LLM_MODEL ||

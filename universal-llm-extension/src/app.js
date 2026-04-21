@@ -7,13 +7,31 @@ const { createAssetsRouter } = require("./routes/assets");
 const { createAutomationsRouter } = require("./routes/automations");
 const { createSystemRouter } = require("./routes/system");
 const { createTasksRouter } = require("./routes/tasks");
+const { buildSafeSettingsPayload } = require("./safe-settings");
+const { getConfigs } = require("./storage");
+const { triggerLocalRuntimeBootstrap } = require("./local-runtime-bootstrap");
 
 function createApp() {
   const app = express();
   const commandQueue = new Map();
+  setTimeout(() => {
+    triggerLocalRuntimeBootstrap(getConfigs(), "bridge_startup");
+  }, 500);
 
   app.use(cors());
   app.use(express.json({ limit: "20mb" }));
+  app.use((req, res, next) => {
+    if (req.method === "GET" && req.path === "/settings") {
+      res.setHeader("X-Settings-Route", "app-safe");
+      res.json({ ok: true, settings: buildSafeSettingsPayload() });
+      return;
+    }
+    next();
+  });
+  app.get("/settings-safe", (_req, res) => {
+    res.setHeader("X-Settings-Route", "app-safe-explicit");
+    res.json({ ok: true, settings: buildSafeSettingsPayload() });
+  });
   app.use(createSettingsRouter());
   app.use(createChatRouter());
   app.use(createSessionsRouter());

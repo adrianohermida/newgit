@@ -49,7 +49,10 @@ function formatSkills(values) {
 }
 
 export function fillSettingsInputs(el) {
+  el.inputProviderLabel.value = state.settings.providerLabel;
   el.inputRuntimeUrl.value = state.settings.runtimeUrl;
+  el.inputChatPath.value = state.settings.chatPath;
+  el.inputExecutePath.value = state.settings.executePath;
   el.inputRuntimeModel.value = state.settings.runtimeModel;
   if (el.localModelList) {
     el.localModelList.innerHTML = Array.isArray(state.localModelCatalog)
@@ -72,7 +75,10 @@ export function fillSettingsInputs(el) {
 
 export function hydrateSettings(settings) {
   if (!settings) return;
+  state.settings.providerLabel = settings.local?.providerLabel || state.settings.providerLabel;
   state.settings.runtimeUrl = settings.local?.runtimeUrl || state.settings.runtimeUrl;
+  state.settings.chatPath = settings.local?.chatPath || state.settings.chatPath;
+  state.settings.executePath = settings.local?.executePath || state.settings.executePath;
   state.settings.runtimeModel = settings.local?.runtimeModel || state.settings.runtimeModel;
   state.settings.alwaysAllowTabAccess = Boolean(settings.local?.alwaysAllowTabAccess ?? state.settings.alwaysAllowTabAccess);
   state.settings.trustedTabOrigins = Array.isArray(settings.local?.trustedTabOrigins) ? settings.local.trustedTabOrigins : state.settings.trustedTabOrigins;
@@ -107,7 +113,7 @@ export async function pushBridgeSettings() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       settings: {
-        local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel, alwaysAllowTabAccess: state.settings.alwaysAllowTabAccess, trustedTabOrigins: state.settings.trustedTabOrigins, roots: state.settings.localRoots, apps: state.settings.localApps, skillRoots: state.settings.localSkillRoots, skills: state.settings.localSkills },
+        local: { providerLabel: state.settings.providerLabel, runtimeUrl: state.settings.runtimeUrl, chatPath: state.settings.chatPath, executePath: state.settings.executePath, runtimeModel: state.settings.runtimeModel, alwaysAllowTabAccess: state.settings.alwaysAllowTabAccess, trustedTabOrigins: state.settings.trustedTabOrigins, roots: state.settings.localRoots, apps: state.settings.localApps, skillRoots: state.settings.localSkillRoots, skills: state.settings.localSkills },
         cloud: { appUrl: state.settings.appUrl, baseUrl: state.settings.cloudBaseUrl, model: state.settings.cloudModel, authToken: state.settings.cloudAuthToken },
         cloudflare: { model: state.settings.cfModel, accountId: state.settings.cfAccountId, apiToken: state.settings.cfApiToken },
       },
@@ -116,16 +122,39 @@ export async function pushBridgeSettings() {
 }
 
 export async function saveSettings(el) {
+  // parse structured fields with user-visible errors before mutating state
+  let localApps = state.settings.localApps;
+  let localSkills = state.settings.localSkills;
+
+  try {
+    localApps = parseApps(el.inputLocalApps.value);
+  } catch (appsError) {
+    const msg = `Aplicativos locais invalidos: ${appsError.message}`;
+    if (el.testLocalResult) { el.testLocalResult.textContent = msg; el.testLocalResult.style.color = "#dc2626"; }
+    throw new Error(msg);
+  }
+
+  try {
+    localSkills = parseSkills(el.inputLocalSkills.value);
+  } catch (skillsError) {
+    const msg = `Skills invalidas: ${skillsError.message}`;
+    if (el.testLocalResult) { el.testLocalResult.textContent = msg; el.testLocalResult.style.color = "#dc2626"; }
+    throw new Error(msg);
+  }
+
   state.provider = el.providerSelect.value || state.provider;
   state.settings = {
     ...state.settings,
+    providerLabel: String(el.inputProviderLabel.value || state.settings.providerLabel).trim(),
     runtimeUrl: String(el.inputRuntimeUrl.value || state.settings.runtimeUrl).trim(),
+    chatPath: String(el.inputChatPath.value || state.settings.chatPath).trim(),
+    executePath: String(el.inputExecutePath.value || state.settings.executePath).trim(),
     runtimeModel: String(el.inputRuntimeModel.value || state.settings.runtimeModel).trim(),
     alwaysAllowTabAccess: !!el.inputAlwaysAllowTabs.checked,
     localRoots: parseLines(el.inputLocalRoots.value),
-    localApps: parseApps(el.inputLocalApps.value),
+    localApps,
     localSkillRoots: parseLines(el.inputLocalSkillRoots.value),
-    localSkills: parseSkills(el.inputLocalSkills.value),
+    localSkills,
     appUrl: normalizeLoopback(el.inputAppUrl.value || state.settings.appUrl),
     cloudBaseUrl: String(el.inputCloudBaseUrl.value || state.settings.cloudBaseUrl).trim(),
     cloudAuthToken: String(el.inputCloudAuthToken.value || state.settings.cloudAuthToken).trim(),
@@ -213,6 +242,9 @@ export async function loadLocalModelCatalog(el) {
           .map((item) => `${item.source || item.parser}: ${item.url}`)
           .join(" | ");
         el.localModelsDetail.textContent = [
+          `Provider: ${data.providerLabel || state.settings.providerLabel}`,
+          `Chat: ${state.settings.chatPath}`,
+          `Execucao: ${state.settings.executePath}`,
           `Catalogo: ${data.catalogUrl || "desconhecido"}`,
           `Ativo: ${state.settings.runtimeModel}`,
           activeSources ? `Origens: ${activeSources}` : "",

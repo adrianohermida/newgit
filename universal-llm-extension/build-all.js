@@ -6,9 +6,11 @@
 const { spawnSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const { getExtensionSourceDir } = require("./extension-paths");
 
 const node = process.execPath;
 const dir  = __dirname;
+const extDir = getExtensionSourceDir();
 
 function run(script, label) {
   console.log(`\n>>> ${label}`);
@@ -24,7 +26,7 @@ function run(script, label) {
 
 function hasIcons() {
   return ["icon-16.png", "icon-48.png", "icon-128.png"].every((name) =>
-    fs.existsSync(path.join(dir, "../_tmp_universal_llm_assistant/icons", name))
+    fs.existsSync(path.join(extDir, "icons", name))
   );
 }
 

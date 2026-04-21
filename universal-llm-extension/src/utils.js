@@ -19,6 +19,7 @@ function htmlSnippet(value) {
 function extractContent(payload) {
   if (!payload) return "";
   if (typeof payload === "string") return payload;
+  if (typeof payload.response === "string") return payload.response;
   if (typeof payload.content === "string") return payload.content;
   if (Array.isArray(payload.content)) {
     const joined = payload.content.map((item) => {
@@ -29,6 +30,7 @@ function extractContent(payload) {
     if (joined) return joined;
   }
   if (typeof payload.result === "string") return payload.result;
+  if (typeof payload.data?.response === "string") return payload.data.response;
   if (typeof payload.data?.result === "string") return payload.data.result;
   if (typeof payload.message?.content === "string") return payload.message.content;
   if (Array.isArray(payload.choices) && typeof payload.choices[0]?.message?.content === "string") return payload.choices[0].message.content;

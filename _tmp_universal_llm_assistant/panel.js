@@ -2,7 +2,7 @@ import { buildPanelMarkup } from "./panel/template.js";
 import { state } from "./panel/state.js";
 import { collectElements, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProjectStrip, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip, updateSkillStrip, updateWorkspaceStrip } from "./panel/dom.js";
 import { bindChat, enqueueOutgoingMessage } from "./panel/chat.js";
-import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, refreshWorkspaceContext, takeScreenshot } from "./panel/browser.js";
+import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, refreshWorkspaceContext, syncRecorderState, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks, syncSession } from "./panel/lists.js";
 import { checkBridge, testProvider } from "./panel/bridge.js";
 import { fillSettingsInputs, hydrateSettings, loadLocalModelCatalog, loadSettings, loadSkillCatalog, saveSettings } from "./panel/settings.js";
@@ -22,7 +22,7 @@ async function initPanel() {
     await loadSettings(el);
     await loadSkillCatalog(el).catch(() => {});
     bindChat(el, addMessage, addSystemMessage, renderTasks);
-    bindMediaControls(el, addSystemMessage, () => document.getElementById("btn-send")?.click());
+    bindMediaControls(el, addSystemMessage, () => document.getElementById("btn-send")?.click(), enqueueOutgoingMessage, addMessage, renderTasks);
     bindUpload(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks);
     bindRecorder(el, addSystemMessage);
     bindUiActions(el);
@@ -86,11 +86,15 @@ function bindUiActions(el) {
     await renderAutomations(el, addSystemMessage, switchTab);
   });
   el.btnSaveSettings?.addEventListener("click", async () => {
-    await saveSettings(el);
-    updateProviderBadge(el);
-    addSystemMessage(el, "Configuracoes salvas.");
-    await bootstrapBridge(el);
-    closeOverlays(el);
+    try {
+      await saveSettings(el);
+      updateProviderBadge(el);
+      addSystemMessage(el, "Configuracoes salvas.");
+      await bootstrapBridge(el);
+      closeOverlays(el);
+    } catch (error) {
+      addSystemMessage(el, `Falha ao salvar configuracoes: ${error?.message || "Verifique os campos e tente novamente."}`);
+    }
   });
   el.btnTestLocal?.addEventListener("click", () => testProvider("local", el.testLocalResult));
   el.btnRefreshLocalModels?.addEventListener("click", () => loadLocalModelCatalog(el).catch(() => {}));
@@ -116,6 +120,7 @@ async function bootstrapBridge(el) {
   updateActiveAssetGroup(el, state.activeAssetGroup);
   updateWorkspaceStrip(el, state.workspaceTabs, state.activeWorkspaceTabId);
   await refreshWorkspaceContext(el).catch(() => {});
+  await syncRecorderState(el).catch(() => {});
   if (state.activeTab === "tasks") await renderTasks(el);
 }
 

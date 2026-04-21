@@ -4,11 +4,21 @@ const { joinUrl, extractContent, buildProviderError } = require("./utils");
 const { describeAttempt } = require("./provider-diagnostics");
 const { buildProxyTargets, callProxyProvider } = require("./provider-proxy");
 const { appendChatDebug } = require("./chat-debug");
+const { getLocalChatPath, getLocalChatTarget, getLocalProviderLabel } = require("./local-provider");
+const { ensureLocalRuntimeStarted } = require("./local-runtime-bootstrap");
 
 const LOCAL_RUNTIME_CATALOG_CACHE = {
   expiresAt: 0,
   value: null,
 };
+const LOW_RESOURCE_MODEL_PREFERENCES = [
+  "qwen3.5:cloud",
+  "qwen3:4b",
+  "qwen3:8b",
+  "llama3.2:latest",
+  "llama3.1:latest",
+  "llama2:latest",
+];
 
 function isConnectionError(error) {
   const raw = String(error?.message || "").toLowerCase();
@@ -114,6 +124,20 @@ async function resolveRequestedLocalModel(requestedModel, configs) {
   };
 }
 
+function pickLowResourceModel(catalog, currentModel) {
+  const models = Array.isArray(catalog) ? catalog : [];
+  const current = String(currentModel || "").trim().toLowerCase();
+  for (const preferred of LOW_RESOURCE_MODEL_PREFERENCES) {
+    const match = models.find((item) => String(item || "").trim().toLowerCase() === preferred);
+    if (match && String(match).trim().toLowerCase() !== current) return match;
+  }
+  const generic = models.find((item) => {
+    const normalized = String(item || "").trim().toLowerCase();
+    return normalized && normalized !== current && !normalized.includes("gemma4");
+  });
+  return generic || "";
+}
+
 // ─── Chamadas LLM ─────────────────────────────────────────────────────────────
 
 async function callLocal(messages, model, options = {}) {
@@ -136,9 +160,11 @@ async function callLocal(messages, model, options = {}) {
     runtimeCatalogCount: Array.isArray(resolvedModelInfo.catalog) ? resolvedModelInfo.catalog.length : 0,
     elapsedMs: Date.now() - startedAt,
   });
+  let selectedModel = effectiveModel;
+  let lowResourceFallbackUsed = false;
   let lastError = null;
   for (const baseUrl of configs.local.candidates) {
-    const target = joinUrl(baseUrl, "/v1/messages");
+    const target = getLocalChatTarget(baseUrl, configs);
     const attempts = buildLocalAttempts(messages, options);
     for (let index = 0; index < attempts.length; index += 1) {
       const attempt = attempts[index];
@@ -156,7 +182,7 @@ async function callLocal(messages, model, options = {}) {
         const response = await jsonPost(
           target,
           {
-            model: effectiveModel,
+            model: selectedModel,
             messages: attempt.messages,
             max_tokens: attempt.maxTokens,
             sessionId: options.sessionId || null,
@@ -167,6 +193,24 @@ async function callLocal(messages, model, options = {}) {
           { timeoutMs: attempt.timeoutMs },
         );
         const degraded = Boolean(response.body?.metadata?.degraded);
+        const fallbackReason = String(response.body?.metadata?.fallback_reason || "").toLowerCase();
+        const lowResourceModel = !lowResourceFallbackUsed && degraded && fallbackReason.includes("memory")
+          ? pickLowResourceModel(resolvedModelInfo.catalog, selectedModel)
+          : "";
+        if (lowResourceModel) {
+          lowResourceFallbackUsed = true;
+          selectedModel = lowResourceModel;
+          appendChatDebug({
+            scope: "chat.local.low-resource-retry",
+            sessionId: options.sessionId || null,
+            target,
+            previousModel: response.body?.metadata?.effective_model || selectedModel,
+            nextModel: lowResourceModel,
+            fallbackReason,
+          });
+          index -= 1;
+          continue;
+        }
         const content = degraded
           ? sanitizeLocalFallbackContent(extractContent(response.body), attempt.messages)
           : extractContent(response.body);
@@ -177,13 +221,14 @@ async function callLocal(messages, model, options = {}) {
             target,
             profile: attempt.profile,
             status: response.status,
+            effectiveModel: selectedModel,
             elapsedMs: Date.now() - attemptStartedAt,
             totalElapsedMs: Date.now() - startedAt,
           });
           return {
             ok: true,
             provider: "local",
-            model: effectiveModel,
+            model: selectedModel,
             content,
             target,
             metadata: {
@@ -191,14 +236,14 @@ async function callLocal(messages, model, options = {}) {
               retryCount: index,
               retryProfile: attempt.profile,
               requested_model: model,
-              effective_model: effectiveModel,
+              effective_model: selectedModel,
               runtime_catalog_url: resolvedModelInfo.catalogUrl || null,
               runtime_catalog_count: Array.isArray(resolvedModelInfo.catalog) ? resolvedModelInfo.catalog.length : 0,
             },
             degraded,
           };
         }
-        lastError = buildProviderError("ai-core", target, response);
+        lastError = buildProviderError(getLocalProviderLabel(configs), target, response);
         lastError.provider = "local";
         lastError.target = target;
         lastError.responseStatus = response.status;
@@ -221,7 +266,7 @@ async function callLocal(messages, model, options = {}) {
           target,
           profile: attempt.profile,
           elapsedMs: Date.now() - attemptStartedAt,
-          message: error?.message || "Falha ao chamar ai-core local.",
+          message: error?.message || `Falha ao chamar ${getLocalProviderLabel(configs)}.`,
         });
         if (!isConnectionError(error)) break;
       }
@@ -240,14 +285,14 @@ function buildLocalAttempts(messages, options = {}) {
       profile: "fast_primary",
       messages: compactMessages,
       maxTokens: 80,
-      timeoutMs: 18000,
+      timeoutMs: 42000,
       context: { ...(primaryContext || {}), retry_profile: "fast_primary", compact_context: true },
     },
     {
       profile: "fast_fallback_minimal",
       messages: compactTail.length ? compactTail : compactMessages,
       maxTokens: 64,
-      timeoutMs: 12000,
+      timeoutMs: 20000,
       context: { retry_profile: "fast_fallback_minimal", compact_context: true, local_summary_only: true },
     },
   ];
@@ -316,9 +361,16 @@ async function callCloudflare(messages, model) {
   if (configs.cloudflare.accountId && configs.cloudflare.apiToken) {
     const target = buildCloudflareRunUrl(configs.cloudflare.accountId, model);
     const response = await jsonPost(target, { messages }, { Authorization: `Bearer ${configs.cloudflare.apiToken}` });
-    const content = extractContent(response.body?.result || response.body);
+    const content = extractContent(response.body) || extractContent(response.body?.result);
     if (response.status >= 200 && response.status < 300 && content) {
-      return { ok: true, provider: "cloudflare", model, content, target };
+      return {
+        ok: true,
+        provider: "cloudflare",
+        model,
+        content,
+        target,
+        metadata: response.body?.result?.usage ? { usage: response.body.result.usage } : null,
+      };
     }
     directError = buildProviderError("Cloudflare API", target, response);
   }
@@ -402,14 +454,18 @@ function notConfiguredResult(provider, configs, reason) {
 
 async function diagnose(provider) {
   const configs = getConfigs();
+  if (provider === "local") {
+    await ensureLocalRuntimeStarted(configs, "diagnostics_local");
+  }
 
+  const localHint = `Confirme se o provider local esta rodando e se a URL aponta para ${getLocalChatPath(configs)}.`;
   const testsMap = {
     local: configs.local.candidates.map((baseUrl) => ({
-      url: joinUrl(baseUrl, "/v1/messages"),
+      url: getLocalChatTarget(baseUrl, configs),
       body: { model: configs.local.model, max_tokens: 8, messages: [{ role: "user", content: "OK" }] },
       model: configs.local.model,
       isConfigured: true,
-      hint: "Confirme se o ai-core esta rodando e se a URL aponta para /v1/messages.",
+      hint: localHint,
     })),
     cloud: buildCloudTests(configs),
     cloudflare: buildCloudflareTests(configs),
@@ -488,7 +544,7 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
   const modelNotFoundAttempt = attempts.find((item) => item.issue === "model_not_found");
   if (!modelNotFoundAttempt) return;
   let runtimeCatalogUrls = [];
-  const aiCoreAttempt = attempts.find((item) => item.url === joinUrl(configs.local.candidates[0], "/v1/messages"));
+  const aiCoreAttempt = attempts.find((item) => item.url === getLocalChatTarget(configs.local.candidates[0], configs));
   if (aiCoreAttempt) {
     const healthInsight = await readAiCoreLocalInsight(configs.local.candidates);
     if (healthInsight?.providerDiagnostics) {
@@ -500,13 +556,13 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
       }
       if (healthInsight.issue === "runtime_model_unavailable") {
         modelNotFoundAttempt.issue = "runtime_model_unavailable";
-        modelNotFoundAttempt.summary = "O ai-core esta online, mas o runtime local por tras dele nao tem um modelo carregado que responda ao alias configurado.";
-        modelNotFoundAttempt.recommendation = `Revise o runtime local apontado pelo ai-core (${runtimeEndpoint || "endpoint nao informado"}) e carregue o modelo/alias esperado, ou ajuste LOCAL_LLM_MODEL para um modelo realmente disponivel.`;
+        modelNotFoundAttempt.summary = "O provider local esta online, mas o runtime por tras dele nao tem um modelo carregado que responda ao alias configurado.";
+        modelNotFoundAttempt.recommendation = `Revise o runtime local apontado pelo provider (${runtimeEndpoint || "endpoint nao informado"}) e carregue o modelo/alias esperado, ou ajuste LOCAL_LLM_MODEL para um modelo realmente disponivel.`;
       }
       if (healthInsight.issue === "runtime_catalog_invalid") {
         modelNotFoundAttempt.issue = "runtime_catalog_invalid";
-        modelNotFoundAttempt.summary = "O ai-core encontrou o runtime local, mas o catalogo publicado por ele esta invalido ou vazio.";
-        modelNotFoundAttempt.recommendation = `Corrija o runtime local apontado pelo ai-core (${runtimeEndpoint || "endpoint nao informado"}) para responder um catalogo valido do modelo antes de usar o chat local.`;
+        modelNotFoundAttempt.summary = "O provider local encontrou o runtime, mas o catalogo publicado por ele esta invalido ou vazio.";
+        modelNotFoundAttempt.recommendation = `Corrija o runtime local apontado pelo provider (${runtimeEndpoint || "endpoint nao informado"}) para responder um catalogo valido do modelo antes de usar o chat local.`;
       }
     }
   }
@@ -522,7 +578,7 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
       const models = parseCatalogProbe(probe, target.parser);
       if (probe.ok && models && models.length === 0) {
         modelNotFoundAttempt.issue = "runtime_catalog_empty";
-        modelNotFoundAttempt.summary = "O ai-core respondeu, mas o catalogo do runtime local esta vazio.";
+        modelNotFoundAttempt.summary = "O provider local respondeu, mas o catalogo do runtime local esta vazio.";
         modelNotFoundAttempt.recommendation = `Suba ou carregue um modelo no runtime local (${target.url}) antes de usar o alias ${configs.local.model}.`;
         modelNotFoundAttempt.runtimeCatalog = { url: target.url, count: 0, models: [] };
         return;

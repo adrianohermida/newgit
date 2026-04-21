@@ -13,9 +13,11 @@ async function jsonPost(url, body, headers = {}, options = {}) {
       port: parsed.port || (url.startsWith("https") ? 443 : 80),
       path: parsed.pathname + parsed.search,
       method: "POST",
+      agent: false,
       headers: {
         "Content-Type": "application/json",
         "Content-Length": Buffer.byteLength(payload),
+        "Connection": "close",
         ...headers,
       },
     }, (response) => {
@@ -46,7 +48,11 @@ async function jsonGet(url, headers = {}, options = {}) {
       port: parsed.port || (url.startsWith("https") ? 443 : 80),
       path: parsed.pathname + parsed.search,
       method: "GET",
-      headers,
+      agent: false,
+      headers: {
+        "Connection": "close",
+        ...headers,
+      },
     }, (response) => {
       let raw = "";
       response.on("data", (chunk) => { raw += chunk; });

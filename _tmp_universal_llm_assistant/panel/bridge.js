@@ -67,6 +67,8 @@ export async function callChat(provider, messages, options = {}) {
   options.onPhase?.("thinking", provider === "local" ? "Preparando chamada ao Ai-Core Local." : "Preparando chamada ao provider.");
   await pushBridgeSettings();
   options.onPhase?.("responding", provider === "local" ? "Aguardando resposta do runtime local." : "Aguardando resposta do provider.");
+  // merge extraContext (e.g. camera image, page scan) into the base context object
+  const extraContext = (options.extraContext && typeof options.extraContext === "object") ? options.extraContext : {};
   const response = await safeFetch(`${BRIDGE_URL}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -81,6 +83,7 @@ export async function callChat(provider, messages, options = {}) {
         queue_depth: state.pendingMessages.length,
         activeSkillNames: state.sessionSkillNames,
         project: state.sessionProject,
+        ...extraContext,
       },
     }),
   }, provider === "local" ? 70000 : 60000);

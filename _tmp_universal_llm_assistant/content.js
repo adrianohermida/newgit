@@ -86,6 +86,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.type === "STOP_REPLAY") return void (content.stopReplayPolling(), sendResponse({ ok: true }));
   if (request.type === "MARK_AGENT_TAB") return void (content.ensureAgentBadge(request.reason || "Em uso"), sendResponse({ ok: true }));
   if (request.type === "PING") return void sendResponse({ ok: true, recording: content.recordingState.active });
+  if (request.type === "GET_RECORDING_STATE") return void sendResponse({ ok: true, isRecording: Boolean(content.recordingState.active), automationId: content.recordingState.automationId || null });
   return true;
 });
 

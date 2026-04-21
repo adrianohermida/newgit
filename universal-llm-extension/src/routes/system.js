@@ -1,11 +1,14 @@
 const express = require("express");
 const { runCommand, searchFiles } = require("../commands");
 const { buildHealthPayload } = require("../health");
+const { getConfigs } = require("../storage");
+const { triggerLocalRuntimeBootstrap } = require("../local-runtime-bootstrap");
 
 function createSystemRouter() {
   const router = express.Router();
 
   router.get("/health", (_req, res) => {
+    triggerLocalRuntimeBootstrap(getConfigs(), "bridge_health");
     res.json(buildHealthPayload());
   });
 

@@ -1,6 +1,6 @@
 {
   "name": "universal-llm-extension",
-  "version": "0.5.11",
+  "version": "0.5.14",
   "private": true,
   "description": "Bridge local para a Universal LLM Extension — proxy de chat, file search, navegação.",
   "main": "server.js",

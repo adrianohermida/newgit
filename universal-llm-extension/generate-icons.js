@@ -2,7 +2,7 @@
  * generate-icons.js — Gera ícones PNG para a extensão sem dependências externas.
  * Usa apenas Node.js built-in (zlib, fs, path, Buffer).
  * Cria icons/icon-16.png, icons/icon-48.png, icons/icon-128.png
- * dentro de ../_tmp_universal_llm_assistant/icons/
+ * dentro da fonte ativa da extensao (extension-app por padrao)
  *
  * Execução: node generate-icons.js
  */
@@ -10,8 +10,9 @@
 const zlib = require("zlib");
 const fs   = require("fs");
 const path = require("path");
+const { getExtensionSourceDir } = require("./extension-paths");
 
-const OUT_DIR = path.resolve(__dirname, "../_tmp_universal_llm_assistant/icons");
+const OUT_DIR = path.join(getExtensionSourceDir(), "icons");
 
 // ─── CRC32 ────────────────────────────────────────────────────────────────────
 function crc32(buf) {
