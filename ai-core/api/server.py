@@ -1022,7 +1022,7 @@ def _probe_provider_transport(
         try:
             payload = _json_get_request(openai_endpoint, headers=headers, timeout=timeout)
             model = config.model
-            if isinstance(payload.get('data'), list) and payload['data']:
+            if config.provider_id != 'local' and isinstance(payload.get('data'), list) and payload['data']:
                 first = payload['data'][0]
                 if isinstance(first, dict):
                     model = _get_clean(first.get('id')) or model
@@ -1099,7 +1099,7 @@ def _probe_provider_transport(
             payload = _json_get_request(ollama_endpoint, timeout=timeout)
             model = config.model
             models = payload.get('models')
-            if isinstance(models, list) and models:
+            if config.provider_id != 'local' and isinstance(models, list) and models:
                 first = models[0]
                 if isinstance(first, dict):
                     model = _get_clean(first.get('name')) or model

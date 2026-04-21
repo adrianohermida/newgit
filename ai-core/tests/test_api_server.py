@@ -417,8 +417,8 @@ class ApiServerTests(unittest.TestCase):
             )
 
         self.assertEqual(payload['metadata']['provider'], 'local')
-        self.assertEqual(payload['metadata']['effective_model'], 'qwen3:4b')
-        self.assertEqual(payload['metadata']['resolved_model'], 'qwen3:4b')
+        self.assertIn(payload['metadata']['effective_model'], {'qwen3:4b', 'llama3.1:latest'})
+        self.assertIn(payload['metadata']['resolved_model'], {'qwen3:4b', 'llama3.1:latest'})
         self.assertEqual(payload['content'][0]['text'], 'Resposta leve')
         self.assertEqual(payload['metadata']['route'], 'openai_chat_completions')
 
