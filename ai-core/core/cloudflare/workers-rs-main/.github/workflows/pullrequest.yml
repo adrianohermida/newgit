@@ -1,0 +1,250 @@
+name: Pull Request
+
+on:
+  - pull_request
+  - workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  worker-build:
+    strategy:
+      matrix:
+        platform: ['ubuntu-latest', 'windows-latest']
+
+    name: Build worker-build
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: dtolnay/rust-toolchain@1.87.0
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry ~/.cargo/git target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - run: cargo test -p worker-build
+      - run: cargo build -p worker-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-build
+          path: target/debug/worker-build
+
+  build-templates:
+    name: Templates
+    needs: worker-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: dtolnay/rust-toolchain@1.87.0
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry ~/.cargo/git target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: worker-build
+          path: ./target/debug
+
+      - name: Make worker-build executable
+        run: chmod +x ./target/debug/worker-build
+
+      - uses: cargo-bins/cargo-binstall@main
+
+      - name: Install cargo-generate
+        run: cargo binstall --locked cargo-generate
+
+      - name: Generate and build all templates
+        run: |
+          mkdir -p generated
+          for template in templates/*/; do
+              template_name=$(basename "$template")
+              if [ "$template_name" = "leptos" ]; then
+                echo "Skipping leptos template"
+                continue
+              fi
+              echo "Generating $template_name"
+              cargo generate --path $template --name "$template_name" --destination ./generated --force --define panic_unwind=false
+              cd "generated/$template_name"
+              echo "Building $template_name"
+              ../../target/debug/worker-build
+              cd ../..
+          done
+
+  build-examples:
+    name: Examples
+    needs: worker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dtolnay/rust-toolchain@1.87.0
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry ~/.cargo/git target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: worker-build
+          path: ./target/debug
+
+      - name: Make worker-build executable
+        run: chmod +x ./target/debug/worker-build
+
+      - name: Build wasm-bindgen
+        run: cd wasm-bindgen && cargo build -p wasm-bindgen-cli --bin wasm-bindgen
+
+      - name: Build all examples
+        run: |
+          sed -i '/"examples\/axum",/d' Cargo.toml
+          for example in examples/*/; do
+              example_name=$(basename "$example")
+              if [ "$example_name" = "coredump" ]; then
+                echo "Skipping coredump example"
+                continue
+              fi
+              echo "Building $example_name"
+              cd "$example"
+              WASM_BINDGEN_BIN='../../wasm-bindgen/target/debug/wasm-bindgen' ../../target/debug/worker-build
+              cd ../..
+          done
+
+  rustfmt:
+    name: Formatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dtolnay/rust-toolchain@1.87.0
+        with:
+          components: rustfmt, clippy
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry ~/.cargo/git target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check for idiomatic code
+        run: cargo clippy --features d1,queue --all-targets --workspace -- -D warnings
+
+      - name: Check for idiomatic code (http)
+        run: cargo clippy --all-features --package worker-sandbox --all-targets -- -D warnings
+
+      - name: Check for errors
+        run: cargo check
+
+  test:
+    name: Test
+    needs: worker-build
+    strategy:
+      matrix:
+        platform: ['ubuntu-latest', 'windows-latest']
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: dtolnay/rust-toolchain@1.87.0
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Chomp
+        uses: guybedford/chomp-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: worker-build
+          path: ./target/debug
+
+      - name: Make worker-build executable
+        run: chmod +x ./target/debug/worker-build
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry ~/.cargo/git target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Run unit tests
+        run: chomp test:unit
+
+      - name: Run tests
+        run: chomp test
+
+      - name: Run tests (http)
+        run: chomp test-http
+
+  test-panic-unwind:
+    name: Test (panic-unwind)
+    needs: worker-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Chomp
+        uses: guybedford/chomp-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: worker-build
+          path: ./target/debug
+
+      - name: Make worker-build executable
+        run: chmod +x ./target/debug/worker-build
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry ~/.cargo/git target
+          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-nightly-
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Run tests (panic-unwind)
+        run: chomp test-panic-unwind

@@ -85,6 +85,21 @@ const VARS_POR_ROTA = {
     ],
     oneOf: [],
   },
+  "/api/admin-copilot-conversations": {
+    required: [],
+    requiredAny: [],
+    oneOf: [],
+  },
+  "/api/admin-cloudflare-docs": {
+    required: [],
+    requiredAny: [],
+    oneOf: [],
+  },
+  "/api/admin-copilot-attachments": {
+    required: [],
+    requiredAny: [],
+    oneOf: [],
+  },
   "/api/admin-portal-audit": {
     required: ["SUPABASE_SERVICE_ROLE_KEY"],
     requiredAny: [

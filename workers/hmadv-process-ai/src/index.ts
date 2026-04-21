@@ -1,4 +1,5 @@
 import { buildActivityPrompt, buildProcessPrompt, CONVERSATION_SYSTEM_PROMPT, SYSTEM_PROMPT } from './prompts';
+import { CopilotConversationRoom } from './copilot-room';
 
 type Json = Record<string, unknown>;
 
@@ -52,6 +53,7 @@ type KvNamespaceBinding = {
 export interface Env {
   AI: AiBinding;
   VECTORIZE: VectorizeBinding;
+  COPILOT_CONVERSATIONS_DO: DurableObjectNamespace<CopilotConversationRoom>;
   ANALYTICS_ENGINE?: AnalyticsEngineBinding;
   CLOUDFLARE_KV_NAMESPACE?: KvNamespaceBinding;
   hmadv_process_ai: D1Database;
@@ -72,6 +74,8 @@ export interface Env {
   FRESHSALES_ACTIVITY_TYPE_NOTA_PROCESSUAL?: string;
   FRESHSALES_ACTIVITY_TYPE_AUDIENCIA?: string;
 }
+
+export { CopilotConversationRoom };
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -178,6 +182,50 @@ function isExecutePath(pathname: string) {
 
 function isMessagesPath(pathname: string) {
   return pathname === '/v1/messages' || pathname === '/v1/messages/';
+}
+
+function isCopilotRoomPath(pathname: string) {
+  return pathname.startsWith('/copilot/rooms/');
+}
+
+function getCopilotRoomStub(env: Env, pathname: string) {
+  const roomName = pathname.replace('/copilot/rooms/', '').split('/')[0]?.trim();
+  if (!roomName) {
+    throw new Error('conversation_id_required');
+  }
+  return env.COPILOT_CONVERSATIONS_DO.getByName(roomName);
+}
+
+async function handleCopilotRoomRequest(req: Request, env: Env, pathname: string) {
+  const url = new URL(req.url);
+  const suffix = pathname.replace('/copilot/rooms/', '').split('/').slice(1).join('/');
+  const stub = getCopilotRoomStub(env, pathname);
+
+  if (req.method === 'GET' && (!suffix || suffix === '/')) {
+    return json({ ok: true, room: await stub.getState() });
+  }
+
+  if (req.method === 'GET' && suffix === 'messages') {
+    const limit = Number(url.searchParams.get('limit') || 100);
+    return json({ ok: true, items: await stub.listMessages(limit) });
+  }
+
+  if (req.method === 'POST' && suffix === 'messages') {
+    const body = (await parseBody(req)) as Json | null;
+    const message = {
+      id: String(body?.id || crypto.randomUUID()),
+      role: String(body?.role || 'assistant'),
+      text: String(body?.text || '').trim(),
+      created_at: String(body?.created_at || nowIso()),
+      metadata: body?.metadata && typeof body.metadata === 'object' ? (body.metadata as Json) : {},
+    };
+    if (!message.text) {
+      return json({ ok: false, error: 'message_text_required' }, 400);
+    }
+    return json({ ok: true, room: await stub.appendMessage(message) }, 201);
+  }
+
+  return json({ ok: false, error: 'not_found' }, 404);
 }
 
 function sleep(ms: number) {
@@ -1069,6 +1117,9 @@ export default {
       if (req.method === 'POST' && isMessagesPath(url.pathname)) {
         const body = (await parseBody(req)) as Json | null;
         return await runCompatibleMessagesApi(env, body);
+      }
+      if (isCopilotRoomPath(url.pathname)) {
+        return await handleCopilotRoomRequest(req, env, url.pathname);
       }
       if (req.method === 'POST' && url.pathname === '/analyze/activity') {
         return await analyzeActivity(req, env);

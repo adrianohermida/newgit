@@ -42,7 +42,8 @@ function CompactTranscript({ compactTranscript, isLightTheme, loading }) {
 }
 
 export default function DotobotEmbeddedCompactRail(props) {
-  const { activeConversation, activeConversationId, activeConversationPreview, activeConversationTimestamp, activeProviderPresentation, compactRecentConversations, compactTranscript, composerRef, contextEnabled, conversationMenuId, conversationMenuRef, createConversation, handleArchiveConversation, handleDeleteConversation, handleDrop, handlePaste, handleRenameConversation, handleShareConversation, handleSubmit, input, isLightTheme, loading, onChangeInput, onOpenFullscreen, onSelectConversation, ragAlert, refreshProps, selectedSkillId, setContextEnabled, setConversationMenuId, showCompactRuntimeDiagnostics, supabaseBootstrap } = props;
+  const { activeConversation, activeConversationId, activeConversationPreview, activeConversationTimestamp, activeProviderPresentation, compactRecentConversations, compactTranscript, composerRef, contextEnabled, conversationMenuId, conversationMenuRef, createConversation, handleArchiveConversation, handleDeleteConversation, handleDrop, handlePaste, handleRenameConversation, handleShareConversation, handleSubmit, input, isLightTheme, loading, onChangeInput, onOpenFullscreen, onSelectConversation, ragAlert, refreshProps, remoteSyncSummary, selectedSkillId, setContextEnabled, setConversationMenuId, showCompactRuntimeDiagnostics, supabaseBootstrap } = props;
+  const totalAttachments = (remoteSyncSummary?.remoteAttachmentCount || 0) + (remoteSyncSummary?.pendingAttachmentCount || 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col px-4 py-4">
@@ -66,7 +67,11 @@ export default function DotobotEmbeddedCompactRail(props) {
               <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Chat rapido</p>
               <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Uma visao leve para conversar, revisar contexto e seguir em frente.</p>
             </div>
-            <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{refreshProps.messageCount} mensagens</span>
+            <div className="flex flex-wrap gap-2">
+              <span className={`rounded-full border px-3 py-1.5 text-[10px] ${remoteSyncSummary?.connected ? isLightTheme ? "border-[#CFE3DB] bg-[#F5FBF8] text-[#2F7A62]" : "border-[#35554B] text-[#9FE0C7]" : isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{remoteSyncSummary?.connected ? loading ? "Cloudflare sync" : "Cloudflare ativo" : "Somente local"}</span>
+              {totalAttachments ? <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>R2 {remoteSyncSummary.remoteAttachmentCount}/{totalAttachments}</span> : null}
+              <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{refreshProps.messageCount} mensagens</span>
+            </div>
           </div>
           <CompactTranscript compactTranscript={compactTranscript} isLightTheme={isLightTheme} loading={loading} />
         </div>

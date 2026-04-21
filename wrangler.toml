@@ -6,6 +6,19 @@ pages_build_output_dir = "out"
 [ai]
 binding = "AI"
 
+[[d1_databases]]
+binding = "COPILOT_CONVERSATIONS_DB"
+database_name = "hmadv-process-ai"
+database_id = "1d61b217-289f-468d-9d29-40abb8a23a85"
+
+[[kv_namespaces]]
+binding = "CLOUDFLARE_DOCS_KV"
+id = "3162a38a5bc24b85913891043f86d9c8"
+
+[[r2_buckets]]
+binding = "COPILOT_ATTACHMENTS_BUCKET"
+bucket_name = "newgit-copilot-attachment"
+
 # Este wrangler.toml representa o projeto Cloudflare Pages `newgit-pages`.
 # O recurso `newgit` nao deve ser usado como alvo de deploy deste repositorio.
 #
@@ -72,3 +85,7 @@ binding = "AI"
 #   CLOUDFLARE_WORKER_ACCOUNT_ID
 #   CLOUDFLARE_WORKER_API_TOKEN
 #   CLOUDFLARE_WORKERS_AI_MODEL (opcional)
+# Bindings adicionais usados pelo Copilot:
+#   COPILOT_CONVERSATIONS_DB (D1: hmadv-process-ai)
+#   CLOUDFLARE_DOCS_KV (KV: newgit-cloudflare-docs)
+#   COPILOT_ATTACHMENTS_BUCKET (R2: newgit-copilot-attachment)

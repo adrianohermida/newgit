@@ -31,6 +31,14 @@ bucket_name = "hmadv-process-ai-logs"
 binding = "CLOUDFLARE_KV_NAMESPACE"
 id = "1e0740f44693445cbc798c0fe6e45a98"
 
+[[durable_objects.bindings]]
+name = "COPILOT_CONVERSATIONS_DO"
+class_name = "CopilotConversationRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CopilotConversationRoom"]
+
 [triggers]
 crons = ["*/15 * * * *", "0 7 * * *"]
 

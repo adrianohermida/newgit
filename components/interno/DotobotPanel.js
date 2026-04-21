@@ -39,6 +39,7 @@ import {
   GenericCopilotRightRail,
 } from "./copilot";
 import DotobotWorkspaceShell from "./copilot/DotobotWorkspaceShell";
+import useRemoteCopilotConversations from "./copilot/useRemoteCopilotConversations";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import {
   buildCopilotContextPayload,
@@ -360,6 +361,22 @@ export default function DotobotCopilot({
     shareConversation,
     updateConversationById: updateConversationRecord,
   } = conversationActions;
+  const { selectRemoteConversation } = useRemoteCopilotConversations({
+    conversations,
+    setConversations,
+    setActiveConversationId,
+    setMessages,
+    setTaskHistory,
+    setAttachments,
+    setMode,
+    setProvider,
+    setSelectedSkillId,
+    setContextEnabled,
+  });
+
+  function handleSelectConversation(conversation) {
+    return selectRemoteConversation(conversation, selectConversation);
+  }
 
   useEffect(() => {
     if (providerCatalogRequestedRef.current) return undefined;
@@ -1503,6 +1520,12 @@ export default function DotobotCopilot({
     activeConversation?.messages?.[activeConversation.messages.length - 1]?.text ||
     "Nova conversa pronta para receber contexto, tarefas e handoff.";
   const activeConversationTimestamp = activeConversation?.updatedAt || activeConversation?.createdAt || null;
+  const remoteSyncSummary = {
+    connected: Boolean(activeConversation?.metadata?.remoteConversationId),
+    loading,
+    pendingAttachmentCount: attachments.filter((attachment) => attachment?.file && !attachment?.remoteKey).length,
+    remoteAttachmentCount: attachments.filter((attachment) => attachment?.remoteKey).length,
+  };
   const compactTaskHistory = useMemo(() => taskHistory.slice(0, 3), [taskHistory]);
   const activeTaskLabel = activeTask?.query || activeTask?.label || activeTask?.title || "Nenhuma missão em andamento";
   const activeTaskStepCount = Array.isArray(activeTask?.steps) ? activeTask.steps.length : 0;
@@ -1667,7 +1690,7 @@ export default function DotobotCopilot({
               setShowSlashCommands(value.trimStart().startsWith("/"));
             }}
             onOpenFullscreen={() => setWorkspaceOpen(true)}
-            onSelectConversation={selectConversation}
+            onSelectConversation={handleSelectConversation}
             ragAlert={ragAlert}
             refreshProps={{
               formatInlinePanelValue,
@@ -1677,6 +1700,7 @@ export default function DotobotCopilot({
               messageCount: messages.length,
               offlineHealthSnapshot,
             }}
+            remoteSyncSummary={remoteSyncSummary}
             selectedSkillId={selectedSkillId}
             setContextEnabled={setContextEnabled}
             setConversationMenuId={setConversationMenuId}
@@ -1717,6 +1741,7 @@ export default function DotobotCopilot({
             }}
             onFocusComposer={() => composerRef.current?.focus()}
             onToggleVoiceInput={toggleVoiceInput}
+            remoteSyncSummary={remoteSyncSummary}
             scrollRef={scrollRef}
             showSlashCommands={showSlashCommands}
             visibleLegalActions={visibleLegalActions}
@@ -1764,6 +1789,7 @@ export default function DotobotCopilot({
                 localInferenceAlert={localInferenceAlert}
                 messages={messages}
                 onOpenAiTask={() => router.push("/interno/ai-task")}
+                remoteSyncSummary={remoteSyncSummary}
                 scrollRef={scrollRef}
                 setInput={setInput}
                 setShowSlashCommands={setShowSlashCommands}
@@ -1813,6 +1839,7 @@ export default function DotobotCopilot({
                 onOpenLlmTest={openLlmTest}
                 openPrompt={input}
                 provider={provider}
+                remoteSyncSummary={remoteSyncSummary}
                 scrollRef={scrollRef}
                 showSlashCommands={showSlashCommands}
                 slashCommands={SLASH_COMMANDS}
@@ -1912,7 +1939,7 @@ export default function DotobotCopilot({
                   profile={profile}
                   projectInsights={projectInsights}
                   renderConversationMenu={renderConversationMenu}
-                  selectConversation={selectConversation}
+                  selectConversation={handleSelectConversation}
                   selectedProjectFilter={selectedProjectFilter}
                   setConversationSearch={setConversationSearch}
                   setConversationSort={setConversationSort}
@@ -1946,7 +1973,7 @@ export default function DotobotCopilot({
                   renameConversation={renameConversation}
                   router={router}
                   selectedProjectFilter={selectedProjectFilter}
-                  selectConversation={selectConversation}
+                  selectConversation={handleSelectConversation}
                   setConversationMenuId={setConversationMenuId}
                   setConversationSearch={setConversationSearch}
                   setConversationSort={setConversationSort}

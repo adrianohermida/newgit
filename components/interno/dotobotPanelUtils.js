@@ -31,6 +31,7 @@ export function detectAttachmentKind(file) {
 export function normalizeAttachment(file) {
   const kind = detectAttachmentKind(file);
   return {
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     kind,
     file,
     name: file.name || "Arquivo",

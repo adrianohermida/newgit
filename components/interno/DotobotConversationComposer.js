@@ -8,15 +8,15 @@ function AttachmentChip({ attachment, formatBytes, isLightTheme }) {
       {attachment.previewUrl ? <img src={attachment.previewUrl} alt={attachment.name} className="h-8 w-8 rounded-lg object-cover" /> : <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-[10px] uppercase ${isLightTheme ? "border-[#D7DEE8] text-[#7B8B98]" : "border-[#22342F] text-[#9BAEA8]"}`}>{attachment.kind}</span>}
       <div>
         <p className="max-w-[12rem] truncate">{attachment.name}</p>
-        <p className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "opacity-60"}`}>{formatBytes(attachment.size)}</p>
+        <p className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "opacity-60"}`}>{formatBytes(attachment.size)} · {attachment.remoteKey ? "R2 sincronizado" : "upload pendente"}</p>
       </div>
     </div>
   );
 }
 
 export default function DotobotConversationComposer(props) {
-  const { activeMode, attachments, composerBlockedReason, composerRef, focusedConversationColumnClass, formatBytes, handleComposerKeyDown, handleDrop, handleOpenFiles, handlePaste, handleResetChat, handleSlashCommand, handleSubmit, input, isComposerBlocked, isConversationCentricShell, isLightTheme, isRecording, loading, onChangeInput, onOpenAiTask, onOpenLlmTest, provider, showSlashCommands, slashCommands, toggleVoiceInput, visibleQuickPrompts } = props;
-
+  const { activeMode, attachments, composerBlockedReason, composerRef, focusedConversationColumnClass, formatBytes, handleComposerKeyDown, handleDrop, handleOpenFiles, handlePaste, handleResetChat, handleSlashCommand, handleSubmit, input, isComposerBlocked, isConversationCentricShell, isLightTheme, isRecording, loading, onChangeInput, onOpenAiTask, onOpenLlmTest, provider, remoteSyncSummary, showSlashCommands, slashCommands, toggleVoiceInput, visibleQuickPrompts } = props;
+  const syncedAttachments = remoteSyncSummary?.remoteAttachmentCount || 0;
   return (
     <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
       <div className={focusedConversationColumnClass}>
@@ -28,6 +28,8 @@ export default function DotobotConversationComposer(props) {
                 <ComposerBadge isLightTheme={isLightTheme}>{isConversationCentricShell ? `${activeMode.label} · contexto ativo` : `/${showSlashCommands ? "comandos ativos" : "comandos"}`}</ComposerBadge>
                 {!isConversationCentricShell ? <ComposerBadge isLightTheme={isLightTheme}>Enter envia</ComposerBadge> : null}
                 {!isConversationCentricShell ? <ComposerBadge isLightTheme={isLightTheme}>Shift+Enter quebra</ComposerBadge> : null}
+                <ComposerBadge isLightTheme={isLightTheme}>{remoteSyncSummary?.connected ? loading ? "Cloudflare sync" : "Cloudflare online" : "salvo localmente"}</ComposerBadge>
+                {attachments.length ? <ComposerBadge isLightTheme={isLightTheme}>R2 {syncedAttachments}/{attachments.length}</ComposerBadge> : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" onClick={handleOpenFiles} className={`rounded-full border px-2.5 py-1 transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>Anexar</button>

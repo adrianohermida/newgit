@@ -123,7 +123,7 @@ export function useInternoShellState({ isCopilotWorkspace, shouldRenderDotobotRa
     if (!shouldRenderDotobotRail) return;
     setCopilotOpen((current) => {
       const next = !current;
-      setRightCollapsed(!next);
+      if (isCopilotWorkspace) setRightCollapsed(!next);
       return next;
     });
   }

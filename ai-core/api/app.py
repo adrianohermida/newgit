@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from .routes import conversations_router, docs_cloudflare_router
 from .server import (
     capabilities_json,
     browser_execute_json,
@@ -28,6 +29,8 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+app.include_router(conversations_router)
+app.include_router(docs_cloudflare_router)
 
 _RUNTIME_LOG_DIR = Path(__file__).resolve().parents[2] / ".runtime-logs"
 _RUNTIME_LOG_DIR.mkdir(parents=True, exist_ok=True)

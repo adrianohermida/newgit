@@ -10,13 +10,20 @@ function QuickActionButton({ action, isLightTheme, onQuickAction }) {
   );
 }
 
-export default function DotobotConversationCenterHeader({
-  activeConversation,
-  activeProjectLabel,
-  isLightTheme,
-  onQuickAction,
-  visibleLegalActions,
-}) {
+function SyncBadge({ isLightTheme, remoteSyncSummary }) {
+  const connected = remoteSyncSummary?.connected;
+  const tone = connected
+    ? isLightTheme ? "border-[#CFE3DB] bg-[#F5FBF8] text-[#2F7A62]" : "border-[#35554B] text-[#9FE0C7]"
+    : isLightTheme ? "border-[#E6D29A] bg-[#FFF8E8] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]";
+  return (
+    <span className={`rounded-full border px-3 py-1.5 text-[11px] ${tone}`}>
+      {connected ? `Cloudflare ${remoteSyncSummary.loading ? "sincronizando" : "ativo"}` : "Somente local"}
+    </span>
+  );
+}
+
+export default function DotobotConversationCenterHeader({ activeConversation, activeProjectLabel, isLightTheme, onQuickAction, remoteSyncSummary, visibleLegalActions }) {
+  const totalAttachments = (remoteSyncSummary?.remoteAttachmentCount || 0) + (remoteSyncSummary?.pendingAttachmentCount || 0);
   return (
     <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -27,9 +34,9 @@ export default function DotobotConversationCenterHeader({
         </div>
         <div className="flex flex-wrap gap-2">
           <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{activeProjectLabel}</span>
-          {visibleLegalActions.slice(0, 3).map((action) => (
-            <QuickActionButton key={action.label} action={action} isLightTheme={isLightTheme} onQuickAction={onQuickAction} />
-          ))}
+          <SyncBadge isLightTheme={isLightTheme} remoteSyncSummary={remoteSyncSummary} />
+          {totalAttachments ? <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>R2 {remoteSyncSummary.remoteAttachmentCount}/{totalAttachments}</span> : null}
+          {visibleLegalActions.slice(0, 3).map((action) => <QuickActionButton key={action.label} action={action} isLightTheme={isLightTheme} onQuickAction={onQuickAction} />)}
         </div>
       </div>
     </div>

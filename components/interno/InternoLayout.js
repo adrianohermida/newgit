@@ -5,6 +5,7 @@ import { useInternalTheme } from "./InternalThemeProvider";
 import InternoConsoleDock from "./layout/InternoConsoleDock";
 import InternoSettingsModal from "./layout/InternoSettingsModal";
 import InternoShellContent from "./layout/InternoShellContent";
+import InternoFloatingCopilotWidget from "./layout/InternoFloatingCopilotWidget";
 import InternoShellRightRail from "./layout/InternoShellRightRail";
 import InternoShellHeader from "./layout/InternoShellHeader";
 import InternoSidebar from "./layout/InternoSidebar";
@@ -46,7 +47,7 @@ export default function InternoLayout({
   const isCopilotWorkspace = router.pathname === "/interno/copilot";
   const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
   const initialWorkspaceOpen = true;
-  const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations" || shouldRenderDotobotRail;
+  const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations" || isCopilotWorkspace;
   const {
     closeMobileSidebar,
     consoleExpanded,
@@ -451,14 +452,23 @@ export default function InternoLayout({
           shouldRenderDotobotRail={shouldRenderDotobotRail}
           showSupplementalRightRail={showSupplementalRightRail}
         />
+        <InternoFloatingCopilotWidget
+          copilotOpen={copilotOpen}
+          isLightTheme={isLightTheme}
+          onClose={handleToggleCopilot}
+          profile={profile}
+          routePath={router.pathname}
+          shouldRenderDotobotRail={shouldRenderDotobotRail}
+        />
         {shouldRenderDotobotRail ? (
           <button
             type="button"
             onClick={handleToggleCopilot}
-            className="group fixed bottom-24 right-4 z-[80] flex items-center gap-2 rounded-[18px] border border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)]"
+            className={`group fixed bottom-5 ${isCopilotWorkspace ? "right-4" : "left-4"} z-[80] flex items-center gap-3 rounded-[20px] border px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-[0_12px_32px_rgba(0,0,0,0.24)] ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,#FFFFFF,#EEF4F9)] text-[#21323C]" : "border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E]"}`}
           >
-            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#07110E]" />
-            <span>{copilotOpen && !rightCollapsed ? "Fechar painel" : "Abrir copilot"}</span>
+            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${copilotOpen && !rightCollapsed ? isLightTheme ? "bg-[#2F7A62]" : "bg-[#07110E]" : isLightTheme ? "bg-[#7B8B98]" : "bg-[#07110E]"}`} />
+            <span>{copilotOpen && !rightCollapsed ? "Fechar chat" : "Abrir chat"}</span>
+            {!isCopilotWorkspace ? <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[rgba(7,17,14,0.18)] bg-[rgba(7,17,14,0.08)] text-[#07110E]"}`}>widget</span> : null}
           </button>
         ) : null}
         {settingsOpen ? <InternoSettingsModal isLightTheme={isLightTheme} onClose={() => setSettingsOpen(false)} preference={preference} setThemePreference={setThemePreference} settingsModalRef={settingsModalRef} /> : null}
