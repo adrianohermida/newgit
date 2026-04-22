@@ -10,10 +10,35 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function Import-LocalEnvFile([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  Get-Content -LiteralPath $Path | ForEach-Object {
+    $line = $_.Trim()
+    if (-not $line -or $line.StartsWith("#")) { return }
+    $parts = $line.Split("=", 2)
+    if ($parts.Count -ne 2) { return }
+    $name = $parts[0].Trim()
+    $value = $parts[1].Trim()
+    if (-not $name) { return }
+    $existing = Get-Item "Env:$name" -ErrorAction SilentlyContinue
+    $existingValue = if ($null -eq $existing) { "" } else { [string]$existing.Value }
+    if ([string]::IsNullOrWhiteSpace($existingValue)) {
+      Set-Item -Path "Env:$name" -Value $value
+    }
+  }
+}
+
 function Invoke-Step([string]$Label, [scriptblock]$Action) {
   Write-Host ""
   Write-Host "==> $Label" -ForegroundColor Cyan
   & $Action
+}
+
+function Invoke-CheckedCommand([string]$FilePath, [string[]]$Arguments) {
+  & $FilePath @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao executar: $FilePath $($Arguments -join ' ') (exit code $LASTEXITCODE)."
+  }
 }
 
 function Get-GitOutput([string[]]$GitArgs) {
@@ -32,65 +57,79 @@ function Has-GitChanges() {
   return -not [string]::IsNullOrWhiteSpace(($status | Out-String).Trim())
 }
 
-Invoke-Step "Validando repositório Git" {
+Import-LocalEnvFile (Join-Path $PSScriptRoot "..\.dev.vars")
+if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN) -and -not [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_WORKER_API_TOKEN)) {
+  $env:CLOUDFLARE_API_TOKEN = $env:CLOUDFLARE_WORKER_API_TOKEN
+}
+if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID) -and -not [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_WORKER_ACCOUNT_ID)) {
+  $env:CLOUDFLARE_ACCOUNT_ID = $env:CLOUDFLARE_WORKER_ACCOUNT_ID
+}
+
+Invoke-Step "Validating Git repository" {
   $inside = Get-GitOutput -GitArgs @("rev-parse", "--is-inside-work-tree")
   if ($inside -ne "true") {
-    throw "Diretório atual não é um repositório git."
+    throw "Current directory is not a git repository."
   }
 }
 
 if (-not $SkipCommit) {
   if (Has-GitChanges) {
-    Invoke-Step "Rodando teste de build antes do commit" {
+    Invoke-Step "Running build validation before commit" {
       $env:RELEASE_PIPELINE_RUNNING = "1"
       try {
-        npm run build:pages
+        Invoke-CheckedCommand -FilePath "npm" -Arguments @("run", "build:pages")
       } finally {
         Remove-Item Env:RELEASE_PIPELINE_RUNNING -ErrorAction SilentlyContinue
       }
     }
-    Invoke-Step "Criando commit" {
+
+    Invoke-Step "Creating commit" {
       $message = $CommitMessage
       if ([string]::IsNullOrWhiteSpace($message)) {
         $message = "chore: release cloudflare $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
       }
-      git add -A
-      if ($LASTEXITCODE -ne 0) { throw "Falha ao adicionar arquivos no git." }
-      git commit -m $message
-      if ($LASTEXITCODE -ne 0) { throw "Falha ao criar commit." }
+      Invoke-CheckedCommand -FilePath "git" -Arguments @("add", "-A")
+
+      $statusBefore = Get-GitOutput -GitArgs @("status", "--porcelain")
+      if ([string]::IsNullOrWhiteSpace($statusBefore)) {
+        Write-Host "No staged changes to commit after add." -ForegroundColor Yellow
+      } else {
+        Invoke-CheckedCommand -FilePath "git" -Arguments @("commit", "-m", $message)
+      }
     }
   } else {
-    Write-Host "Sem alterações locais para commit." -ForegroundColor Yellow
+    Write-Host "No local changes to commit." -ForegroundColor Yellow
   }
 }
 
 $currentBranch = Get-GitOutput -GitArgs @("rev-parse", "--abbrev-ref", "HEAD")
 if (-not $SkipPush) {
-  Invoke-Step "Enviando branch para origin/$currentBranch" {
-    git push origin $currentBranch
-    if ($LASTEXITCODE -ne 0) { throw "Falha no git push." }
+  Invoke-Step "Pushing branch to origin/$currentBranch" {
+    Invoke-CheckedCommand -FilePath "git" -Arguments @("push", "origin", $currentBranch)
   }
 }
 
 if (-not $SkipWorkerDeploy) {
-  Invoke-Step "Deploy do Worker hmadv-process-ai" { npm run deploy:hmadv-ai }
+  Invoke-Step "Deploying Worker hmadv-process-ai" {
+    Invoke-CheckedCommand -FilePath "npm" -Arguments @("run", "deploy:hmadv-ai")
+  }
 }
 
 if ($StaticPagesDeploy) {
-  Invoke-Step "Deploy estático do Pages (opt-in explícito)" {
+  Invoke-Step "Deploying Pages static bundle (explicit opt-in)" {
     $env:ALLOW_STATIC_ONLY_PAGES_DEPLOY = "1"
     try {
-      npm run deploy:pages
+      Invoke-CheckedCommand -FilePath "npm" -Arguments @("run", "deploy:pages")
     } finally {
       Remove-Item Env:ALLOW_STATIC_ONLY_PAGES_DEPLOY -ErrorAction SilentlyContinue
     }
   }
 } else {
   Write-Host ""
-  Write-Host "Pages em modo seguro: sem deploy estático local." -ForegroundColor Yellow
-  Write-Host "Após o push, o frontend deve publicar pelo build conectado do projeto '$PagesProject'." -ForegroundColor Yellow
-  Write-Host "Para forçar deploy imediato via Wrangler, rode: npm run release:cf -- -StaticPagesDeploy" -ForegroundColor Yellow
+  Write-Host "Pages safe mode: skipping local static Pages deploy." -ForegroundColor Yellow
+  Write-Host "After push, frontend should publish via connected Pages build for '$PagesProject'." -ForegroundColor Yellow
+  Write-Host "To force immediate static deploy: npm run release:cf -- -StaticPagesDeploy" -ForegroundColor Yellow
 }
 
 Write-Host ""
-Write-Host "Release Cloudflare concluído." -ForegroundColor Green
+Write-Host "Cloudflare release completed." -ForegroundColor Green
