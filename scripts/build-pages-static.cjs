@@ -30,3 +30,12 @@ function run(command, args, extraEnv = {}) {
 
 run("npm", ["run", "build:core"], { STATIC_EXPORT: "1" });
 run("node", [path.join("scripts", "normalize-pages-export-assets.js")], { STATIC_EXPORT: "1" });
+
+const shouldAutoDeploy =
+  String(process.env.AUTO_DEPLOY_WRANGLER || "").trim() === "1" &&
+  String(process.env.RELEASE_PIPELINE_RUNNING || "").trim() !== "1";
+
+if (shouldAutoDeploy) {
+  console.log("AUTO_DEPLOY_WRANGLER=1 detectado. Disparando deploy Wrangler apos build.");
+  run("npm", ["run", "release:cf", "--", "-SkipCommit", "-SkipPush", "-StaticPagesDeploy"]);
+}

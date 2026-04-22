@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Newgit: Release Cloudflare (commit+push+deploy)",
+      "type": "shell",
+      "command": "npm run release:cf -- -CommitMessage \"${input:releaseMessage}\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Newgit: Build + Auto Deploy Wrangler",
+      "type": "shell",
+      "command": "powershell -NoProfile -Command \"$env:AUTO_DEPLOY_WRANGLER='1'; npm run build; Remove-Item Env:AUTO_DEPLOY_WRANGLER -ErrorAction SilentlyContinue\"",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "releaseMessage",
+      "type": "promptString",
+      "description": "Mensagem do commit para release",
+      "default": "chore: release cloudflare"
+    }
+  ]
+}

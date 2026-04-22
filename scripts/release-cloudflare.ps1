@@ -41,7 +41,14 @@ Invoke-Step "Validando repositório Git" {
 
 if (-not $SkipCommit) {
   if (Has-GitChanges) {
-    Invoke-Step "Rodando teste de build antes do commit" { npm run build:pages }
+    Invoke-Step "Rodando teste de build antes do commit" {
+      $env:RELEASE_PIPELINE_RUNNING = "1"
+      try {
+        npm run build:pages
+      } finally {
+        Remove-Item Env:RELEASE_PIPELINE_RUNNING -ErrorAction SilentlyContinue
+      }
+    }
     Invoke-Step "Criando commit" {
       $message = $CommitMessage
       if ([string]::IsNullOrWhiteSpace($message)) {

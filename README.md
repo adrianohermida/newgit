@@ -19,6 +19,26 @@ Deploy manual:
 npm run deploy:pages
 ```
 
+Release completo (commit + push + deploy worker):
+
+```bash
+npm run release:cf -- -CommitMessage "sua mensagem"
+```
+
+Automacao opcional no build (build + deploy Wrangler):
+
+Windows PowerShell:
+
+```powershell
+$env:AUTO_DEPLOY_WRANGLER='1'; npm run build; Remove-Item Env:AUTO_DEPLOY_WRANGLER -ErrorAction SilentlyContinue
+```
+
+Quando `AUTO_DEPLOY_WRANGLER=1`, o `npm run build` dispara automaticamente:
+
+- `npm run release:cf -- -SkipCommit -SkipPush -StaticPagesDeploy`
+- deploy do worker `hmadv-process-ai`
+- deploy estatico do Pages via Wrangler (opt-in explicito)
+
 Importante:
 
 - `wrangler pages deploy out` publica apenas o conteudo estatico de `out`
