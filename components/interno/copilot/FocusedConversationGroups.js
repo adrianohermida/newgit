@@ -1,8 +1,22 @@
 import { useState } from "react";
+import FocusedConversationItem from "./FocusedConversationItem";
 
-function GroupCard({ activeConversationId, collapsed, group, isLightTheme, onConcatConversation, onSelectConversation, onToggle, renderConversationMenu }) {
+function GroupCard({
+  activeConversationId,
+  collapsed,
+  group,
+  isLightTheme,
+  onArchiveConversation,
+  onConcatConversation,
+  onDeleteConversation,
+  onRenameConversation,
+  onRenameInline,
+  onSelectConversation,
+  onShareConversation,
+  onToggle,
+}) {
   return (
-    <section key={group.key} className={`rounded-[22px] border px-2 pb-3 pt-2 transition-colors duration-200 ${isLightTheme ? "border-[#E3E8EF] bg-[rgba(255,255,255,0.7)]" : "border-[#17211E] bg-[rgba(255,255,255,0.015)]"}`}>
+    <section className={`rounded-[22px] border px-2 pb-3 pt-2 transition-colors duration-200 ${isLightTheme ? "border-[#E3E8EF] bg-[rgba(255,255,255,0.7)]" : "border-[#17211E] bg-[rgba(255,255,255,0.015)]"}`}>
       <div className="flex items-center justify-between gap-2 px-2 py-2">
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
           <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{group.label}</p>
@@ -19,40 +33,25 @@ function GroupCard({ activeConversationId, collapsed, group, isLightTheme, onCon
           </button>
         </div>
       </div>
-
-      {!collapsed ? <div className="space-y-2">
-        {group.items.map((conversation) => {
-          const active = conversation.id === activeConversationId;
-          return (
-            <article key={conversation.id} className={`rounded-[18px] border px-3 py-3 transition-all duration-200 ease-out will-change-transform ${active ? isLightTheme ? "border-[#D2B06A] bg-[#FFF8EA] shadow-[0_12px_28px_rgba(197,160,89,0.12)] ring-1 ring-[#E6D29A]/50" : "border-[#C5A059] bg-[rgba(197,160,89,0.08)] shadow-[0_12px_28px_rgba(0,0,0,0.24)] ring-1 ring-[#C5A059]/25" : isLightTheme ? "border-transparent bg-transparent hover:-translate-y-[1px] hover:border-[#D7DEE8] hover:bg-white hover:shadow-[0_12px_24px_rgba(148,163,184,0.12)]" : "border-transparent bg-transparent hover:-translate-y-[1px] hover:border-[#22342F] hover:bg-[rgba(255,255,255,0.02)] hover:shadow-[0_12px_24px_rgba(0,0,0,0.18)]"}`}>
-              <div className="flex items-start justify-between gap-3">
-                <button type="button" onClick={() => onSelectConversation(conversation)} className="min-w-0 flex-1 text-left transition-transform duration-200 active:scale-[0.995]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex h-2.5 w-2.5 rounded-full ${active ? "bg-[#C5A059]" : isLightTheme ? "bg-[#CBD5E1]" : "bg-[#35554B]"}`} />
-                        <p className={`truncate text-sm font-semibold transition-colors duration-200 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
-                      </div>
-                      <p className={`mt-1 line-clamp-2 text-xs leading-5 transition-colors duration-200 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{conversation.preview}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <span className={`text-[10px] uppercase tracking-[0.16em] transition-colors duration-200 ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{conversation.messages?.length || 0}</span>
-                      <p className={`mt-1 text-[10px] transition-colors duration-200 ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>{conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString("pt-BR") : ""}</p>
-                    </div>
-                  </div>
-                </button>
-                <div className="shrink-0">{typeof renderConversationMenu === "function" ? renderConversationMenu(conversation) : null}</div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className={`rounded-full border px-2.5 py-1 text-[10px] transition-colors duration-200 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB]"}`}>{conversation.projectLabel || "Geral"}</span>
-                {active ? <span className={`rounded-full border px-2.5 py-1 text-[10px] transition-all duration-200 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF6DF] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]"}`}>ativa</span> : null}
-                <button type="button" onClick={() => onConcatConversation(conversation)} className={`rounded-full border px-2.5 py-1 text-[11px] transition-all duration-200 active:scale-[0.98] ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62] hover:bg-[#F5FBF8]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:bg-[rgba(127,196,175,0.06)] hover:text-[#7FC4AF]"}`}>Concatenar</button>
-              </div>
-            </article>
-          );
-        })}
-      </div> : null}
+      {!collapsed ? (
+        <div className="space-y-2">
+          {group.items.map((conversation) => (
+            <FocusedConversationItem
+              key={conversation.id}
+              active={conversation.id === activeConversationId}
+              conversation={conversation}
+              isLightTheme={isLightTheme}
+              onArchiveConversation={onArchiveConversation}
+              onConcatConversation={onConcatConversation}
+              onDeleteConversation={onDeleteConversation}
+              onRenameConversation={onRenameConversation}
+              onRenameInline={onRenameInline}
+              onSelectConversation={onSelectConversation}
+              onShareConversation={onShareConversation}
+            />
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -63,9 +62,13 @@ export default function FocusedConversationGroups(props) {
     conversationProjectGroups = [],
     handleDrop,
     isLightTheme,
+    onArchiveConversation,
     onConcatConversation,
+    onDeleteConversation,
+    onRenameConversation,
+    onRenameInline,
     onSelectConversation,
-    renderConversationMenu = null,
+    onShareConversation,
   } = props;
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
@@ -75,20 +78,25 @@ export default function FocusedConversationGroups(props) {
         <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Inbox</p>
         <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Threads persistidas, agrupadas por projeto e prontas para retomada.</p>
       </div>
-
-      {conversationProjectGroups.length ? conversationProjectGroups.map((group) => (
-        <GroupCard
-          key={group.key}
-          activeConversationId={activeConversationId}
-          collapsed={collapsedGroups[group.key] === true}
-          group={group}
-          isLightTheme={isLightTheme}
-          onConcatConversation={onConcatConversation}
-          onSelectConversation={onSelectConversation}
-          onToggle={() => setCollapsedGroups((current) => ({ ...current, [group.key]: !current[group.key] }))}
-          renderConversationMenu={renderConversationMenu}
-        />
-      )) : (
+      {conversationProjectGroups.length ? (
+        conversationProjectGroups.map((group) => (
+          <GroupCard
+            key={group.key}
+            activeConversationId={activeConversationId}
+            collapsed={collapsedGroups[group.key] === true}
+            group={group}
+            isLightTheme={isLightTheme}
+            onArchiveConversation={onArchiveConversation}
+            onConcatConversation={onConcatConversation}
+            onDeleteConversation={onDeleteConversation}
+            onRenameConversation={onRenameConversation}
+            onRenameInline={onRenameInline}
+            onSelectConversation={onSelectConversation}
+            onShareConversation={onShareConversation}
+            onToggle={() => setCollapsedGroups((current) => ({ ...current, [group.key]: !current[group.key] }))}
+          />
+        ))
+      ) : (
         <div className={`rounded-[24px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
           Nenhuma conversa encontrada.
         </div>

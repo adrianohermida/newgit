@@ -42,17 +42,32 @@ export async function appendCopilotRoomMessage(env, conversationId, message) {
       method: "POST",
       headers: buildHeaders(env),
       body: JSON.stringify({
-        message: {
-          createdAt: message.createdAt || new Date().toISOString(),
-          metadata: message.metadata || {},
-          role: message.role || "user",
-          text: message.text,
-        },
+        id: message.id || crypto.randomUUID(),
+        created_at: message.createdAt || message.created_at || new Date().toISOString(),
+        metadata: message.metadata || {},
+        role: message.role || "user",
+        text: message.text,
       }),
     }
   );
   if (!response.ok) {
     throw new Error(`Falha ao sincronizar sala do Copilot no worker HMADV (${response.status}).`);
+  }
+  return response.json().catch(() => null);
+}
+
+export async function listCopilotRoomMessages(env, conversationId, limit = 100) {
+  const baseUrl = getProcessAiBaseUrl(env);
+  if (!baseUrl || !conversationId) return null;
+  const response = await fetch(
+    `${baseUrl.replace(/\/+$/, "")}/copilot/rooms/${encodeURIComponent(conversationId)}/messages?limit=${Math.max(1, Math.min(Number(limit || 100), 200))}`,
+    {
+      method: "GET",
+      headers: buildHeaders(env),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Falha ao listar mensagens live da sala do Copilot no worker HMADV (${response.status}).`);
   }
   return response.json().catch(() => null);
 }

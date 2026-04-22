@@ -66,9 +66,13 @@ export default function FocusedHistoryRail(props) {
           conversationProjectGroups={props.conversationProjectGroups}
           handleDrop={props.handleDrop}
           isLightTheme={props.isLightTheme}
+          onArchiveConversation={props.archiveConversation}
           onConcatConversation={props.handleConcatConversation}
+          onDeleteConversation={props.deleteConversation}
+          onRenameConversation={props.renameConversation}
+          onRenameInline={props.renameConversationInline}
           onSelectConversation={props.selectConversation}
-          renderConversationMenu={props.renderConversationMenu}
+          onShareConversation={props.shareConversation}
         />
         <FocusedSidebarUserMenu isLightTheme={props.isLightTheme} profile={props.profile} />
       </div>

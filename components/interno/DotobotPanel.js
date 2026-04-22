@@ -24,7 +24,6 @@ import { buildSupabaseLocalBootstrap } from "../../lib/lawdesk/supabase-local-bo
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotCollapsedTrigger from "./DotobotCollapsedTrigger";
 import DotobotAccessGate from "./DotobotAccessGate";
-import DotobotConversationMenu from "./DotobotConversationMenu";
 import DotobotEmbeddedCompactRail from "./DotobotEmbeddedCompactRail";
 import DotobotEmbeddedStandardRail from "./DotobotEmbeddedStandardRail";
 import DotobotStandardHistoryRail from "./DotobotStandardHistoryRail";
@@ -357,11 +356,13 @@ export default function DotobotCopilot({
     deleteConversation,
     handleConcatConversation,
     renameConversation,
+    renameConversationInline,
     selectConversation,
     shareConversation,
     updateConversationById: updateConversationRecord,
   } = conversationActions;
   const { selectRemoteConversation } = useRemoteCopilotConversations({
+    activeConversationId,
     conversations,
     setConversations,
     setActiveConversationId,
@@ -547,23 +548,6 @@ export default function DotobotCopilot({
 
   function dismissUiToast(toastId) {
     setUiToasts((current) => current.filter((item) => item.id !== toastId));
-  }
-
-  function renderConversationMenu(conversation) {
-    return (
-      <DotobotConversationMenu
-        compact={false}
-        conversation={conversation}
-        conversationMenuId={conversationMenuId}
-        conversationMenuRef={conversationMenuRef}
-        isLightTheme={isLightTheme}
-        onArchive={archiveConversation}
-        onDelete={deleteConversation}
-        onRename={renameConversation}
-        onShare={shareConversation}
-        setConversationMenuId={setConversationMenuId}
-      />
-    );
   }
 
   useEffect(() => {
@@ -1925,11 +1909,13 @@ export default function DotobotCopilot({
               isFocusedCopilotShell ? (
                 <FocusedHistoryRail
                   activeConversationId={activeConversationId}
+                  archiveConversation={archiveConversation}
                   activeProjectLabel={activeProjectLabel}
                   conversationProjectGroups={conversationProjectGroups}
                   conversationSearch={conversationSearch}
                   conversationSearchInputRef={conversationSearchInputRef}
                   conversationSort={conversationSort}
+                  deleteConversation={deleteConversation}
                   filteredConversations={filteredConversations}
                   handleConcatConversation={handleConcatConversation}
                   handleDrop={handleDrop}
@@ -1938,13 +1924,15 @@ export default function DotobotCopilot({
                   onCreateConversation={() => createConversationFromCurrentState("Nova conversa")}
                   profile={profile}
                   projectInsights={projectInsights}
-                  renderConversationMenu={renderConversationMenu}
+                  renameConversation={renameConversation}
+                  renameConversationInline={renameConversationInline}
                   selectConversation={handleSelectConversation}
                   selectedProjectFilter={selectedProjectFilter}
                   setConversationSearch={setConversationSearch}
                   setConversationSort={setConversationSort}
                   setSelectedProjectFilter={setSelectedProjectFilter}
                   setShowArchived={setShowArchived}
+                  shareConversation={shareConversation}
                   showArchived={showArchived}
                 />
               ) : (

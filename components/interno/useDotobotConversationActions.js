@@ -68,6 +68,12 @@ export default function useDotobotConversationActions(params) {
     });
   }
 
+  function renameConversationInline(conversationId, nextTitle) {
+    const normalizedTitle = String(nextTitle || "").trim();
+    if (!conversationId || !normalizedTitle) return;
+    updateConversationById(conversationId, () => ({ title: normalizedTitle }));
+  }
+
   function archiveConversation(conversation) {
     updateConversationById(conversation.id, (current) => ({ archived: !current.archived }));
   }
@@ -136,6 +142,7 @@ export default function useDotobotConversationActions(params) {
     deleteConversation,
     handleConcatConversation,
     renameConversation,
+    renameConversationInline,
     selectConversation,
     shareConversation,
     updateConversationById,

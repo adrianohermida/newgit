@@ -1,6 +1,6 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import { createCopilotSession } from "../lib/copilot-conversations-db.js";
-import { appendCopilotRoomMessage } from "../lib/copilot-room-sync.js";
+import { appendCopilotRoomMessage, listCopilotRoomMessages } from "../lib/copilot-room-sync.js";
 import {
   appendCopilotMessage,
   createCopilotConversation,
@@ -36,6 +36,7 @@ export async function onRequestGet(context) {
   if (!auth.ok) return authError(auth);
   const url = new URL(context.request.url);
   const conversationId = url.searchParams.get("conversationId");
+  const includeLive = url.searchParams.get("includeLive") === "1";
   const session = createCopilotSession(context.env, context.request.headers.get("x-d1-bookmark") || undefined);
   try {
     if (conversationId) {
@@ -46,7 +47,16 @@ export async function onRequestGet(context) {
         Number(url.searchParams.get("limit") || 50)
       );
       const conversation = await getCopilotConversation(session, conversationId);
-      return withBookmark(json({ ok: true, conversation, messages }), session);
+      let live = null;
+      if (includeLive) {
+        try {
+          const payload = await listCopilotRoomMessages(context.env, conversationId, Number(url.searchParams.get("liveLimit") || 100));
+          live = { ok: true, items: Array.isArray(payload?.items) ? payload.items : [] };
+        } catch (error) {
+          live = { ok: false, items: [], error: error?.message || "Falha ao carregar estado live." };
+        }
+      }
+      return withBookmark(json({ ok: true, conversation, messages, live }), session);
     }
     const items = await listCopilotConversations(session, Number(url.searchParams.get("limit") || 50));
     return withBookmark(json({ ok: true, items }), session);
