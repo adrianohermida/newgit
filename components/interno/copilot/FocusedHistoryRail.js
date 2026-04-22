@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useSupabaseBrowser } from "../../../lib/supabase";
+import ChatUiNavigationMark from "./ChatUiNavigationMark";
 import InternoUserAvatarMenu from "../layout/InternoUserAvatarMenu";
 import FocusedConversationGroups from "./FocusedConversationGroups";
 import FocusedHistoryRailHeader from "./FocusedHistoryRailHeader";
@@ -56,18 +57,21 @@ function FocusedSidebarUserMenu({ isLightTheme, profile }) {
 
 export default function FocusedHistoryRail(props) {
   return (
-    <aside className={`flex h-full min-h-0 flex-col overflow-hidden ${props.leftRailShellClass || ""}`}>
-      <FocusedHistoryRailHeader {...props} />
-      <FocusedConversationGroups
-        activeConversationId={props.activeConversationId}
-        conversationProjectGroups={props.conversationProjectGroups}
-        handleDrop={props.handleDrop}
-        isLightTheme={props.isLightTheme}
-        onConcatConversation={props.handleConcatConversation}
-        onSelectConversation={props.selectConversation}
-        renderConversationMenu={props.renderConversationMenu}
-      />
-      <FocusedSidebarUserMenu isLightTheme={props.isLightTheme} profile={props.profile} />
+    <aside className={`flex h-full min-h-0 overflow-hidden ${props.leftRailShellClass || ""}`}>
+      <ChatUiNavigationMark isLightTheme={props.isLightTheme} />
+      <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${props.isLightTheme ? "border-r border-[#E2E8F0]" : "border-r border-[#1B2623]"}`}>
+        <FocusedHistoryRailHeader {...props} />
+        <FocusedConversationGroups
+          activeConversationId={props.activeConversationId}
+          conversationProjectGroups={props.conversationProjectGroups}
+          handleDrop={props.handleDrop}
+          isLightTheme={props.isLightTheme}
+          onConcatConversation={props.handleConcatConversation}
+          onSelectConversation={props.selectConversation}
+          renderConversationMenu={props.renderConversationMenu}
+        />
+        <FocusedSidebarUserMenu isLightTheme={props.isLightTheme} profile={props.profile} />
+      </div>
     </aside>
   );
 }
