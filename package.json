@@ -12,6 +12,7 @@
     "deploy:pages": "npm run build:pages && node scripts/guard-pages-static-deploy.cjs && npx wrangler pages deploy out --project-name=newgit-pages",
     "deploy:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/deploy-hmadv-process-ai.ps1",
     "release:cf": "powershell -ExecutionPolicy Bypass -File scripts/release-cloudflare.ps1",
+    "package:chat-ui-main-transfer": "powershell -ExecutionPolicy Bypass -File scripts/package-chat-ui-main-transfer.ps1",
     "diagnose:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-hmadv-process-ai.ps1",
     "diagnose:hmadv-publicacoes": "node scripts/hmadv-validate-publicacoes-runtime.js",
     "drain:hmadv-publicacoes": "node scripts/hmadv-drain-publicacoes-freshsales.js",
