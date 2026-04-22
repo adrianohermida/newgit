@@ -56,11 +56,14 @@ export async function appendCopilotRoomMessage(env, conversationId, message) {
   return response.json().catch(() => null);
 }
 
-export async function listCopilotRoomMessages(env, conversationId, limit = 100) {
+export async function listCopilotRoomMessages(env, conversationId, limit = 100, since = "") {
   const baseUrl = getProcessAiBaseUrl(env);
   if (!baseUrl || !conversationId) return null;
+  const sinceQuery = String(since || "").trim()
+    ? `&since=${encodeURIComponent(String(since).trim())}`
+    : "";
   const response = await fetch(
-    `${baseUrl.replace(/\/+$/, "")}/copilot/rooms/${encodeURIComponent(conversationId)}/messages?limit=${Math.max(1, Math.min(Number(limit || 100), 200))}`,
+    `${baseUrl.replace(/\/+$/, "")}/copilot/rooms/${encodeURIComponent(conversationId)}/messages?limit=${Math.max(1, Math.min(Number(limit || 100), 200))}${sinceQuery}`,
     {
       method: "GET",
       headers: buildHeaders(env),

@@ -1,92 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
-import { summarizeConversation } from "../dotobotPanelState";
-
-function toRemoteConversation(item) {
-  const remoteId = String(item?.id || "").trim();
-  if (!remoteId) return null;
-  return summarizeConversation({
-    id: `remote:${remoteId}`,
-    title: item.title || "Nova conversa",
-    preview: item.preview || "",
-    messages: [],
-    taskHistory: [],
-    attachments: [],
-    metadata: {
-      remoteConversationId: remoteId,
-      remoteOnly: true,
-      route: "/interno/copilot",
-      mode: "chat",
-      provider: "gpt",
-      contextEnabled: true,
-    },
-    createdAt: item.created_at || item.createdAt,
-    updatedAt: item.updated_at || item.updatedAt,
-  });
-}
-
-function toUiMessage(message) {
-  return {
-    role: message.role,
-    text: message.text,
-    createdAt: message.created_at || message.createdAt,
-    metadata: message.metadata || {},
-  };
-}
-
-function resolveMessagesPayload(payload) {
-  const liveItems = Array.isArray(payload?.live?.items) ? payload.live.items : [];
-  if (payload?.live?.ok && liveItems.length) return liveItems.map(toUiMessage);
-  const dbItems = Array.isArray(payload?.messages?.items) ? payload.messages.items : [];
-  return dbItems.map(toUiMessage);
-}
-
-function mergeRemoteConversations(localConversations, remoteItems) {
-  const byRemoteId = new Map();
-  const next = [...localConversations];
-
-  next.forEach((conversation, index) => {
-    const remoteId = conversation?.metadata?.remoteConversationId;
-    if (remoteId) byRemoteId.set(remoteId, index);
-  });
-
-  remoteItems.forEach((item) => {
-    const remoteConversation = toRemoteConversation(item);
-    if (!remoteConversation) return;
-    const existingIndex = byRemoteId.get(remoteConversation.metadata.remoteConversationId);
-    if (typeof existingIndex === "number") {
-      const existing = next[existingIndex];
-      next[existingIndex] = summarizeConversation({
-        ...existing,
-        title: remoteConversation.title,
-        preview: remoteConversation.preview,
-        updatedAt: remoteConversation.updatedAt,
-        createdAt: existing.createdAt || remoteConversation.createdAt,
-        metadata: {
-          ...(existing.metadata || {}),
-          ...remoteConversation.metadata,
-        },
-      });
-      return;
-    }
-    next.push(remoteConversation);
-  });
-
-  return next
-    .slice()
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
-}
-
-function getActiveRemoteConversation(activeConversationId, conversations) {
-  if (!activeConversationId) return null;
-  return conversations.find((item) => item.id === activeConversationId && item?.metadata?.remoteConversationId);
-}
-
-function buildMessagesSignature(messages) {
-  if (!Array.isArray(messages) || !messages.length) return "empty";
-  const last = messages[messages.length - 1];
-  return `${messages.length}:${last?.createdAt || ""}:${last?.text || ""}`;
-}
+import {
+  getActiveRemoteConversation,
+  getLastCreatedAt,
+  mergeMessages,
+  mergeRemoteConversations,
+  resolveMessagesPayload,
+  summarizeHydratedConversation,
+} from "./remoteConversationSync";
 
 export default function useRemoteCopilotConversations({
   activeConversationId,
@@ -101,6 +22,15 @@ export default function useRemoteCopilotConversations({
   setSelectedSkillId,
   setContextEnabled,
 }) {
+  const liveCursorByRemoteIdRef = useRef(new Map());
+  const activeMessagesRef = useRef([]);
+
+  useEffect(() => {
+    activeMessagesRef.current = Array.isArray(conversations)
+      ? getActiveRemoteConversation(activeConversationId, conversations)?.messages || activeMessagesRef.current
+      : activeMessagesRef.current;
+  }, [activeConversationId, conversations]);
+
   useEffect(() => {
     let active = true;
     adminFetch("/api/admin-copilot-conversations?limit=50", { method: "GET" }, { allowFailurePayload: true })
@@ -119,38 +49,30 @@ export default function useRemoteCopilotConversations({
     const remoteId = activeRemoteConversation?.metadata?.remoteConversationId;
     if (!remoteId) return undefined;
     let alive = true;
-    let previousSignature = null;
+    const cursorMap = liveCursorByRemoteIdRef.current;
+    if (!cursorMap.get(remoteId)) cursorMap.set(remoteId, getLastCreatedAt(activeRemoteConversation.messages || []));
+
     const loadLiveState = async () => {
+      const liveCursor = cursorMap.get(remoteId) || "";
+      const liveQuery = liveCursor ? `&liveCursor=${encodeURIComponent(liveCursor)}` : "";
       const payload = await adminFetch(
-        `/api/admin-copilot-conversations?conversationId=${encodeURIComponent(remoteId)}&limit=100&includeLive=1`,
+        `/api/admin-copilot-conversations?conversationId=${encodeURIComponent(remoteId)}&limit=100&includeLive=1${liveQuery}`,
         { method: "GET" },
         { allowFailurePayload: true }
       ).catch(() => null);
       if (!alive || !payload?.ok || !payload?.conversation) return;
-      const nextMessages = resolveMessagesPayload(payload);
-      const nextSignature = buildMessagesSignature(nextMessages);
-      if (nextSignature === previousSignature) return;
-      previousSignature = nextSignature;
-      setMessages(nextMessages);
+      const mergedMessages = mergeMessages(activeMessagesRef.current, resolveMessagesPayload(payload));
+      const nextCursor = getLastCreatedAt(mergedMessages);
+      if (nextCursor) cursorMap.set(remoteId, nextCursor);
+      activeMessagesRef.current = mergedMessages;
+      setMessages(mergedMessages);
       setConversations((current) =>
-        current.map((item) => {
-          if (item.id !== activeRemoteConversation.id) return item;
-          return summarizeConversation({
-            ...item,
-            title: payload.conversation.title || item.title,
-            preview: payload.conversation.preview || item.preview,
-            messages: nextMessages,
-            metadata: {
-              ...(item.metadata || {}),
-              remoteConversationId: remoteId,
-              remoteOnly: false,
-            },
-            updatedAt: payload.conversation.updated_at || payload.conversation.updatedAt || item.updatedAt,
-            createdAt: payload.conversation.created_at || payload.conversation.createdAt || item.createdAt,
-          });
-        })
+        current.map((item) => (item.id === activeRemoteConversation.id
+          ? summarizeHydratedConversation(item, payload, remoteId, mergedMessages)
+          : item))
       );
     };
+
     loadLiveState();
     const intervalId = window.setInterval(loadLiveState, 4000);
     return () => {
@@ -174,34 +96,19 @@ export default function useRemoteCopilotConversations({
       fallbackSelect(conversation);
       return;
     }
-    const hydratedConversation = summarizeConversation({
-      ...conversation,
-      title: payload.conversation.title || conversation.title,
-      preview: payload.conversation.preview || conversation.preview,
-      messages: resolveMessagesPayload(payload),
-      metadata: {
-        ...(conversation.metadata || {}),
-        remoteConversationId: remoteId,
-        remoteOnly: false,
-      },
-      updatedAt: payload.conversation.updated_at || payload.conversation.updatedAt || conversation.updatedAt,
-      createdAt: payload.conversation.created_at || payload.conversation.createdAt || conversation.createdAt,
-    });
-    setConversations((current) =>
-      current.map((item) => (item.id === conversation.id ? hydratedConversation : item))
-    );
+    const messages = resolveMessagesPayload(payload);
+    liveCursorByRemoteIdRef.current.set(remoteId, getLastCreatedAt(messages));
+    activeMessagesRef.current = messages;
+    const hydratedConversation = summarizeHydratedConversation(conversation, payload, remoteId, messages);
+    setConversations((current) => current.map((item) => (item.id === conversation.id ? hydratedConversation : item)));
     setActiveConversationId(hydratedConversation.id);
     setMessages(hydratedConversation.messages || []);
     setTaskHistory(hydratedConversation.taskHistory || []);
     setAttachments(hydratedConversation.attachments || []);
     if (hydratedConversation.metadata?.mode) setMode(hydratedConversation.metadata.mode);
     if (hydratedConversation.metadata?.provider) setProvider(hydratedConversation.metadata.provider);
-    if (typeof hydratedConversation.metadata?.selectedSkillId === "string") {
-      setSelectedSkillId(hydratedConversation.metadata.selectedSkillId);
-    }
-    if (typeof hydratedConversation.metadata?.contextEnabled === "boolean") {
-      setContextEnabled(hydratedConversation.metadata.contextEnabled);
-    }
+    if (typeof hydratedConversation.metadata?.selectedSkillId === "string") setSelectedSkillId(hydratedConversation.metadata.selectedSkillId);
+    if (typeof hydratedConversation.metadata?.contextEnabled === "boolean") setContextEnabled(hydratedConversation.metadata.contextEnabled);
   }
 
   return { selectRemoteConversation };

@@ -37,6 +37,7 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const conversationId = url.searchParams.get("conversationId");
   const includeLive = url.searchParams.get("includeLive") === "1";
+  const liveCursor = String(url.searchParams.get("liveCursor") || "").trim();
   const session = createCopilotSession(context.env, context.request.headers.get("x-d1-bookmark") || undefined);
   try {
     if (conversationId) {
@@ -50,7 +51,12 @@ export async function onRequestGet(context) {
       let live = null;
       if (includeLive) {
         try {
-          const payload = await listCopilotRoomMessages(context.env, conversationId, Number(url.searchParams.get("liveLimit") || 100));
+          const payload = await listCopilotRoomMessages(
+            context.env,
+            conversationId,
+            Number(url.searchParams.get("liveLimit") || 100),
+            liveCursor
+          );
           live = { ok: true, items: Array.isArray(payload?.items) ? payload.items : [] };
         } catch (error) {
           live = { ok: false, items: [], error: error?.message || "Falha ao carregar estado live." };

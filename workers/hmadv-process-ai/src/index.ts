@@ -207,7 +207,11 @@ async function handleCopilotRoomRequest(req: Request, env: Env, pathname: string
 
   if (req.method === 'GET' && suffix === 'messages') {
     const limit = Number(url.searchParams.get('limit') || 100);
-    return json({ ok: true, items: await stub.listMessages(limit) });
+    const since = String(url.searchParams.get('since') || '').trim();
+    const items = since
+      ? await stub.listMessagesSince(since, limit)
+      : await stub.listMessages(limit);
+    return json({ ok: true, items });
   }
 
   if (req.method === 'POST' && suffix === 'messages') {
