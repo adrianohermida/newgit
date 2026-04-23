@@ -93,6 +93,40 @@ function slackToken(): string {
   return SLACK_USER_TOKEN || SLACK_BOT_TOKEN;
 }
 
+async function verifySlackSignature(req: Request, bodyText: string): Promise<boolean> {
+  if (!SLACK_SIGNING_SECRET) return true; // Se não configurado, ignora (desaconselhável em prod)
+  
+  const timestamp = req.headers.get("x-slack-request-timestamp");
+  const signature = req.headers.get("x-slack-signature");
+  
+  if (!timestamp || !signature) return false;
+  
+  // Evitar ataques de replay (5 minutos)
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - Number(timestamp)) > 300) return false;
+  
+  const baseString = `v0:${timestamp}:${bodyText}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(SLACK_SIGNING_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  const signatureBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(baseString)
+  );
+  
+  const hash = "v0=" + Array.from(new Uint8Array(signatureBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+    
+  return hash === signature;
+}
+
 async function postSlack(channel: string, text: string, blocks?: unknown[]): Promise<void> {
   const payload: Record<string, unknown> = { channel, text, unfurl_links: false };
   if (blocks) payload.blocks = blocks;
@@ -1810,20 +1844,29 @@ async function handleDmConversation(channelId: string, userId: string, text: str
     }
   }
 
-  // Conversa livre — encaminha para ai-core com contexto jurídico HMADV
+  // Conversa livre — encaminha para ai-core com contexto jurídico HMADV e memória RAG
   try {
-    const systemPrompt = `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia (HMADV).
+    // Buscar contexto RAG para a conversa livre
+    const ragContext = await searchRagContext(text, 3);
+    
+    const systemPrompt = `Você é o DotoBot v5, assistente jurídico inteligente do escritório Hermida Maia Advocacia (HMADV).
 Responda de forma profissional, objetiva e em português brasileiro.
-Você tem acesso a dados de processos, clientes, prazos e publicações do escritório.
-Para consultas específicas de dados, sugira o comando adequado (ex: /dotobot status, /dotobot prazos).
-Seja conciso mas completo. Use formatação Slack (*negrito*, _itálico_, \`código\`).`;
+Você tem acesso a dados de processos, clientes, prazos e publicações do escritório através da sua memória RAG.
+Para consultas específicas de dados estruturados, sugira o comando adequado (ex: /dotobot status, /dotobot prazos).
+Seja conciso mas completo. Use formatação Slack (*negrito*, _itálico_, \`código\`).
 
+=== MEMÓRIA DO PROJETO (RAG) ===
+${ragContext || "Nenhum contexto específico encontrado na memória para esta consulta."}`;
+
+    const sessionId = `slack-${userId}`;
     const { text: resposta, model, provider } = await callAiCore(
-      systemPrompt,
-      text,
-      userId,
-      channelId
+      [{ role: "user", content: text }],
+      sessionId,
+      systemPrompt
     );
+
+    // Persistir a interação na memória RAG
+    saveRagMemory(sessionId, text, resposta).catch(() => null);
 
     const footer = `_DotoBot v5 • ${provider} • ${model}_`;
     await postSlack(channelId, resposta + "\n\n" + footer);
@@ -1835,10 +1878,19 @@ Seja conciso mas completo. Use formatação Slack (*negrito*, _itálico_, \`cód
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const contentType = req.headers.get("content-type") || "";
+  const bodyText = await req.text();
+
+  // Validar assinatura do Slack para segurança
+  if (contentType.includes("application/x-www-form-urlencoded") || (contentType.includes("application/json") && bodyText.includes("event_callback"))) {
+    const isValid = await verifySlackSignature(req, bodyText);
+    if (!isValid) {
+      return new Response("Invalid signature", { status: 401 });
+    }
+  }
 
   // Notificações automáticas via POST JSON (chamadas por outras edge functions)
   if (contentType.includes("application/json")) {
-    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const body = JSON.parse(bodyText || "{}") as Record<string, unknown>;
     const action = String(body.action || "");
 
     if (action === "notify_publicacao") return handleNotifyPublicacao(body);
@@ -2008,8 +2060,7 @@ Deno.serve(async (req) => {
 
   // Comandos Slash do Slack (application/x-www-form-urlencoded)
   if (contentType.includes("application/x-www-form-urlencoded")) {
-    const formText = await req.text();
-    const params = new URLSearchParams(formText);
+    const params = new URLSearchParams(bodyText);
     const command = params.get("command") || "";
     const text = (params.get("text") || "").trim().toLowerCase();
     const channelId = params.get("channel_id") || SLACK_CHANNEL;
