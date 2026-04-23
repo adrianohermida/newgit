@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
   } else {
     // Modo automático: próxima semana pendente
     const rows = await restGet(
-      'advise_backfill_queue?status=eq.pendente&order=data_inicio.asc&limit=1&select=id,data_inicio,data_fim'
+      'advise_backfill_queue?status=eq.pendente&order=data_inicio.desc&limit=1&select=id,data_inicio,data_fim'
     ) as Array<{ id: number; data_inicio: string; data_fim: string }>;
     item = rows[0] ?? null;
   }
