@@ -6,17 +6,51 @@
  * 2. Envia notificações ricas (publicações, andamentos, audiências, status)
  * 3. Painel de status do pipeline com métricas em tempo real
  * 4. Relatório de pendências de desenvolvimento
+ * 5. Gestão financeira: Deals, Faturas e Assinaturas
  *
  * Comandos disponíveis:
- *   /dotobot status         — Painel completo do pipeline
- *   /dotobot publicacoes    — Últimas publicações recebidas
- *   /dotobot andamentos     — Últimos andamentos do DataJud
- *   /dotobot audiencias     — Próximas audiências
- *   /dotobot pendencias     — Pendências de desenvolvimento
- *   /dotobot fix-activities — Corrigir activities pendentes (lote 50)
- *   /dotobot drain-advise   — Acionar drenagem do Advise agora
- *   /dotobot datajud        — Processar fila DataJud agora
- *   /dotobot help           — Ajuda com os comandos
+ *   PAINEL E STATUS
+ *   /dotobot status              — Painel completo do pipeline
+ *   /dotobot pendencias          — Pendências de desenvolvimento
+ *
+ *   CONSULTAS
+ *   /dotobot publicacoes         — Últimas publicações recebidas
+ *   /dotobot andamentos          — Últimos andamentos do DataJud
+ *   /dotobot audiencias          — Próximas audiências
+ *   /dotobot prazos              — Prazos processuais pendentes
+ *   /dotobot deals-status        — Resumo financeiro (faturas em aberto)
+ *
+ *   SINCRONIZAÇÃO E ENRIQUECIMENTO
+ *   /dotobot drain-advise        — Drenar publicações do Advise agora
+ *   /dotobot datajud             — Processar fila DataJud agora
+ *   /dotobot backfill            — Rodar próxima semana do backfill Advise
+ *   /dotobot importar-planilhas  — Importar publicações das planilhas exportadas
+ *   /dotobot sync-publicacoes    — Sync publicações → Freshsales (activities)
+ *   /dotobot extrair-audiencias  — Extrair audiências → appointments Freshsales
+ *   /dotobot extrair-partes      — Extrair partes → contacts Freshsales
+ *   /dotobot criar-processos     — Criar processos ausentes + vincular órfãos
+ *   /dotobot processo-sync       — Sync processos → Freshsales (lote 20)
+ *   /dotobot deals-sync          — Sync faturas/assinaturas → Freshsales Deals
+ *   /dotobot tipo-processo       — Atualizar tipo físico/eletrônico via Datajud
+ *   /dotobot prazo-fim           — Atualizar campo Prazo Fim nos Accounts
+ *
+ *   CÁLCULO DE PRAZOS
+ *   /dotobot calcular-prazos     — Calcular prazos das publicações recentes
+ *   /dotobot tpu-enrich          — Enriquecer processos via TPU/CNJ local
+ *
+ *   HIGIENIZAÇÃO
+ *   /dotobot fix-activities      — Corrigir activities pendentes (lote 50)
+ *   /dotobot repair-orphans      — Corrigir campos órfãos (instância, partes, status)
+ *   /dotobot repair-instancia    — Corrigir apenas campo instância
+ *   /dotobot repair-partes       — Corrigir apenas polo ativo/passivo
+ *   /dotobot repair-fs           — Sincronizar campos corrigidos com Freshsales
+ *   /dotobot reset-datajud       — Resetar processos presos em "processando"
+ *   /dotobot higienizar-contatos — Detectar e mesclar contatos duplicados
+ *
+ *   RELATÓRIOS
+ *   /dotobot relatorio-financeiro — Relatório de honorários com atualização monetária
+ *   /dotobot backfill-status      — Ver estado do backfill (fila + sync)
+ *   /dotobot help                 — Esta ajuda
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -411,6 +445,178 @@ async function handleDrainAdvise(channel: string, userId: string): Promise<void>
   }
 }
 
+async function handleBackfillStatus(channel: string): Promise<void> {
+  // Buscar estado da fila de backfill
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/advise_backfill_queue?select=status,publicacoes_importadas,data_inicio,data_fim&order=data_inicio.asc`,
+    {
+      headers: {
+        Authorization: `Bearer ${SVC_KEY}`,
+        apikey: SVC_KEY,
+        "Accept-Profile": "judiciario",
+        "Accept": "application/json",
+      },
+    }
+  );
+  const fila = await r.json().catch(() => []) as Array<Record<string, unknown>>;
+
+  const total = fila.length;
+  const pendentes = fila.filter(f => f.status === "pendente").length;
+  const processando = fila.filter(f => f.status === "processando").length;
+  const concluidos = fila.filter(f => f.status === "concluido").length;
+  const comPublicacoes = fila.filter(f => Number(f.publicacoes_importadas ?? 0) > 0).length;
+  const totalImportadas = fila.reduce((acc, f) => acc + Number(f.publicacoes_importadas ?? 0), 0);
+
+  // Buscar status atual da advise-sync
+  const rs = await fetch(
+    `${SUPABASE_URL}/rest/v1/advise_sync_status?select=status,ultima_execucao,ultima_data_movimento,ultima_pagina,total_paginas,total_registros&order=updated_at.desc&limit=1`,
+    {
+      headers: {
+        Authorization: `Bearer ${SVC_KEY}`,
+        apikey: SVC_KEY,
+        "Accept-Profile": "judiciario",
+        "Accept": "application/json",
+      },
+    }
+  );
+  const syncStatus = await rs.json().catch(() => []) as Array<Record<string, unknown>>;
+  const sync = syncStatus[0] ?? {};
+
+  const syncEmoji = sync.status === "running" ? "⚡" : sync.status === "idle" ? "✅" : "⚠️";
+  const pctConcluido = total > 0 ? Math.round((concluidos / total) * 100) : 0;
+
+  const blocks = [
+    header("📥 Backfill Advise — Status"),
+    divider(),
+    section(
+      `*Fila de Backfill (${total} semanas)*\n` +
+      `• Pendentes: *${pendentes}* | Processando: *${processando}* | Concluídas: *${concluidos}* (${pctConcluido}%)\n` +
+      `• Semanas com publicações importadas: *${comPublicacoes}*\n` +
+      `• Total de publicações importadas: *${totalImportadas.toLocaleString("pt-BR")}*`
+    ),
+    divider(),
+    section(
+      `*Advise-Sync Status*\n` +
+      `• Estado: *${sync.status ?? "desconhecido"}* ${syncEmoji}\n` +
+      `• Última execução: *${fmtDate(String(sync.ultima_execucao ?? ""))}*\n` +
+      `• Última data processada: *${fmtDate(String(sync.ultima_data_movimento ?? ""))}*\n` +
+      `• Página atual: *${sync.ultima_pagina ?? "—"}* de *${sync.total_paginas ?? "—"}*`
+    ),
+    divider(),
+    actions([
+      { text: "▶️ Rodar Backfill", value: "run_backfill", style: "primary" },
+      { text: "🔄 Drenar Advise", value: "drain_advise" },
+    ]),
+    context([`_Atualizado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })} (AM)_`]),
+  ];
+
+  await postSlack(channel, "📥 Status do Backfill Advise", blocks);
+}
+
+async function handleRunBackfill(channel: string, userId: string): Promise<void> {
+  await postSlack(channel, `📥 <@${userId}> acionou *advise-backfill-runner* — processando próxima semana...`);
+
+  try {
+    const result = await invokeFunction("advise-backfill-runner", {}) as Record<string, unknown>;
+    const semana = result.semana ?? "—";
+    const novas = result.novas_importadas ?? result.novas ?? 0;
+    const erros = result.erros ?? 0;
+    const status = result.status ?? "concluido";
+
+    const emoji = status === "completo" ? "🎉" : erros === 0 ? "✅" : "⚠️";
+    await postSlack(
+      channel,
+      `${emoji} *advise-backfill-runner* concluído`,
+      [
+        section(
+          `${emoji} *Backfill Advise* — Semana Processada\n` +
+          `• Semana: *${semana}*\n` +
+          `• Publicações novas: *${novas}*\n` +
+          `• Erros: *${erros}*\n` +
+          `• Status: \`${status}\``
+        ),
+        context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+      ]
+    );
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao rodar backfill: ${String(e)}`);
+  }
+}
+
+async function handleRepairOrphans(channel: string, userId: string, subAction = "fix_all"): Promise<void> {
+  await postSlack(channel, `🔧 <@${userId}> acionou *fs-repair-orphans/${subAction}* — corrigindo campos órfãos...`);
+
+  try {
+    const result = await invokeFunction("fs-repair-orphans", { action: subAction, batch: 100 }) as Record<string, unknown>;
+
+    const blocks: unknown[] = [
+      header(`🔧 Reparo de Campos Órfãos — ${subAction}`),
+      divider(),
+    ];
+
+    if (subAction === "fix_all" && result) {
+      const r = result as Record<string, Record<string, number>>;
+      blocks.push(section(
+        `*Instância:* ${r.instancia?.corrigidos ?? 0} corrigidos\n` +
+        `*Partes:* ${r.partes?.corrigidos ?? 0} corrigidos\n` +
+        `*Status:* ${r.status?.corrigidos ?? 0} corrigidos\n` +
+        `*Freshsales Sync:* ${r.fs_sync?.sincronizados ?? 0} sincronizados`
+      ));
+    } else {
+      blocks.push(section(JSON.stringify(result, null, 2).substring(0, 500)));
+    }
+
+    blocks.push(context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]));
+    await postSlack(channel, `✅ Reparo concluído`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao reparar campos órfãos: ${String(e)}`);
+  }
+}
+
+async function handleResetDatajud(channel: string, userId: string): Promise<void> {
+  await postSlack(channel, `🔄 <@${userId}> acionou *reset-datajud* — resetando processos presos em "processando"...`);
+
+  try {
+    const result = await invokeFunction("fs-repair-orphans", { action: "reset_datajud" }) as Record<string, unknown>;
+    const resetados = result.resetados ?? 0;
+    await postSlack(
+      channel,
+      `✅ *reset-datajud* concluído — *${resetados}* processos resetados para pendente`,
+      [
+        section(`✅ *Reset DataJud* concluído\n• Processos resetados: *${resetados}*`),
+        context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+      ]
+    );
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao resetar DataJud: ${String(e)}`);
+  }
+}
+
+async function handleProcessoSync(channel: string, userId: string): Promise<void> {
+  await postSlack(channel, `🔄 <@${userId}> acionou *processo-sync* — sincronizando processos com Freshsales...`);
+
+  try {
+    const result = await invokeFunction("processo-sync", { action: "sync_bidirectional", limite: 20 }) as Record<string, unknown>;
+    const sincronizados = result.sincronizados ?? result.total ?? 0;
+    const erros = result.erros ?? 0;
+
+    await postSlack(
+      channel,
+      `✅ *processo-sync* concluído`,
+      [
+        section(
+          `✅ *Processo-Sync* — Concluído\n` +
+          `• Processos sincronizados: *${sincronizados}*\n` +
+          `• Erros: *${erros}*`
+        ),
+        context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+      ]
+    );
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao sincronizar processos: ${String(e)}`);
+  }
+}
+
 async function handleDatajud(channel: string, userId: string): Promise<void> {
   await postSlack(channel, `⚡ <@${userId}> acionou *datajud-worker* — processando fila...`);
 
@@ -436,38 +642,469 @@ async function handleDatajud(channel: string, userId: string): Promise<void> {
   }
 }
 
+// ── Handler: Prazos ─────────────────────────────────────────────────────────
+
+async function handlePrazos(channel: string): Promise<void> {
+  try {
+    // Buscar prazos pendentes
+    const { data: prazos } = await db
+      .from("prazo_calculado")
+      .select(`
+        titulo, data_vencimento, status, prioridade, tipo_contagem,
+        processo:processo_id(numero_cnj, tribunal)
+      `)
+      .eq("status", "pendente")
+      .order("data_vencimento", { ascending: true })
+      .limit(10);
+
+    const { count: totalPendentes } = await db
+      .from("prazo_calculado")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pendente");
+
+    const { count: urgentes } = await db
+      .from("prazo_calculado")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pendente")
+      .lte("data_vencimento", new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0]);
+
+    const hoje = new Date().toISOString().split("T")[0];
+
+    const prazoLines = (prazos || []).map((p: Record<string, unknown>) => {
+      const proc = (p.processo as Record<string, unknown>)?.numero_cnj || "—";
+      const venc = fmtDate(String(p.data_vencimento || ""));
+      const titulo = String(p.titulo || "").substring(0, 50);
+      const prioridade = String(p.prioridade || "media");
+      const diasRestantes = Math.ceil((new Date(String(p.data_vencimento)).getTime() - Date.now()) / 86400000);
+      const emoji = diasRestantes < 0 ? "🔴" : diasRestantes <= 1 ? "🚨" : diasRestantes <= 3 ? "⚠️" : prioridade === "alta" ? "🟠" : "🟡";
+      return `${emoji} \`${proc}\`\n   ${titulo}\n   Vence: *${venc}* (${diasRestantes < 0 ? `${Math.abs(diasRestantes)}d atrasado` : `${diasRestantes}d restantes`})`;
+    }).join("\n\n");
+
+    const blocks = [
+      header("⏱️ Prazos Processuais Pendentes"),
+      section(
+        `*Total pendentes:* ${totalPendentes || 0} | *Urgentes (≤3 dias):* ${urgentes || 0}`
+      ),
+      divider(),
+      section(prazoLines || "_Nenhum prazo calculado ainda — aguardando backfill das publicações_"),
+      divider(),
+      context([`_Calculados via prazo_regra + feriado_forense | Atualizado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+
+    await postSlack(channel, `⏱️ Prazos pendentes: ${totalPendentes || 0} (${urgentes || 0} urgentes)`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao buscar prazos: ${String(e)}`);
+  }
+}
+
+// ── Handler: TPU Enricher ────────────────────────────────────────────────────
+
+async function handleTpuEnricher(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, "🔍 Iniciando enriquecimento TPU/CNJ...");
+    const resp = await fetch(`${SELF_URL}/tpu-enricher`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "batch_enrich", batch_size: 50 }),
+    });
+    const result = await resp.json() as Record<string, unknown>;
+    const enriched = Number(result.enriched || 0);
+    const errors = Number(result.errors || 0);
+    const blocks = [
+      header("🔍 TPU Enricher — Enriquecimento Local via CNJ"),
+      section(
+        `*Processados:* ${enriched} processos enriquecidos\n` +
+        `*Erros:* ${errors}\n\n` +
+        `_Dados extraídos: tribunal, comarca, vara, instância, segmento — sem chamada à API DataJud_`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `🔍 TPU Enricher: ${enriched} processos enriquecidos`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao executar TPU Enricher: ${String(e)}`);
+  }
+}
+
+// ── Handler: Calcular Prazos ─────────────────────────────────────────────────
+
+async function handleCalcularPrazos(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, "⏱️ Calculando prazos das publicações recentes...");
+    const resp = await fetch(`${SELF_URL}/publicacoes-prazos`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "calcular_batch", batch_size: 50 }),
+    });
+    const result = await resp.json() as Record<string, unknown>;
+    const calculados = Number(result.calculados || 0);
+    const criados_fs = Number(result.criados_freshsales || 0);
+    const errors = Number(result.errors || 0);
+    const blocks = [
+      header("⏱️ Cálculo de Prazos Processuais"),
+      section(
+        `*Prazos calculados:* ${calculados}\n` +
+        `*Tasks criadas no Freshsales:* ${criados_fs}\n` +
+        `*Erros:* ${errors}\n\n` +
+        `_Regras aplicadas: prazo_regra + feriado_forense + suspensao_expediente_`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `⏱️ Prazos: ${calculados} calculados, ${criados_fs} tasks no Freshsales`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao calcular prazos: ${String(e)}`);
+  }
+}
+
+// ── Novos Handlers v2.0 ─────────────────────────────────────────────────────
+
+async function handleDealsStatus(channel: string): Promise<void> {
+  try {
+    const [fatAberto, fatTotal, assAberto, assTotal, prazosAberto] = await Promise.all([
+      dbPublic.from("faturas").select("saldo_devedor", { count: "exact" }).eq("status", "Em aberto"),
+      dbPublic.from("faturas").select("id", { count: "exact", head: true }),
+      dbPublic.from("faturas").select("saldo_devedor").eq("status", "Em aberto").eq("tipo", "Assinatura"),
+      dbPublic.from("faturas").select("id", { count: "exact", head: true }).eq("tipo", "Assinatura"),
+      dbPublic.from("freshsales_deals_registry").select("id", { count: "exact", head: true }).eq("stage", "open"),
+    ]);
+
+    const totalFat = fatTotal.count ?? 0;
+    const totalAss = assTotal.count ?? 0;
+    const emAbertoFat = fatAberto.count ?? 0;
+    const emAbertoAss = assAberto.count ?? 0;
+    const saldoFat = (fatAberto.data ?? []).reduce((s: number, r: Record<string, unknown>) => s + (Number(r.saldo_devedor) || 0), 0);
+    const saldoAss = (assAberto.data ?? []).reduce((s: number, r: Record<string, unknown>) => s + (Number(r.saldo_devedor) || 0), 0);
+    const dealsAbertos = prazosAberto.count ?? 0;
+
+    const blocks = [
+      header("💰 Resumo Financeiro — HMADV"),
+      divider(),
+      section(
+        `*📄 Faturas*\n` +
+        `• Total: *${totalFat.toLocaleString("pt-BR")}*\n` +
+        `• Em aberto: *${emAbertoFat.toLocaleString("pt-BR")}* — Saldo: *R$ ${saldoFat.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*`
+      ),
+      section(
+        `*🔄 Assinaturas*\n` +
+        `• Total: *${totalAss.toLocaleString("pt-BR")}*\n` +
+        `• Em aberto: *${emAbertoAss.toLocaleString("pt-BR")}* — Saldo: *R$ ${saldoAss.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*`
+      ),
+      section(
+        `*💼 Deals Freshsales*\n` +
+        `• Deals em aberto: *${dealsAbertos.toLocaleString("pt-BR")}*\n` +
+        `• Saldo total em aberto: *R$ ${(saldoFat + saldoAss).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*`
+      ),
+      divider(),
+      actions([
+        { text: "🔄 Sync Deals", value: "deals_sync" },
+        { text: "📊 Relatório Financeiro", value: "relatorio_financeiro" },
+      ]),
+      context([`_Atualizado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })} (AM)_`]),
+    ];
+    await postSlack(channel, `💰 Resumo Financeiro: R$ ${(saldoFat + saldoAss).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} em aberto`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao obter resumo financeiro: ${String(e)}`);
+  }
+}
+
+async function handleDealsSync(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Iniciando sync de Deals (faturas/assinaturas) → Freshsales...`);
+    const result = await invokeFunction("deals-sync", { action: "sync_batch", batch_size: 50 }) as Record<string, unknown>;
+    const criados = Number(result.criados || 0);
+    const atualizados = Number(result.atualizados || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("💼 Sync Deals — Freshsales"),
+      section(
+        `*Deals criados:* ${criados}\n` +
+        `*Deals atualizados:* ${atualizados}\n` +
+        `*Erros:* ${erros}\n\n` +
+        `_Faturas e assinaturas sincronizadas com contatos e processos vinculados_`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `💼 Deals: ${criados} criados, ${atualizados} atualizados`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao sincronizar Deals: ${String(e)}`);
+  }
+}
+
+async function handleImportarPlanilhas(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Importando publicações das planilhas Advise exportadas...`);
+    const result = await invokeFunction("advise-import-planilha", { action: "import_batch", batch_size: 200 }) as Record<string, unknown>;
+    const inseridas = Number(result.inseridas || 0);
+    const ignoradas = Number(result.ignoradas || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("📥 Importação de Planilhas Advise"),
+      section(
+        `*Publicações inseridas:* ${inseridas}\n` +
+        `*Já existentes (ignoradas):* ${ignoradas}\n` +
+        `*Erros:* ${erros}`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `📥 Planilhas: ${inseridas} publicações importadas`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao importar planilhas: ${String(e)}`);
+  }
+}
+
+async function handleSyncPublicacoes(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Sincronizando publicações → Freshsales (activities)...`);
+    const result = await invokeFunction("publicacoes-freshsales", { action: "sync_batch", batch_size: 50 }) as Record<string, unknown>;
+    const criados = Number(result.criados || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("📋 Sync Publicações → Freshsales"),
+      section(
+        `*Activities criadas:* ${criados}\n` +
+        `*Erros:* ${erros}`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `📋 Publicações: ${criados} activities criadas no Freshsales`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao sincronizar publicações: ${String(e)}`);
+  }
+}
+
+async function handleExtrairAudiencias(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Extraindo audiências das publicações → appointments Freshsales...`);
+    const result = await invokeFunction("publicacoes-audiencias", { action: "extrair_batch", batch_size: 50 }) as Record<string, unknown>;
+    const extraidas = Number(result.extraidas || 0);
+    const criadas_fs = Number(result.criadas_freshsales || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("📅 Extração de Audiências"),
+      section(
+        `*Audiências extraídas:* ${extraidas}\n` +
+        `*Appointments criados no Freshsales:* ${criadas_fs}\n` +
+        `*Erros:* ${erros}`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `📅 Audiências: ${extraidas} extraídas, ${criadas_fs} appointments criados`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao extrair audiências: ${String(e)}`);
+  }
+}
+
+async function handleExtrairPartes(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Extraindo partes das publicações → contacts Freshsales...`);
+    const result = await invokeFunction("publicacoes-partes", { action: "extrair_batch", batch_size: 50 }) as Record<string, unknown>;
+    const extraidas = Number(result.extraidas || 0);
+    const criados_fs = Number(result.criados_freshsales || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("👥 Extração de Partes"),
+      section(
+        `*Partes extraídas:* ${extraidas}\n` +
+        `*Contacts criados/atualizados no Freshsales:* ${criados_fs}\n` +
+        `*Erros:* ${erros}\n\n` +
+        `_Polo ativo e passivo vinculados aos processos_`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `👥 Partes: ${extraidas} extraídas, ${criados_fs} contacts no Freshsales`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao extrair partes: ${String(e)}`);
+  }
+}
+
+async function handleCriarProcessos(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Criando processos ausentes e vinculando publicações órfãs...`);
+    const result = await invokeFunction("fs-repair-orphans", { action: "criar_processos_ausentes", batch_size: 20 }) as Record<string, unknown>;
+    const criados = Number(result.criados || 0);
+    const vinculados = Number(result.vinculados || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("🔗 Criação de Processos Ausentes"),
+      section(
+        `*Processos criados no Freshsales:* ${criados}\n` +
+        `*Publicações órfãs vinculadas:* ${vinculados}\n` +
+        `*Erros:* ${erros}`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `🔗 Processos: ${criados} criados, ${vinculados} publicações vinculadas`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao criar processos: ${String(e)}`);
+  }
+}
+
+async function handleTipoProcesso(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Atualizando tipo físico/eletrônico dos processos via Datajud...`);
+    const result = await invokeFunction("datajud-worker", { action: "enrich_formato", batch_size: 50 }) as Record<string, unknown>;
+    const atualizados = Number(result.atualizados || 0);
+    const fisicos = Number(result.fisicos || 0);
+    const eletronicos = Number(result.eletronicos || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("⚖️ Tipo de Processo — Físico/Eletrônico"),
+      section(
+        `*Processos atualizados:* ${atualizados}\n` +
+        `• Eletrônicos: *${eletronicos}*\n` +
+        `• Físicos: *${fisicos}*\n` +
+        `*Erros:* ${erros}\n\n` +
+        `_Campo cf_tipo_processo atualizado no Freshsales_`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `⚖️ Tipo de processo: ${atualizados} atualizados (${eletronicos} eletrônicos, ${fisicos} físicos)`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao atualizar tipo de processo: ${String(e)}`);
+  }
+}
+
+async function handlePrazoFim(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Atualizando campo Prazo Fim nos Accounts do Freshsales...`);
+    const result = await invokeFunction("publicacoes-prazos", { action: "atualizar_prazo_fim", batch_size: 100 }) as Record<string, unknown>;
+    const atualizados = Number(result.atualizados || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("📅 Atualização de Prazo Fim — Freshsales"),
+      section(
+        `*Accounts atualizados:* ${atualizados}\n` +
+        `*Erros:* ${erros}\n\n` +
+        `_Campo cf_prazo_fim atualizado com o próximo prazo em aberto_`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `📅 Prazo Fim: ${atualizados} accounts atualizados`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao atualizar Prazo Fim: ${String(e)}`);
+  }
+}
+
+async function handleHigienizarContatos(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, `⏳ Detectando e mesclando contatos duplicados no Freshsales...`);
+    const result = await invokeFunction("sync-worker", { action: "higienizar_contatos", batch_size: 50 }) as Record<string, unknown>;
+    const duplicados = Number(result.duplicados || 0);
+    const mesclados = Number(result.mesclados || 0);
+    const erros = Number(result.errors || 0);
+    const blocks = [
+      header("🧹 Higienização de Contatos"),
+      section(
+        `*Duplicados detectados:* ${duplicados}\n` +
+        `*Registros mesclados:* ${mesclados}\n` +
+        `*Erros:* ${erros}`
+      ),
+      context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]),
+    ];
+    await postSlack(channel, `🧹 Contatos: ${duplicados} duplicados, ${mesclados} mesclados`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao higienizar contatos: ${String(e)}`);
+  }
+}
+
+async function handleRelatorioFinanceiro(channel: string): Promise<void> {
+  try {
+    const hoje = new Date();
+    const { data: faturas } = await dbPublic
+      .from("faturas")
+      .select("saldo_devedor,vencimento,cliente_nome,numero_fatura,categoria,multa_atraso,juros_mora")
+      .eq("status", "Em aberto")
+      .order("vencimento", { ascending: true })
+      .limit(10);
+
+    if (!faturas || faturas.length === 0) {
+      await postSlack(channel, "✅ Nenhuma fatura em aberto no momento.");
+      return;
+    }
+
+    const linhas = faturas.map((f: Record<string, unknown>) => {
+      const venc = f.vencimento ? new Date(String(f.vencimento)) : null;
+      const atrasado = venc && venc < hoje ? `⚠️ *VENCIDA* (${Math.floor((hoje.getTime() - venc.getTime()) / 86400000)}d)` : "";
+      const saldo = Number(f.saldo_devedor || 0);
+      const multa = Number(f.multa_atraso || 0);
+      const juros = Number(f.juros_mora || 0);
+      return `• *${f.numero_fatura || "s/nº"}* — ${f.cliente_nome || "s/nome"} — R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ${atrasado}${multa > 0 ? ` | Multa: R$ ${multa.toFixed(2)}` : ""}${juros > 0 ? ` | Juros: R$ ${juros.toFixed(2)}` : ""}`;
+    }).join("\n");
+
+    const blocks = [
+      header("📊 Relatório Financeiro — Faturas em Aberto"),
+      divider(),
+      section(`*Top 10 faturas em aberto (por vencimento):*\n${linhas}`),
+      divider(),
+      actions([{ text: "💼 Sync Deals", value: "deals_sync" }]),
+      context([`_Gerado em ${hoje.toLocaleString("pt-BR", { timeZone: "America/Manaus" })} (AM)_`]),
+    ];
+    await postSlack(channel, `📊 Relatório Financeiro — ${faturas.length} faturas em aberto`, blocks);
+  } catch (e: unknown) {
+    await postSlack(channel, `❌ Erro ao gerar relatório financeiro: ${String(e)}`);
+  }
+}
+
 async function handleHelp(channel: string): Promise<void> {
   const blocks = [
-    header("🤖 DotoBot — Comandos Disponíveis"),
+    header("🤖 DotoBot v2.0 — Comandos Disponíveis"),
     divider(),
     section(
-      `*Painel e Status*\n` +
+      `*📊 Painel e Status*\n` +
       `• \`/dotobot status\` — Painel completo do pipeline em tempo real\n` +
       `• \`/dotobot pendencias\` — Relatório de pendências de desenvolvimento`
     ),
     divider(),
     section(
-      `*Consultas*\n` +
+      `*🔍 Consultas*\n` +
       `• \`/dotobot publicacoes\` — Últimas 5 publicações recebidas do Advise\n` +
       `• \`/dotobot andamentos\` — Últimos 5 andamentos do DataJud\n` +
-      `• \`/dotobot audiencias\` — Próximas audiências agendadas`
+      `• \`/dotobot audiencias\` — Próximas audiências agendadas\n` +
+      `• \`/dotobot prazos\` — Prazos processuais pendentes\n` +
+      `• \`/dotobot deals-status\` — Resumo financeiro (faturas em aberto)\n` +
+      `• \`/dotobot relatorio-financeiro\` — Top 10 faturas vencidas com multa e juros`
     ),
     divider(),
     section(
-      `*Acionamento Manual de Edge Functions*\n` +
-      `• \`/dotobot fix-activities\` — Corrigir 50 activities pendentes no Freshsales\n` +
+      `*🔄 Sincronização e Enriquecimento*\n` +
       `• \`/dotobot drain-advise\` — Drenar publicações do Advise agora\n` +
+      `• \`/dotobot importar-planilhas\` — Importar publicações das planilhas exportadas\n` +
+      `• \`/dotobot sync-publicacoes\` — Sync publicações → Freshsales (activities)\n` +
+      `• \`/dotobot extrair-audiencias\` — Extrair audiências → appointments Freshsales\n` +
+      `• \`/dotobot extrair-partes\` — Extrair partes → contacts Freshsales\n` +
+      `• \`/dotobot criar-processos\` — Criar processos ausentes + vincular órfãos\n` +
+      `• \`/dotobot processo-sync\` — Sync processos → Freshsales (lote 20)\n` +
+      `• \`/dotobot deals-sync\` — Sync faturas/assinaturas → Freshsales Deals\n` +
+      `• \`/dotobot tipo-processo\` — Atualizar tipo físico/eletrônico via Datajud\n` +
+      `• \`/dotobot prazo-fim\` — Atualizar campo Prazo Fim nos Accounts`
+    ),
+    divider(),
+    section(
+      `*⏱️ Cálculo de Prazos*\n` +
+      `• \`/dotobot calcular-prazos\` — Calcular prazos (memória extensiva PrazoFácil)\n` +
+      `• \`/dotobot tpu-enrich\` — Enriquecer processos via TPU/CNJ local`
+    ),
+    divider(),
+    section(
+      `*🧹 Higienização*\n` +
+      `• \`/dotobot fix-activities\` — Corrigir 50 activities pendentes\n` +
+      `• \`/dotobot repair-orphans\` — Corrigir campos órfãos (instância, partes, status)\n` +
+      `• \`/dotobot repair-instancia\` — Corrigir apenas campo instância\n` +
+      `• \`/dotobot repair-partes\` — Corrigir apenas polo ativo/passivo\n` +
+      `• \`/dotobot repair-fs\` — Sincronizar campos corrigidos com Freshsales\n` +
+      `• \`/dotobot reset-datajud\` — Resetar processos presos em "processando"\n` +
+      `• \`/dotobot higienizar-contatos\` — Detectar e mesclar contatos duplicados\n` +
       `• \`/dotobot datajud\` — Processar fila DataJud agora\n` +
-      `• \`/dotobot help\` — Esta ajuda`
+      `• \`/dotobot backfill\` — Rodar próxima semana do backfill Advise\n` +
+      `• \`/dotobot backfill-status\` — Ver estado do backfill`
     ),
     divider(),
     context([
-      `_Pipeline HMADV — Hermida Maia Advocacia_`,
+      `_Pipeline HMADV v2.0 — Hermida Maia Advocacia_`,
       `_Supabase: sspvizogbcyigquqycsz | Freshsales: hmadv-org_`,
     ]),
   ];
 
-  await postSlack(channel, "🤖 DotoBot — Ajuda", blocks);
+  await postSlack(channel, "🤖 DotoBot v2.0 — Ajuda", blocks);
 }
 
 // ── Notificações Automáticas (chamadas por outras edge functions) ──────────────
@@ -610,8 +1247,97 @@ Deno.serve(async (req) => {
       await handleDrainAdvise(body.channel as string || SLACK_CHANNEL, "system");
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
     }
+    if (action === "run_backfill" || action === "backfill") {
+      await handleRunBackfill(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "backfill_status") {
+      await handleBackfillStatus(body.channel as string || SLACK_CHANNEL);
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "repair_orphans" || action === "repair_all") {
+      await handleRepairOrphans(body.channel as string || SLACK_CHANNEL, "system", "fix_all");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "repair_instancia") {
+      await handleRepairOrphans(body.channel as string || SLACK_CHANNEL, "system", "fix_instancia");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "repair_partes") {
+      await handleRepairOrphans(body.channel as string || SLACK_CHANNEL, "system", "fix_partes");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "repair_fs_sync") {
+      await handleRepairOrphans(body.channel as string || SLACK_CHANNEL, "system", "fix_fs_sync");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "reset_datajud") {
+      await handleResetDatajud(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "processo_sync") {
+      await handleProcessoSync(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
     if (action === "help") {
       await handleHelp(body.channel as string || SLACK_CHANNEL);
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "prazos") {
+      await handlePrazos(body.channel as string || SLACK_CHANNEL);
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "calcular_prazos") {
+      await handleCalcularPrazos(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "tpu_enrich") {
+      await handleTpuEnricher(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    // Novos comandos v2.0
+    if (action === "deals_status") {
+      await handleDealsStatus(body.channel as string || SLACK_CHANNEL);
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "deals_sync") {
+      await handleDealsSync(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "importar_planilhas") {
+      await handleImportarPlanilhas(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "sync_publicacoes") {
+      await handleSyncPublicacoes(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "extrair_audiencias") {
+      await handleExtrairAudiencias(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "extrair_partes") {
+      await handleExtrairPartes(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "criar_processos") {
+      await handleCriarProcessos(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "tipo_processo") {
+      await handleTipoProcesso(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "prazo_fim") {
+      await handlePrazoFim(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "higienizar_contatos") {
+      await handleHigienizarContatos(body.channel as string || SLACK_CHANNEL, "system");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (action === "relatorio_financeiro") {
+      await handleRelatorioFinanceiro(body.channel as string || SLACK_CHANNEL);
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
     }
 
@@ -649,6 +1375,29 @@ Deno.serve(async (req) => {
         else if (cmd === "fix-activities" || cmd === "fix_activities") await handleFixActivities(channelId, userId);
         else if (cmd === "drain-advise" || cmd === "drain_advise") await handleDrainAdvise(channelId, userId);
         else if (cmd === "datajud") await handleDatajud(channelId, userId);
+        else if (cmd === "backfill" || cmd === "run-backfill" || cmd === "run_backfill") await handleRunBackfill(channelId, userId);
+        else if (cmd === "backfill-status" || cmd === "backfill_status") await handleBackfillStatus(channelId);
+        else if (cmd === "repair-orphans" || cmd === "repair_orphans") await handleRepairOrphans(channelId, userId, "fix_all");
+        else if (cmd === "repair-instancia" || cmd === "repair_instancia") await handleRepairOrphans(channelId, userId, "fix_instancia");
+        else if (cmd === "repair-partes" || cmd === "repair_partes") await handleRepairOrphans(channelId, userId, "fix_partes");
+        else if (cmd === "repair-fs" || cmd === "repair_fs") await handleRepairOrphans(channelId, userId, "fix_fs_sync");
+        else if (cmd === "reset-datajud" || cmd === "reset_datajud") await handleResetDatajud(channelId, userId);
+        else if (cmd === "processo-sync" || cmd === "processo_sync") await handleProcessoSync(channelId, userId);
+        else if (cmd === "prazos") await handlePrazos(channelId);
+        else if (cmd === "calcular-prazos" || cmd === "calcular_prazos") await handleCalcularPrazos(channelId, userId);
+        else if (cmd === "tpu-enrich" || cmd === "tpu_enrich") await handleTpuEnricher(channelId, userId);
+        // Novos comandos v2.0
+        else if (cmd === "deals-status" || cmd === "deals_status") await handleDealsStatus(channelId);
+        else if (cmd === "deals-sync" || cmd === "deals_sync") await handleDealsSync(channelId, userId);
+        else if (cmd === "importar-planilhas" || cmd === "importar_planilhas") await handleImportarPlanilhas(channelId, userId);
+        else if (cmd === "sync-publicacoes" || cmd === "sync_publicacoes") await handleSyncPublicacoes(channelId, userId);
+        else if (cmd === "extrair-audiencias" || cmd === "extrair_audiencias") await handleExtrairAudiencias(channelId, userId);
+        else if (cmd === "extrair-partes" || cmd === "extrair_partes") await handleExtrairPartes(channelId, userId);
+        else if (cmd === "criar-processos" || cmd === "criar_processos") await handleCriarProcessos(channelId, userId);
+        else if (cmd === "tipo-processo" || cmd === "tipo_processo") await handleTipoProcesso(channelId, userId);
+        else if (cmd === "prazo-fim" || cmd === "prazo_fim") await handlePrazoFim(channelId, userId);
+        else if (cmd === "higienizar-contatos" || cmd === "higienizar_contatos") await handleHigienizarContatos(channelId, userId);
+        else if (cmd === "relatorio-financeiro" || cmd === "relatorio_financeiro") await handleRelatorioFinanceiro(channelId);
         else await handleHelp(channelId);
       } catch (e) {
         await postSlack(channelId, `❌ Erro ao processar comando \`${cmd}\`: ${String(e)}`);

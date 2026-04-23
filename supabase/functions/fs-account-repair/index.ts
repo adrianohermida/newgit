@@ -400,6 +400,60 @@ Deno.serve(async (req) => {
       }), { headers: { 'Content-Type': 'application/json' } });
     }
 
+    // ── FIX ACTIVITIES: marcar activities de publicação pendentes como concluídas ──
+    if (action === 'fix_activities') {
+      const batchSize = Math.max(1, Math.min(Number(body.batch_size ?? url.searchParams.get('batch_size') ?? 20), 50));
+      const cursor    = Number(body.cursor ?? url.searchParams.get('cursor') ?? 0);
+
+      // Buscar publicações com activity_id registrada mas sem completed_date
+      const { data: pubs } = await db.from('publicacoes')
+        .select('id,freshsales_activity_id,data_publicacao,numero_processo_api')
+        .not('freshsales_activity_id', 'is', null)
+        .not('freshsales_activity_id', 'eq', 'LEILAO_IGNORADO')
+        .order('data_publicacao', { ascending: false })
+        .range(cursor, cursor + batchSize - 1);
+
+      let corrigidas = 0;
+      let erros = 0;
+      const det: unknown[] = [];
+
+      for (const pub of pubs ?? []) {
+        const actId = String(pub.freshsales_activity_id ?? '');
+        if (!actId || actId === 'LEILAO_IGNORADO') continue;
+        const dtPub = pub.data_publicacao ? new Date(String(pub.data_publicacao)) : new Date();
+        try {
+          const { status } = await fsPut(`sales_activities/${actId}`, {
+            sales_activity: {
+              completed_date: dtPub.toISOString(),
+              end_date: `${dtPub.toISOString().split('T')[0]}T18:00:00-03:00`,
+            },
+          });
+          if (status === 200 || status === 201) {
+            corrigidas++;
+            det.push({ pub_id: pub.id, activity_id: actId, status: 'ok' });
+          } else {
+            erros++;
+            det.push({ pub_id: pub.id, activity_id: actId, status: `http_${status}` });
+          }
+        } catch (e) {
+          erros++;
+          det.push({ pub_id: pub.id, activity_id: actId, status: 'erro', erro: String(e) });
+        }
+        await sleep(120); // rate limit: ~8 req/s
+      }
+
+      return new Response(JSON.stringify({
+        ok: erros === 0,
+        action: 'fix_activities',
+        cursor,
+        batch_size: batchSize,
+        corrigidas,
+        erros,
+        proximo_cursor: cursor + batchSize,
+        detalhes: det,
+      }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
     if (action === 'batch') {
       const limit = Math.max(1, Math.min(Number(body.limit ?? url.searchParams.get('limit') ?? 10), 50));
       const offset = Math.max(0, Number(body.offset ?? url.searchParams.get('offset') ?? 0));
@@ -440,6 +494,16 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Notificar Slack sobre o resultado do batch repair
+      if (ok > 0 || erro > 0) {
+        const icon = erro === 0 ? '\u2705' : '\u26a0\ufe0f';
+        const msg = `${icon} *Batch Repair Accounts:* ${ok} corrigidos, ${erro} erros (lote ${offset}\u2013${offset + results.length})`;
+        fetch(`${SUPABASE_URL}/functions/v1/dotobot-slack`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${SVC_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'notify', message: msg }),
+        }).catch(() => {});
+      }
       return new Response(JSON.stringify({
         ok: erro === 0,
         action: 'batch',

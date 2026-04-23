@@ -202,6 +202,7 @@ async function persistirProcesso(hit: CanonicalProcesso, tenantId?: string): Pro
     data_distribuicao: hit.data_distribuicao ?? null,
     data_ultima_movimentacao: hit.data_ultima_movimentacao ?? null,
     valor_causa: hit.valor_causa ?? null,
+    formato: hit.formato ?? null,
     segredo_justica: hit.segredo_justica ?? null,
     fonte_criacao: 'datajud',
     dados_incompletos: false,

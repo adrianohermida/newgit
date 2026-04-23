@@ -43,16 +43,17 @@ const log = (n:'info'|'warn'|'error', m:string, e:Record<string,unknown>={}) =>
 const sleep = (ms:number) => new Promise(r => setTimeout(r, ms));
 
 // ─── Palavras-chave de exclusão (leilão — outro projeto) ─────────────────────
-// REGRA: filtrar APENAS pelo campo palavrasChave da API Advise.
-// NÃO filtrar por texto livre (despacho/conteudo) — muito agressivo.
 const EXCLUIR_PALAVRAS = ['leilão','leilões','leilao','leiloes'];
+
 function isPublicacaoExcluida(pub: Record<string,unknown>): boolean {
-  // Verifica APENAS palavrasChave do payload Advise (campo estruturado)
+  // Verifica palavrasChave do payload Advise
   const palavras = (pub.palavrasChave as string[] ?? []);
   for (const p of palavras) {
     if (EXCLUIR_PALAVRAS.some(ex => p.toLowerCase().includes(ex))) return true;
   }
-  return false;
+  // Verifica despacho e conteúdo
+  const txt = String((pub.despacho??'') + ' ' + (pub.conteudo??'')).toLowerCase();
+  return EXCLUIR_PALAVRAS.some(ex => txt.includes(ex));
 }
 
 // ─── CNJ helpers ──────────────────────────────────────────────────────────
@@ -162,7 +163,6 @@ async function buscarPublicacoesAdvise(
       registrosPorPagina: String(porPagina),
       dataMovimentoInicial: dataInicio,
       dataMovimentoFinal: dataFim,
-      Lido: 'false',  // Lido=false = não lidos; parâmetro obrigatório
     });
     const data = await adviseCoreGet(params) as Record<string,unknown>;
     const pubsRaw = (data.itens ?? []) as Record<string,unknown>[];
@@ -535,13 +535,12 @@ Deno.serve(async (req:Request) => {
         break;
 
       case 'sync': {
-        // Intervalo padrão: 3 dias atrás a ontem (API não disponibiliza publicações do dia atual)
+        // Intervalo padrão: ontem a hoje
         const hoje   = new Date();
         const ontem  = new Date(hoje); ontem.setDate(hoje.getDate()-1);
-        const tresAtras = new Date(hoje); tresAtras.setDate(hoje.getDate()-3);
         const fmt    = (d:Date) => d.toISOString().split('T')[0];
-        const inicio = url.searchParams.get('data_inicio') ?? fmt(tresAtras);
-        const fim    = url.searchParams.get('data_fim')    ?? fmt(ontem);
+        const inicio = url.searchParams.get('data_inicio') ?? fmt(ontem);
+        const fim    = url.searchParams.get('data_fim')    ?? fmt(hoje);
         const cursor = await getAdviseStatusRow();
         const paginaParam = url.searchParams.get('pagina');
         const scopeCnjs = extractScopedCnjs(

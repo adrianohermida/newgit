@@ -667,6 +667,16 @@ async function handleSyncAndamentos(limite=200): Promise<Record<string,unknown>>
       } catch { erros++; }
     }
   }
+  // Notificar Slack quando há novos andamentos sincronizados
+  if (enviados > 0) {
+    const icon = erros === 0 ? '\u2694\ufe0f' : '\u26a0\ufe0f';
+    const msg = `${icon} *Novos Andamentos:* ${enviados} movimenta\u00e7\u00f5es sincronizadas com o Freshsales${erros > 0 ? `, ${erros} erros` : ''}.`;
+    fetch(`${SUPABASE_URL}/functions/v1/dotobot-slack`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${SVC_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'notify', message: msg }),
+    }).catch(() => {});
+  }
   return {ok:true, total:movs.length, enviados, erros};
 }
 

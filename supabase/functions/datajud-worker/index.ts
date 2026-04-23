@@ -370,6 +370,7 @@ async function atualizarAccount(
   set('cf_publicacao_em',         resumo.ultimaPublicacaoEm);
   set('cf_contedo_publicacao',    resumo.ultimoConteudoPublicacao);
   set('cf_prazo_fim',             resumo.ultimoPrazoFim);
+  set('cf_tipo_processo',          proc.formato);
 
   const cfFinal: Record<string,unknown> = {};
   for (const [k, v] of Object.entries(cfSuap)) {
@@ -393,6 +394,7 @@ async function atualizarAccount(
       'cf_assunto',
       'cf_data_de_distribuio',
       'cf_segredo_de_justica',
+      'cf_tipo_processo',
     ]);
     if (k === 'cf_processo' || overwriteDynamic.has(k) || !fsCF[k]) cfFinal[k] = v;
   }
