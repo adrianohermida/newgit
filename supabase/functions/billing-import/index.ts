@@ -42,7 +42,7 @@ const BATCH_SIZE     = 8;     // 8 itens × ~3 req = 24 req/execução (seguro)
 
 // IDs reais do Freshsales
 const FS_PIPELINE_ID = 31000060365;
-const FS_PRODUCT_ID  = 31002148103; // Honorários Advocatícios
+const FS_PRODUCT_ID_DEFAULT = 31002148103; // Honorários Advocatícios (fallback)
 const FS_STAGE_MAP: Record<string, number> = {
   aberto:    31000423213,
   faturar:   31000423211,
@@ -219,17 +219,53 @@ async function buscarAccountPorCNJ(cnj: string | null, nomeContato?: string | nu
   return null;
 }
 
+// ─── Carregar mapa de produtos do Supabase ─────────────────────────────────
+let _productMapCache: Record<string, number> | null = null;
+
+async function getProductMap(): Promise<Record<string, number>> {
+  if (_productMapCache) return _productMapCache;
+  try {
+    const { data, error } = await db
+      .from('fs_product_map')
+      .select('receivable_type, fs_product_id')
+      .not('fs_product_id', 'is', null);
+    if (error || !data) {
+      console.warn('fs_product_map não disponível, usando fallback:', error?.message);
+      return {};
+    }
+    _productMapCache = {};
+    for (const row of data) {
+      if (row.fs_product_id) {
+        _productMapCache[row.receivable_type] = Number(row.fs_product_id);
+      }
+    }
+    console.log('Mapa de produtos carregado:', JSON.stringify(_productMapCache));
+    return _productMapCache;
+  } catch (e) {
+    console.warn('Erro ao carregar fs_product_map:', String(e));
+    return {};
+  }
+}
+
 // ─── Freshsales: montar payload do deal ──────────────────────────────────────
-function buildDealPayload(
+async function buildDealPayload(
   item: Record<string, unknown>,
   contactId: string | null,
   accountId: string | null,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const status        = (item.status as string) || "aberto";
   const amount        = Number(item.balance_due ?? item.amount_original ?? 0);
   const amountOriginal = Number(item.amount_original ?? 0);
   const dealStageId   = FS_STAGE_MAP[status] ?? FS_STAGE_MAP["aberto"];
   const probability   = status === "pago" ? 100 : status === "cancelado" ? 0 : 50;
+
+  // Produto dinâmico: unit_price = R$1,00 × quantity = valor total
+  const receivableType = (item.receivable_type as string) || "honorario";
+  const productMap = await getProductMap();
+  const productId = productMap[receivableType] ?? FS_PRODUCT_ID_DEFAULT;
+  const dealAmount = amount > 0 ? amount : amountOriginal;
+  // quantity = valor total em reais (unit_price fixo = 1.00)
+  const productQuantity = dealAmount > 0 ? Math.round(dealAmount * 100) / 100 : 1;
 
   const invoiceNum  = (item.invoice_number as string) || null;
   const contactName = (item.contact_name   as string) || null;
@@ -247,11 +283,11 @@ function buildDealPayload(
     deal_pipeline_id: FS_PIPELINE_ID,
     owner_id:        FS_OWNER_ID,
     probability:     probability,
-    // Produto obrigatório no Freshsales
+    // Produto dinâmico: unit_price=R$1,00 × quantity=valor_total
     deal_products: [{
-      id:       FS_PRODUCT_ID,
-      quantity: 1,
-      price:    amount > 0 ? amount : amountOriginal,
+      id:       productId,
+      quantity: productQuantity,
+      price:    1.00,
     }],
     // Campos customizados (mapeados de freshsales-billing.js cf_hmadv_*)
     custom_field: {
@@ -296,7 +332,7 @@ async function criarOuAtualizarDeal(
   accountId: string | null,
 ): Promise<string | null> {
   const domain  = fsDomain();
-  const payload = buildDealPayload(item, contactId, accountId);
+  const payload = await buildDealPayload(item, contactId, accountId);
   const existingDealId = item.freshsales_deal_id as string | null;
 
   if (existingDealId) {

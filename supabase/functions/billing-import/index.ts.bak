@@ -1,0 +1,530 @@
+/**
+ * billing-import — Edge Function
+ * Processa a fila billing_import_queue e sincroniza com o Freshsales Deals.
+ *
+ * Responsabilidades:
+ * 1. Ler lote da billing_import_queue (status = 'pendente')
+ * 2. Verificar rate limit centralizado (fs_rate_limit_check)
+ * 3. Buscar/criar Contact no Freshsales (por e-mail ou nome)
+ * 4. Buscar Account (processo) no Freshsales por CNJ
+ * 5. Criar/atualizar Deal no Freshsales com todos os campos financeiros
+ * 6. Inserir em billing_contracts + billing_receivables no Supabase
+ * 7. Atualizar billing_import_queue com status = 'processado'
+ *
+ * Rate limit: máximo 250 req/hora para billing-import (de 1000 total)
+ * Cron: a cada 2 minutos via pg_cron
+ */
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// ─── Configuração ────────────────────────────────────────────────────────────
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SVC_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const FS_DOMAIN_RAW = Deno.env.get("FRESHSALES_DOMAIN") || "";
+const FS_API_KEY = Deno.env.get("FRESHSALES_API_KEY") || "";
+const FS_OWNER_ID = Number(Deno.env.get("FRESHSALES_OWNER_ID") || Deno.env.get("FS_OWNER_ID") || "31000147944");
+const CALLER = "billing-import";
+const QUOTA_PER_HOUR = 250;
+const BATCH_SIZE = 10; // processar 10 por execução (2 req cada = 20 req/execução)
+
+const DOMAIN_MAP: Record<string, string> = {
+  "hmadv-7b725ea101eff55.freshsales.io": "hmadv-org.myfreshworks.com",
+};
+
+function fsDomain(): string {
+  const d = FS_DOMAIN_RAW.trim();
+  if (d.includes("myfreshworks.com")) return d;
+  return DOMAIN_MAP[d] ?? d.replace(/\.freshsales\.io$/, ".myfreshworks.com");
+}
+
+function fsHeaders(): HeadersInit {
+  return {
+    "Authorization": `Token token=${FS_API_KEY.trim()}`,
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+  };
+}
+
+// ─── Supabase client ─────────────────────────────────────────────────────────
+const db = createClient(SUPABASE_URL, SVC_KEY, {
+  auth: { persistSession: false },
+});
+
+// ─── Verificar rate limit ────────────────────────────────────────────────────
+async function checkRateLimit(needed: number): Promise<boolean> {
+  const { data, error } = await db.rpc("fs_rate_limit_check", {
+    p_caller: CALLER,
+    p_needed: needed,
+    p_quota: QUOTA_PER_HOUR,
+  });
+  if (error) {
+    console.error("Rate limit check error:", error.message);
+    return false;
+  }
+  return data?.ok === true;
+}
+
+// ─── Freshsales: buscar contact por e-mail ou nome ───────────────────────────
+async function buscarOuCriarContact(
+  nome: string,
+  email: string | null,
+): Promise<string | null> {
+  const domain = fsDomain();
+
+  // Buscar por e-mail primeiro
+  if (email) {
+    const url = `https://${domain}/crm/sales/api/contacts/search?q=${encodeURIComponent(email)}&include=contact`;
+    const res = await fetch(url, { headers: fsHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      const contacts = data?.contacts ?? [];
+      if (contacts.length > 0) return String(contacts[0].id);
+    }
+  }
+
+  // Buscar por nome
+  if (nome) {
+    const url = `https://${domain}/crm/sales/api/contacts/search?q=${encodeURIComponent(nome)}&include=contact`;
+    const res = await fetch(url, { headers: fsHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      const contacts = data?.contacts ?? [];
+      if (contacts.length > 0) return String(contacts[0].id);
+    }
+  }
+
+  // Criar novo contact
+  const parts = nome.trim().split(" ");
+  const firstName = parts[0] || nome;
+  const lastName = parts.slice(1).join(" ") || "-";
+
+  const payload: Record<string, unknown> = {
+    contact: {
+      first_name: firstName,
+      last_name: lastName,
+      owner_id: FS_OWNER_ID,
+      lifecycle_stage_id: 8, // Cliente
+    },
+  };
+  if (email) payload.contact = { ...payload.contact as object, email };
+
+  const url = `https://${domain}/crm/sales/api/contacts`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: fsHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    console.error("Erro ao criar contact:", await res.text());
+    return null;
+  }
+  const data = await res.json();
+  return data?.contact?.id ? String(data.contact.id) : null;
+}
+
+// ─── Freshsales: buscar account por CNJ ─────────────────────────────────────
+async function buscarAccountPorCNJ(cnj: string): Promise<string | null> {
+  if (!cnj) return null;
+  const domain = fsDomain();
+  const url = `https://${domain}/crm/sales/api/accounts/search?q=${encodeURIComponent(cnj)}&include=account`;
+  const res = await fetch(url, { headers: fsHeaders() });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const accounts = data?.accounts ?? [];
+  return accounts.length > 0 ? String(accounts[0].id) : null;
+}
+
+// ─── Freshsales: criar/atualizar Deal ────────────────────────────────────────
+async function criarOuAtualizarDeal(
+  item: Record<string, unknown>,
+  contactId: string | null,
+  accountId: string | null,
+): Promise<string | null> {
+  const domain = fsDomain();
+
+  // Verificar se já existe um deal para esta fatura
+  const existingDealId = item.freshsales_deal_id as string | null;
+  if (existingDealId) {
+    // Atualizar deal existente
+    const url = `https://${domain}/crm/sales/api/deals/${existingDealId}`;
+    const payload = buildDealPayload(item, contactId, accountId);
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: fsHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data?.deal?.id ? String(data.deal.id) : existingDealId;
+    }
+    console.error("Erro ao atualizar deal:", await res.text());
+    return existingDealId;
+  }
+
+  // Criar novo deal
+  const url = `https://${domain}/crm/sales/api/deals`;
+  const payload = buildDealPayload(item, contactId, accountId);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: fsHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    console.error("Erro ao criar deal:", await res.text());
+    return null;
+  }
+  const data = await res.json();
+  return data?.deal?.id ? String(data.deal.id) : null;
+}
+
+function buildDealPayload(
+  item: Record<string, unknown>,
+  contactId: string | null,
+  accountId: string | null,
+): Record<string, unknown> {
+  const status = item.status as string;
+  const amount = Number(item.balance_due ?? item.amount_original ?? 0);
+  const amountOriginal = Number(item.amount_original ?? 0);
+
+  // Estágio do deal baseado no status
+  // 1 = Novo, 2 = Em andamento, 3 = Ganho, 4 = Perdido
+  const stageMap: Record<string, number> = {
+    pago: 3,
+    cancelado: 4,
+    aberto: 1,
+  };
+  const dealStage = stageMap[status] ?? 1;
+
+  const invoiceNum = item.invoice_number as string | null;
+  const contactName = item.contact_name as string | null;
+  const processRef = item.process_reference as string | null;
+
+  const title = [
+    invoiceNum ? `Fatura ${invoiceNum}` : "Honorários",
+    contactName ? `— ${contactName}` : "",
+    processRef ? `(${processRef.substring(0, 25)})` : "",
+  ].filter(Boolean).join(" ");
+
+  const deal: Record<string, unknown> = {
+    name: title,
+    amount: amount > 0 ? amount : amountOriginal,
+    deal_stage_id: dealStage,
+    owner_id: FS_OWNER_ID,
+    // Campos customizados
+    custom_field: {
+      cf_valor_original: amountOriginal,
+      cf_valor_corrigido: Number(item.amount_corrected ?? 0),
+      cf_multa: Number(item.late_fee_amount ?? 0),
+      cf_juros_mora: Number(item.interest_mora_amount ?? 0),
+      cf_juros_compensatorios: Number(item.interest_compensatory_amount ?? 0),
+      cf_saldo_devedor: amount,
+      cf_dias_atraso: Number(item.days_overdue ?? 0),
+      cf_indice_correcao: item.correction_index_name as string ?? "IGPM",
+      cf_numero_fatura: invoiceNum ?? "",
+      cf_tipo_recebivel: item.receivable_type as string ?? "honorario",
+      cf_status_fatura: status,
+    },
+  };
+
+  // Vincular contact e account
+  if (contactId) {
+    deal.contacts_added = [{ id: Number(contactId) }];
+  }
+  if (accountId) {
+    deal.account = { id: Number(accountId) };
+  }
+
+  // Datas
+  if (item.due_date) {
+    deal.expected_close = item.due_date as string;
+  }
+
+  return { deal };
+}
+
+// ─── Processar item da fila ───────────────────────────────────────────────────
+async function processarItem(item: Record<string, unknown>): Promise<{
+  ok: boolean;
+  dealId: string | null;
+  error?: string;
+}> {
+  const contactName = item.contact_name as string | null;
+  const contactEmail = item.contact_email as string | null;
+  const processRef = item.process_reference as string | null;
+
+  // Verificar rate limit (2 req: contact + deal)
+  const canProceed = await checkRateLimit(2);
+  if (!canProceed) {
+    return { ok: false, dealId: null, error: "rate_limit_exceeded" };
+  }
+
+  // Buscar/criar contact
+  let contactId: string | null = null;
+  if (contactName) {
+    contactId = await buscarOuCriarContact(contactName, contactEmail);
+  }
+
+  // Buscar account por CNJ
+  let accountId: string | null = null;
+  if (processRef) {
+    accountId = await buscarAccountPorCNJ(processRef);
+  }
+
+  // Criar deal no Freshsales
+  const dealId = await criarOuAtualizarDeal(item, contactId, accountId);
+  if (!dealId) {
+    return { ok: false, dealId: null, error: "deal_creation_failed" };
+  }
+
+  return { ok: true, dealId };
+}
+
+// ─── Handler principal ────────────────────────────────────────────────────────
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    });
+  }
+
+  const startTime = Date.now();
+
+  try {
+    // Verificar se temos credenciais
+    if (!FS_API_KEY || !FS_DOMAIN_RAW) {
+      return Response.json({
+        error: "FRESHSALES_API_KEY ou FRESHSALES_DOMAIN não configurados",
+      }, { status: 500 });
+    }
+
+    // Verificar rate limit disponível antes de iniciar
+    const { data: rlData } = await db.rpc("fs_rate_limit_check", {
+      p_caller: CALLER,
+      p_needed: 0,
+      p_quota: QUOTA_PER_HOUR,
+    });
+
+    const callerUsed = rlData?.caller_used ?? 0;
+    const totalUsed = rlData?.total_used ?? 0;
+
+    if (callerUsed >= QUOTA_PER_HOUR) {
+      return Response.json({
+        status: "quota_exhausted",
+        message: `Cota de ${QUOTA_PER_HOUR} req/hora para ${CALLER} atingida`,
+        caller_used: callerUsed,
+        total_used: totalUsed,
+      });
+    }
+
+    if (totalUsed >= 950) {
+      return Response.json({
+        status: "global_quota_near_limit",
+        message: "Limite global de 950 req/hora próximo do limite",
+        total_used: totalUsed,
+      });
+    }
+
+    // Buscar lote da fila
+    const { data: items, error: queueError } = await db
+      .from("billing_import_queue")
+      .select("*")
+      .eq("status", "pendente")
+      .is("processed_at", null)
+      .order("created_at", { ascending: true })
+      .limit(BATCH_SIZE);
+
+    if (queueError) {
+      return Response.json({ error: queueError.message }, { status: 500 });
+    }
+
+    if (!items || items.length === 0) {
+      // Verificar se há itens com erro para reprocessar
+      const { data: errorItems } = await db
+        .from("billing_import_queue")
+        .select("*")
+        .eq("status", "erro")
+        .neq("error_msg", "rate_limit_exceeded")
+        .order("created_at", { ascending: true })
+        .limit(BATCH_SIZE);
+
+      if (!errorItems || errorItems.length === 0) {
+        const { count: totalPendente } = await db
+          .from("billing_import_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pendente");
+
+        const { count: totalProcessado } = await db
+          .from("billing_import_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "processado");
+
+        return Response.json({
+          status: "queue_empty",
+          message: "Nenhum item pendente na fila",
+          pendentes: totalPendente ?? 0,
+          processados: totalProcessado ?? 0,
+          caller_used: callerUsed,
+          total_used: totalUsed,
+        });
+      }
+
+      // Reprocessar itens com erro
+      items?.push(...(errorItems ?? []));
+    }
+
+    // Processar lote
+    let processados = 0;
+    let erros = 0;
+    let rateLimitHit = false;
+
+    for (const item of items ?? []) {
+      if (rateLimitHit) break;
+
+      // Marcar como processando
+      await db
+        .from("billing_import_queue")
+        .update({ status: "processando", updated_at: new Date().toISOString() })
+        .eq("id", item.id);
+
+      const result = await processarItem(item);
+
+      if (result.error === "rate_limit_exceeded") {
+        rateLimitHit = true;
+        // Reverter para pendente
+        await db
+          .from("billing_import_queue")
+          .update({ status: "pendente", updated_at: new Date().toISOString() })
+          .eq("id", item.id);
+        break;
+      }
+
+      if (result.ok && result.dealId) {
+        // Inserir em billing_receivables
+        // Buscar process_id no Supabase pelo CNJ
+        let processId: string | null = null;
+        if (item.process_reference) {
+          const { data: proc } = await db
+            .schema("judiciario")
+            .from("processos")
+            .select("id")
+            .ilike("numero_cnj", `%${String(item.process_reference).replace(/[^0-9]/g, "").substring(0, 20)}%`)
+            .limit(1)
+            .single();
+          processId = proc?.id ?? null;
+        }
+
+        const { data: receivable } = await db
+          .from("billing_receivables")
+          .insert({
+            receivable_type: item.receivable_type ?? "honorario",
+            invoice_number: item.invoice_number,
+            description: item.description,
+            issue_date: item.issue_date,
+            due_date: item.due_date,
+            status: item.status ?? "aberto",
+            currency: item.currency ?? "BRL",
+            amount_original: Number(item.amount_original ?? 0),
+            payment_amount: Number(item.payment_amount ?? 0),
+            amount_principal: Number(item.amount_principal ?? 0),
+            correction_index_name: item.correction_index_name ?? "IGPM",
+            correction_factor: Number(item.correction_factor ?? 0),
+            correction_percent: Number(item.correction_percent ?? 0),
+            correction_amount: Number(item.correction_amount ?? 0),
+            amount_corrected: Number(item.amount_corrected ?? 0),
+            late_fee_percent: Number(item.late_fee_percent ?? 10),
+            late_fee_amount: Number(item.late_fee_amount ?? 0),
+            interest_mora_percent_month: Number(item.interest_mora_percent_month ?? 1),
+            interest_mora_amount: Number(item.interest_mora_amount ?? 0),
+            interest_compensatory_percent_month: Number(item.interest_compensatory_percent_month ?? 1),
+            interest_compensatory_amount: Number(item.interest_compensatory_amount ?? 0),
+            interest_start_date: item.interest_start_date,
+            days_overdue: Number(item.days_overdue ?? 0),
+            balance_due: Number(item.balance_due ?? item.amount_original ?? 0),
+            freshsales_deal_id: result.dealId,
+            freshsales_account_id: accountId,
+            process_id: processId,
+            source_import_row_id: item.id,
+            raw_payload: item.raw_payload ?? {},
+          })
+          .select("id")
+          .single();
+
+        // Registrar no freshsales_deals_registry
+        if (receivable?.id) {
+          await db
+            .from("freshsales_deals_registry")
+            .upsert({
+              freshsales_deal_id: result.dealId,
+              billing_receivable_id: receivable.id,
+              stage: item.status === "pago" ? "won" : "open",
+              amount: Number(item.balance_due ?? item.amount_original ?? 0),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "freshsales_deal_id" });
+        }
+
+        // Marcar como processado
+        await db
+          .from("billing_import_queue")
+          .update({
+            status: "processado",
+            freshsales_deal_id: result.dealId,
+            billing_receivable_id: receivable?.id ?? null,
+            processed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", item.id);
+
+        processados++;
+      } else {
+        // Marcar como erro
+        await db
+          .from("billing_import_queue")
+          .update({
+            status: "erro",
+            error_msg: result.error ?? "unknown_error",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", item.id);
+
+        erros++;
+      }
+    }
+
+    // Contagem total
+    const { count: totalPendente } = await db
+      .from("billing_import_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pendente");
+
+    const { count: totalProcessado } = await db
+      .from("billing_import_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "processado");
+
+    const elapsed = Date.now() - startTime;
+
+    return Response.json({
+      status: "ok",
+      processados,
+      erros,
+      rate_limit_hit: rateLimitHit,
+      pendentes_restantes: totalPendente ?? 0,
+      total_processados: totalProcessado ?? 0,
+      caller_used_this_hour: callerUsed + processados * 2,
+      total_used_this_hour: totalUsed + processados * 2,
+      elapsed_ms: elapsed,
+    });
+  } catch (err) {
+    console.error("billing-import error:", err);
+    return Response.json({
+      error: String(err),
+      elapsed_ms: Date.now() - startTime,
+    }, { status: 500 });
+  }
+});

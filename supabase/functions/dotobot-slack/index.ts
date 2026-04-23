@@ -7,6 +7,9 @@
  * 3. Painel de status do pipeline com métricas em tempo real
  * 4. Relatório de pendências de desenvolvimento
  * 5. Gestão financeira: Deals, Faturas e Assinaturas
+ * 6. Suporte ao cliente via Freshdesk (tickets, CNJ, IA)
+ * 7. Agendamentos: Google Calendar + Zoom + Freshsales
+ * 8. Assistente de e-mail: resposta automática de tickets via IA
  *
  * Comandos disponíveis:
  *   PAINEL E STATUS
@@ -51,7 +54,19 @@
  *   /dotobot relatorio-financeiro — Relatório de honorários com atualização monetária
  *   /dotobot backfill-status      — Ver estado do backfill (fila + sync)
  *   /dotobot help                 — Esta ajuda
+ *
+ *   FRESHDESK (SUPORTE AO CLIENTE)
+ *   /dotobot tickets              — Últimos tickets abertos no Freshdesk
+ *   /dotobot ticket [ID]          — Detalhes de um ticket específico
+ *   /dotobot tickets-cnj          — Tickets vinculados a processos CNJ
+ *   /dotobot processar-ticket [ID] — Processar ticket com IA (resposta automática)
+ *   /dotobot sync-freshdesk       — Sincronizar contatos Freshsales ↔ Freshdesk
+ *
+ *   AGENDAMENTOS
+ *   /dotobot agendamentos         — Próximos agendamentos do escritório
+ *   /dotobot agendamento-sync     — Sincronizar agendamentos pendentes (Zoom + FS)
  */
+
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -1252,6 +1267,230 @@ async function handleIaStatus(channel: string): Promise<void> {
   }
 }
 
+// ── Freshdesk: Suporte ao Cliente ───────────────────────────────────────────
+
+async function handleTickets(channel: string): Promise<void> {
+  try {
+    const { data: tickets } = await dbPublic
+      .from("freshdesk_tickets")
+      .select("fd_ticket_id,subject,status,priority,requester_name,process_cnj,ai_intencao,created_at")
+      .in("status", [2, 3]) // open=2, pending=3
+      .order("created_at", { ascending: false })
+      .limit(8);
+
+    if (!tickets || tickets.length === 0) {
+      await postSlack(channel, "✅ Nenhum ticket aberto no Freshdesk no momento.");
+      return;
+    }
+
+    const statusMap: Record<number, string> = { 2: "🟡 Aberto", 3: "🔵 Pendente", 4: "✅ Resolvido", 5: "⚫ Fechado" };
+    const prioMap: Record<number, string> = { 1: "🟢 Baixa", 2: "🟡 Média", 3: "🟠 Alta", 4: "🔴 Urgente" };
+    const intencaoEmoji: Record<string, string> = {
+      andamento_processual: "⚖️",
+      debito_financeiro: "💰",
+      agendamento: "📅",
+      informacao_geral: "ℹ️",
+      outro: "📌"
+    };
+
+    const blocks: unknown[] = [header(`🎫 Freshdesk — ${tickets.length} Tickets Abertos`)];
+
+    for (const t of tickets) {
+      const status = statusMap[t.status] || `Status ${t.status}`;
+      const prio = prioMap[t.priority] || `Prio ${t.priority}`;
+      const cnj = t.process_cnj ? `\n• CNJ: \`${t.process_cnj}\`` : "";
+      const ia = t.ai_intencao ? ` ${intencaoEmoji[t.ai_intencao] || "🤖"} _${t.ai_intencao}_` : "";
+      const fdLink = `<https://hmdesk.freshdesk.com/a/tickets/${t.fd_ticket_id}|#${t.fd_ticket_id}>`;
+
+      blocks.push(divider());
+      blocks.push(section(
+        `${fdLink} — *${String(t.subject || "s/assunto").substring(0, 60)}*\n` +
+        `• ${status} | ${prio}${ia}\n` +
+        `• Solicitante: ${t.requester_name || "Desconhecido"}${cnj}`
+      ));
+    }
+
+    blocks.push(divider());
+    blocks.push(actions([
+      { text: "🤖 Processar com IA", value: "processar_tickets_ia" },
+      { text: "🔄 Sync Freshdesk", value: "sync_freshdesk" },
+    ]));
+
+    await postSlack(channel, `🎫 ${tickets.length} tickets abertos no Freshdesk`, blocks);
+  } catch (e) {
+    await postSlack(channel, `❌ Erro ao buscar tickets: ${String(e)}`);
+  }
+}
+
+async function handleTicketCNJ(channel: string): Promise<void> {
+  try {
+    const { data: tickets } = await dbPublic
+      .from("freshdesk_tickets")
+      .select("fd_ticket_id,subject,status,requester_name,process_cnj,ai_intencao,ai_respondido")
+      .not("process_cnj", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (!tickets || tickets.length === 0) {
+      await postSlack(channel, "Nenhum ticket com CNJ vinculado encontrado.");
+      return;
+    }
+
+    const blocks: unknown[] = [header(`⚖️ Tickets Vinculados a Processos CNJ (${tickets.length})`)]; 
+
+    for (const t of tickets) {
+      const respondido = t.ai_respondido ? "✅ IA respondeu" : "⏳ Aguardando";
+      const fdLink = `<https://hmdesk.freshdesk.com/a/tickets/${t.fd_ticket_id}|#${t.fd_ticket_id}>`;
+      blocks.push(divider());
+      blocks.push(section(
+        `${fdLink} — \`${t.process_cnj}\`\n` +
+        `• ${String(t.subject || "").substring(0, 60)}\n` +
+        `• ${t.requester_name || "Desconhecido"} | ${respondido}`
+      ));
+    }
+
+    await postSlack(channel, `⚖️ ${tickets.length} tickets com processo CNJ`, blocks);
+  } catch (e) {
+    await postSlack(channel, `❌ Erro: ${String(e)}`);
+  }
+}
+
+async function handleProcessarTicketIA(channel: string, userId: string, ticketId: string): Promise<void> {
+  try {
+    if (!ticketId || isNaN(Number(ticketId))) {
+      await postSlack(channel, "❌ Informe o ID do ticket: `/dotobot processar-ticket 12345`");
+      return;
+    }
+
+    await postSlack(channel, `🤖 Processando ticket #${ticketId} com IA...`);
+
+    const result = await invokeFunction("freshdesk-ticket-process", { ticket_id: Number(ticketId) }) as Record<string, unknown>;
+
+    const intencao = result.intencao as string || "desconhecida";
+    const respondido = result.respondido as boolean;
+    const cnj = result.cnj as string;
+    const intencaoEmoji: Record<string, string> = {
+      andamento_processual: "⚖️",
+      debito_financeiro: "💰",
+      agendamento: "📅",
+      informacao_geral: "ℹ️",
+      outro: "📌"
+    };
+
+    const emoji = intencaoEmoji[intencao] || "🤖";
+    const fdLink = `<https://hmdesk.freshdesk.com/a/tickets/${ticketId}|Ver ticket #${ticketId}>`;
+
+    const blocks = [
+      header(`🤖 Ticket #${ticketId} Processado pela IA`),
+      section(
+        `${fdLink}\n` +
+        `• Intenção detectada: *${emoji} ${intencao}*\n` +
+        `• Resposta enviada: *${respondido ? "✅ Sim" : "⚠️ Não (revisão manual necessária)"}*` +
+        (cnj ? `\n• Processo CNJ: \`${cnj}\`` : "")
+      ),
+    ];
+
+    await postSlack(channel, `🤖 Ticket #${ticketId} processado — ${intencao}`, blocks);
+  } catch (e) {
+    await postSlack(channel, `❌ Erro ao processar ticket: ${String(e)}`);
+  }
+}
+
+async function handleSyncFreshdesk(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, "🔄 Iniciando sincronização Freshsales ↔ Freshdesk...");
+    const result = await invokeFunction("fs-freshdesk-sync", { action: "full_sync" }) as Record<string, unknown>;
+    const synced = result.synced as number || 0;
+    const linked = result.linked as number || 0;
+    const created = result.created as number || 0;
+    await postSlack(channel,
+      `✅ Sync Freshdesk concluído:\n` +
+      `• Contatos sincronizados: *${synced}*\n` +
+      `• Vinculados por e-mail: *${linked}*\n` +
+      `• Criados no Freshdesk: *${created}*`
+    );
+  } catch (e) {
+    await postSlack(channel, `❌ Erro no sync Freshdesk: ${String(e)}`);
+  }
+}
+
+// ── Agendamentos ─────────────────────────────────────────────────────────────
+
+async function handleAgendamentos(channel: string): Promise<void> {
+  try {
+    const hoje = new Date().toISOString().split("T")[0];
+    const { data: agendamentos } = await dbPublic
+      .from("agendamentos")
+      .select("id,titulo,data_hora,status,cliente_nome,tipo_consulta,zoom_join_url,google_event_id,freshsales_appointment_id")
+      .gte("data_hora", hoje)
+      .in("status", ["booked", "confirmed"])
+      .order("data_hora", { ascending: true })
+      .limit(10);
+
+    if (!agendamentos || agendamentos.length === 0) {
+      await postSlack(channel, "📅 Nenhum agendamento futuro encontrado.");
+      return;
+    }
+
+    const statusEmoji: Record<string, string> = {
+      booked: "🟡 Agendado",
+      confirmed: "✅ Confirmado",
+      rescheduled: "🔄 Remarcado",
+      cancelled: "❌ Cancelado"
+    };
+
+    const blocks: unknown[] = [header(`📅 Próximos ${agendamentos.length} Agendamentos`)];
+
+    for (const a of agendamentos) {
+      const dt = new Date(a.data_hora).toLocaleString("pt-BR", { timeZone: "America/Manaus", dateStyle: "short", timeStyle: "short" });
+      const status = statusEmoji[a.status] || a.status;
+      const zoom = a.zoom_join_url ? `\n• <${a.zoom_join_url}|🎥 Link Zoom>` : "";
+      const gcal = a.google_event_id ? " 📆 Google Cal" : " ⚠️ Sem Google Cal";
+      const fs = a.freshsales_appointment_id ? " 💼 Freshsales" : " ⚠️ Sem Freshsales";
+
+      blocks.push(divider());
+      blocks.push(section(
+        `*${dt}* — ${a.titulo || a.tipo_consulta || "Consulta"}\n` +
+        `• Cliente: ${a.cliente_nome || "Desconhecido"} | ${status}\n` +
+        `• Integrações:${gcal}${fs}${zoom}`
+      ));
+    }
+
+    // Verificar pendentes de sincronização
+    const { count: pendSync } = await dbPublic
+      .from("agendamentos")
+      .select("id", { count: "exact", head: true })
+      .is("zoom_meeting_id", null)
+      .in("status", ["booked", "confirmed"]);
+
+    if ((pendSync || 0) > 0) {
+      blocks.push(divider());
+      blocks.push(section(`⚠️ *${pendSync} agendamentos* sem Zoom/Freshsales. Use \`/dotobot agendamento-sync\` para sincronizar.`));
+      blocks.push(actions([{ text: "🔄 Sync Agendamentos", value: "agendamento_sync", style: "primary" }]));
+    }
+
+    await postSlack(channel, `📅 ${agendamentos.length} agendamentos futuros`, blocks);
+  } catch (e) {
+    await postSlack(channel, `❌ Erro ao buscar agendamentos: ${String(e)}`);
+  }
+}
+
+async function handleAgendamentoSync(channel: string, userId: string): Promise<void> {
+  try {
+    await postSlack(channel, "🔄 Sincronizando agendamentos pendentes (Zoom + Freshsales)...");
+    const result = await invokeFunction("agendamentos-sync", { action: "backfill" }) as Record<string, unknown>;
+    const synced = result.synced as number || 0;
+    const errors = result.errors as number || 0;
+    await postSlack(channel,
+      `✅ Sync de agendamentos concluído:\n` +
+      `• Sincronizados: *${synced}* (Zoom + Freshsales)\n` +
+      `• Erros: *${errors}*`
+    );
+  } catch (e) {
+    await postSlack(channel, `❌ Erro no sync de agendamentos: ${String(e)}`);
+  }
+}
+
 async function handleHelp(channel: string): Promise<void> {
   const blocks = [
     header("🤖 DotoBot v2.0 — Comandos Disponíveis"),
@@ -1314,13 +1553,28 @@ async function handleHelp(channel: string): Promise<void> {
       `• \`/dotobot backfill-status\` — Ver estado do backfill`
     ),
     divider(),
+    divider(),
+    section(
+      `*🎫 Freshdesk (Suporte ao Cliente)*\n` +
+      `• \`/dotobot tickets\` — Últimos tickets abertos no Freshdesk\n` +
+      `• \`/dotobot tickets-cnj\` — Tickets vinculados a processos CNJ\n` +
+      `• \`/dotobot processar-ticket [ID]\` — Processar ticket com IA (resposta automática)\n` +
+      `• \`/dotobot sync-freshdesk\` — Sincronizar contatos Freshsales ↔ Freshdesk`
+    ),
+    divider(),
+    section(
+      `*📅 Agendamentos*\n` +
+      `• \`/dotobot agendamentos\` — Próximos agendamentos do escritório\n` +
+      `• \`/dotobot agendamento-sync\` — Sincronizar agendamentos pendentes (Zoom + Freshsales)`
+    ),
+    divider(),
     context([
-      `_Pipeline HMADV v2.0 — Hermida Maia Advocacia_`,
-      `_Supabase: sspvizogbcyigquqycsz | Freshsales: hmadv-org_`,
+      `_Pipeline HMADV v4.0 — Hermida Maia Advocacia_`,
+      `_Supabase: sspvizogbcyigquqycsz | Freshsales: hmadv-org | Freshdesk: hmdesk_`,
     ]),
   ];
 
-  await postSlack(channel, "🤖 DotoBot v2.0 — Ajuda", blocks);
+  await postSlack(channel, "🤖 DotoBot v4.0 — Ajuda", blocks);
 }
 
 // ── Notificações Automáticas (chamadas por outras edge functions) ──────────────
@@ -1619,6 +1873,14 @@ Deno.serve(async (req) => {
         else if (cmd.startsWith("resumir")) await handleIaResumirProcesso(channelId, userId, text.replace(/^resumir\s*/i, ""));
         else if (cmd === "enriquecer-ia" || cmd === "enriquecer_ia") await handleIaEnriquecer(channelId, userId);
         else if (cmd === "ia-status" || cmd === "ia_status") await handleIaStatus(channelId);
+        // Comandos Freshdesk v4.0
+        else if (cmd === "tickets") await handleTickets(channelId);
+        else if (cmd === "tickets-cnj" || cmd === "tickets_cnj") await handleTicketCNJ(channelId);
+        else if (cmd === "processar-ticket" || cmd === "processar_ticket") await handleProcessarTicketIA(channelId, userId, args[0] || "");
+        else if (cmd === "sync-freshdesk" || cmd === "sync_freshdesk") await handleSyncFreshdesk(channelId, userId);
+        // Comandos Agendamentos v4.0
+        else if (cmd === "agendamentos") await handleAgendamentos(channelId);
+        else if (cmd === "agendamento-sync" || cmd === "agendamento_sync") await handleAgendamentoSync(channelId, userId);
         else await handleHelp(channelId);
       } catch (e) {
         await postSlack(channelId, `❌ Erro ao processar comando \`${cmd}\`: ${String(e)}`);
