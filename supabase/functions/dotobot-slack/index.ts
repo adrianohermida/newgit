@@ -1784,6 +1784,54 @@ async function handleNotifyCronStatus(body: Record<string, unknown>): Promise<Re
 
 // ── Roteador Principal ────────────────────────────────────────────────────────
 
+
+// ─── DM / Menção Handler (DotoBot v5) ────────────────────────────────────────
+// Permite dialogar diretamente com o DotoBot via DM ou menção no canal
+async function handleDmConversation(channelId: string, userId: string, text: string, isDm: boolean): Promise<void> {
+  if (!text || text.trim().length < 2) return;
+
+  // Se começa com "/" tenta processar como comando
+  if (text.startsWith("/dotobot ") || text.startsWith("dotobot ")) {
+    const cmdText = text.replace(/^\/?dotobot\s*/i, "").trim().toLowerCase();
+    const [cmd, ...args] = cmdText.split(" ");
+    try {
+      if (cmd === "status") { await handleStatus(channelId, userId); return; }
+      if (cmd === "pendencias") { await handlePendencias(channelId); return; }
+      if (cmd === "publicacoes") { await handlePublicacoes(channelId); return; }
+      if (cmd === "andamentos") { await handleAndamentos(channelId); return; }
+      if (cmd === "audiencias") { await handleAudiencias(channelId); return; }
+      if (cmd === "prazos") { await handlePrazos(channelId); return; }
+      if (cmd === "ia-status" || cmd === "ia_status") { await handleIaStatus(channelId); return; }
+      if (cmd.startsWith("perguntar")) { await handleIaPerguntar(channelId, userId, cmdText.replace(/^perguntar\s*/i, "")); return; }
+      if (cmd.startsWith("resumir")) { await handleIaResumirProcesso(channelId, userId, cmdText.replace(/^resumir\s*/i, "")); return; }
+    } catch (e) {
+      await postSlack(channelId, `❌ Erro: ${String(e)}`);
+      return;
+    }
+  }
+
+  // Conversa livre — encaminha para ai-core com contexto jurídico HMADV
+  try {
+    const systemPrompt = `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia (HMADV).
+Responda de forma profissional, objetiva e em português brasileiro.
+Você tem acesso a dados de processos, clientes, prazos e publicações do escritório.
+Para consultas específicas de dados, sugira o comando adequado (ex: /dotobot status, /dotobot prazos).
+Seja conciso mas completo. Use formatação Slack (*negrito*, _itálico_, \`código\`).`;
+
+    const { text: resposta, model, provider } = await callAiCore(
+      systemPrompt,
+      text,
+      userId,
+      channelId
+    );
+
+    const footer = `_DotoBot v5 • ${provider} • ${model}_`;
+    await postSlack(channelId, resposta + "\n\n" + footer);
+  } catch (e) {
+    await postSlack(channelId, `❌ Erro na conversa: ${String(e)}`);
+  }
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const contentType = req.headers.get("content-type") || "";
@@ -1797,6 +1845,37 @@ Deno.serve(async (req) => {
     if (action === "notify_andamento") return handleNotifyAndamento(body);
     if (action === "notify_audiencia") return handleNotifyAudiencia(body);
     if (action === "notify_cron_status") return handleNotifyCronStatus(body);
+    // Eventos do Slack (DM, menções, app_mention) — v5
+    if (body.type === "url_verification") {
+      return new Response(JSON.stringify({ challenge: body.challenge }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (body.type === "event_callback") {
+      const event = body.event as Record<string, unknown>;
+      const eventType = String(event?.type || "");
+      const eventSubtype = String(event?.subtype || "");
+      // Ignorar mensagens do próprio bot
+      if (eventSubtype === "bot_message" || event?.bot_id) {
+        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+      }
+      const msgText = String(event?.text || "").trim();
+      const msgChannel = String(event?.channel || SLACK_CHANNEL);
+      const msgUser = String(event?.user || "unknown");
+      const channelType = String(event?.channel_type || "");
+      // DM (im) ou menção direta ao bot
+      if (eventType === "message" && (channelType === "im" || channelType === "mpim")) {
+        // Mensagem direta — processar como conversa livre
+        EdgeRuntime.waitUntil(handleDmConversation(msgChannel, msgUser, msgText, true));
+        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+      }
+      if (eventType === "app_mention") {
+        // Menção no canal — remover o @DotoBot do texto e processar
+        const cleanText = msgText.replace(/<@[A-Z0-9]+>/g, "").trim();
+        EdgeRuntime.waitUntil(handleDmConversation(msgChannel, msgUser, cleanText, false));
+        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+
 
     // Comandos diretos via JSON (para testes)
     if (action === "status") {

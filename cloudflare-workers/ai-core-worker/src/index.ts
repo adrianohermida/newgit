@@ -12,7 +12,7 @@
  *   GET  /v1/models          — Listar modelos disponíveis
  */
 
-import { routeCompletion, type Env, type ChatMessage } from './providers';
+import { routeCompletion, getProvidersStatus, CF_MODEL_CASCADE, type Env, type ChatMessage } from './providers';
 import { searchMemory, saveMemory, buildRagContext } from './rag';
 import { CopilotConversationRoom } from './copilot-room';
 
@@ -75,7 +75,7 @@ export default {
     if (path === '/v1/health' || path === '/health') {
       return jsonResponse({
         status: 'ok',
-        version: '1.0.0',
+        version: '2.0.0',
         providers: {
           openai: !!env.OPENAI_API_KEY,
           huggingface: !!env.HUGGINGFACE_API_KEY,
@@ -86,16 +86,37 @@ export default {
       });
     }
 
+
+    // ── Status detalhado dos providers (GET /v1/health/providers) ────────────
+    if (path === '/v1/health/providers' || path === '/health/providers') {
+      try {
+        const status = await getProvidersStatus(env);
+        return jsonResponse({
+          status: 'ok',
+          version: '2.0.0',
+          ...status,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (e: any) {
+        return jsonResponse({ status: 'error', error: e.message }, 500);
+      }
+    }
     // ── Modelos disponíveis ───────────────────────────────────────────────────
     if (path === '/v1/models') {
       return jsonResponse({
         object: 'list',
         data: [
-          { id: 'gpt-4.1-mini', object: 'model', provider: 'openai' },
-          { id: 'Qwen/Qwen2.5-72B-Instruct', object: 'model', provider: 'huggingface' },
-          { id: 'mistralai/Mistral-7B-Instruct-v0.3', object: 'model', provider: 'huggingface' },
-          { id: 'meta-llama/Llama-3.1-8B-Instruct', object: 'model', provider: 'huggingface' },
-          { id: '@cf/meta/llama-3.1-8b-instruct', object: 'model', provider: 'cloudflare' },
+          // OpenAI (se configurado)
+          { id: 'gpt-4.1-mini', object: 'model', provider: 'openai', available: !!env.OPENAI_API_KEY },
+          { id: 'gpt-4.1-nano', object: 'model', provider: 'openai', available: !!env.OPENAI_API_KEY },
+          // LLM Custom (ai-core Python)
+          { id: 'llm_custom', object: 'model', provider: 'llm_custom', available: !!env.LLM_CUSTOM_URL },
+          // HuggingFace Router (novo endpoint 2025)
+          { id: 'meta-llama/Llama-3.1-8B-Instruct', object: 'model', provider: 'huggingface/cerebras', available: !!env.HUGGINGFACE_API_KEY },
+          { id: 'Qwen/Qwen3-235B-A22B-Instruct-2507', object: 'model', provider: 'huggingface/cerebras', available: !!env.HUGGINGFACE_API_KEY },
+          { id: 'Qwen/Qwen2.5-7B-Instruct', object: 'model', provider: 'huggingface/together', available: !!env.HUGGINGFACE_API_KEY },
+          // Cloudflare Workers AI — cascata de modelos premium
+          ...CF_MODEL_CASCADE.map(id => ({ id, object: 'model', provider: 'cloudflare', available: true })),
         ],
       });
     }
