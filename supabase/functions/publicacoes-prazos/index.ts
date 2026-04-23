@@ -1050,9 +1050,115 @@ Deno.serve(async (req) => {
       }), { headers: { "Content-Type": "application/json" } });
     }
 
+    // ===== CRIAR_TASKS_PENDENTES =====
+    // Processa prazos já calculados que não têm freshsales_task_id
+    if (action === "criar_tasks_pendentes") {
+      const batchSize = Number(body.batch_size ?? 20);
+      const { data: prazosPendentes, error: fetchErr } = await supabase
+        .schema("judiciario")
+        .from("prazo_calculado")
+        .select("id, titulo, data_base, data_inicio_contagem, data_vencimento, processo_id, publicacao_id, observacoes_ia, metadata, prioridade")
+        .eq("status", "pendente")
+        .is("freshsales_task_id", null)
+        .not("data_vencimento", "is", null)
+        .order("data_vencimento", { ascending: true })
+        .limit(batchSize);
+      if (fetchErr || !prazosPendentes || prazosPendentes.length === 0) {
+        return new Response(JSON.stringify({
+          message: "Nenhum prazo pendente sem task no Freshsales",
+          total: 0,
+        }), { headers: { "Content-Type": "application/json" } });
+      }
+      let criadas = 0, erros = 0;
+      for (const prazo of prazosPendentes) {
+        try {
+          const meta = (prazo.metadata ?? {}) as Record<string, unknown>;
+          let accountId: string | null = null;
+          if (prazo.processo_id) {
+            const { data: proc } = await supabase
+              .schema("judiciario")
+              .from("processos")
+              .select("freshsales_account_id")
+              .eq("id", prazo.processo_id)
+              .single();
+            accountId = proc?.freshsales_account_id ? String(proc.freshsales_account_id) : null;
+          }
+          const numeroProcesso = String(meta?.numero_processo || "");
+          const tribunal = String(meta?.tribunal || "");
+          const vara = String(meta?.vara || "");
+          const baseLegal = String(meta?.base_legal || "CPC");
+          const atoPraticado = String(meta?.ato_praticado || "Prazo processual");
+          const scoreConf = String(meta?.score_confiabilidade || "baixa");
+          const motivoConf = String(meta?.motivo_confiabilidade || "");
+          const scoreEmoji = scoreConf === "alta" ? "🟢" : scoreConf === "media" ? "🟡" : "🔴";
+          const scoreLabel = scoreConf === "alta" ? "ALTA" : scoreConf === "media" ? "MÉDIA" : "BAIXA";
+          const prazoDiasNum = Number(meta?.prazo_dias || 5);
+          const tipoContagemStr = String(meta?.tipo_contagem || "dias_uteis") === "dias_uteis" ? "dias úteis" : "dias corridos";
+          const linhasDescricao: string[] = [
+            `===================================================`,
+            `  PRAZO PROCESSUAL — SISTEMA HMADV`,
+            `===================================================`,
+            ``,
+            `${scoreEmoji} CONFIABILIDADE DO CÁLCULO: ${scoreLabel}`,
+            motivoConf ? motivoConf : "",
+            ``,
+            `🔢 PROCESSO: ${numeroProcesso}`,
+            tribunal ? `⚖️  TRIBUNAL: ${tribunal}` : "",
+            vara ? `🏦 VARA: ${vara}` : "",
+            ``,
+            `⏱️  PRAZO: ${prazoDiasNum} ${tipoContagemStr}`,
+            `📖 FUNDAMENTO: ${atoPraticado} (${baseLegal})`,
+            `📅 DATA DA PUBLICAÇÃO: ${formatDateBR(prazo.data_base || prazo.data_vencimento)}`,
+            `▶️  INÍCIO DA CONTAGEM: ${formatDateBR(prazo.data_inicio_contagem || prazo.data_base || prazo.data_vencimento)}`,
+            `🛑 VENCIMENTO: ${formatDateBR(prazo.data_vencimento)}`,
+            ``,
+            `---------------------------------------------------`,
+            prazo.observacoes_ia || "",
+            `---------------------------------------------------`,
+            ``,
+            `⚠️  ATENÇÃO: Confirme este prazo no PrazoFácil antes de protocolar.`,
+            `   www.prazofacil.com.br`,
+            `   Estado: AM | Município: Manaus | Tribunal: ${tribunal || "TJ-AM"}`,
+          ];
+          const descricao = linhasDescricao.filter(l => l !== undefined && l !== null).join("\n").slice(0, 4000);
+          const taskId = await criarTaskFreshsales(
+            prazo.titulo,
+            descricao,
+            prazo.data_vencimento,
+            accountId
+          );
+          if (taskId) {
+            await supabase
+              .schema("judiciario")
+              .from("prazo_calculado")
+              .update({ freshsales_task_id: taskId })
+              .eq("id", prazo.id);
+            criadas++;
+          } else {
+            erros++;
+          }
+          await sleep(200);
+        } catch (e) {
+          erros++;
+          console.warn("Erro ao criar task FS para prazo", prazo.id, e);
+        }
+      }
+      const { count: restantes } = await supabase
+        .schema("judiciario")
+        .from("prazo_calculado")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente")
+        .is("freshsales_task_id", null);
+      return new Response(JSON.stringify({
+        tasks_criadas: criadas,
+        erros,
+        processados: prazosPendentes.length,
+        restantes: restantes ?? 0,
+      }), { headers: { "Content-Type": "application/json" } });
+    }
     return new Response(JSON.stringify({
       error: "Ação inválida",
-      actions: ["calcular_batch", "calcular_single", "alertas", "status"],
+      actions: ["calcular_batch", "calcular_single", "alertas", "status", "criar_tasks_pendentes"],
     }), { status: 400, headers: { "Content-Type": "application/json" } });
 
   } catch (e) {
