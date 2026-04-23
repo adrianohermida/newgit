@@ -1044,6 +1044,214 @@ async function handleRelatorioFinanceiro(channel: string): Promise<void> {
   }
 }
 
+// ─── Handlers de IA Conversacional v3.0 ─────────────────────────────────────
+
+async function handleIaPerguntar(channel: string, userId: string, query: string): Promise<void> {
+  if (!query.trim()) {
+    await postSlack(channel, "❓ Use: `/dotobot perguntar [sua pergunta]`\nExemplo: `/dotobot perguntar quais processos têm prazo esta semana?`");
+    return;
+  }
+  await postSlack(channel, `🤔 Consultando IA sobre: _"${query}"_...`);
+
+  try {
+    const openaiKey = Deno.env.get("OPENAI_API_KEY") || "";
+    if (!openaiKey) {
+      await postSlack(channel, "⚠️ OPENAI_API_KEY não configurada. Configure nos secrets do Supabase.");
+      return;
+    }
+
+    // Buscar contexto recente do Supabase
+    const [pubRecentes, prazosUrgentes] = await Promise.all([
+      db.from("publicacoes")
+        .select("ai_resumo, ai_tipo_ato, ai_urgencia, data_publicacao, nome_cliente")
+        .not("ai_resumo", "is", null)
+        .order("data_publicacao", { ascending: false })
+        .limit(5),
+      db.from("prazo_calculado")
+        .select("data_prazo, tipo_prazo")
+        .eq("status", "pendente")
+        .gte("data_prazo", new Date().toISOString().split("T")[0])
+        .order("data_prazo", { ascending: true })
+        .limit(5),
+    ]);
+
+    const contexto = [
+      "Contexto do escritório Hermida Maia Advocacia (Advogado: Dr. Adriano Menezes Hermida Maia, OAB 8894AM):",
+      pubRecentes.data?.length
+        ? `Publicações recentes: ${pubRecentes.data.map(p => `${p.data_publicacao?.split("T")[0]} - ${p.ai_tipo_ato || ""}: ${p.ai_resumo || ""}`).join(" | ")}`
+        : "Sem publicações recentes enriquecidas.",
+      prazosUrgentes.data?.length
+        ? `Prazos pendentes: ${prazosUrgentes.data.map(p => `${p.tipo_prazo} em ${p.data_prazo}`).join(", ")}`
+        : "Sem prazos pendentes imediatos.",
+    ].join("\n");
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante.\n\n${contexto}`
+          },
+          { role: "user", content: query }
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const resposta = data?.choices?.[0]?.message?.content || "Sem resposta.";
+      const tokens = data?.usage?.total_tokens || 0;
+      const blocks = [
+        header("🤖 DotoBot IA — Resposta"),
+        section(`*Pergunta:* _"${query}"_`),
+        divider(),
+        section(resposta.substring(0, 2900)),
+        context([`_Tokens usados: ${tokens} | Modelo: gpt-4.1-mini | Acionado por <@${userId}>_`]),
+      ];
+      await postSlack(channel, `🤖 DotoBot IA — ${query.substring(0, 60)}`, blocks);
+    } else {
+      const errText = await res.text();
+      await postSlack(channel, `❌ Erro ao consultar IA: HTTP ${res.status} — ${errText.substring(0, 200)}`);
+    }
+  } catch (e) {
+    await postSlack(channel, `❌ Erro: ${String(e)}`);
+  }
+}
+
+async function handleIaResumirProcesso(channel: string, userId: string, cnj: string): Promise<void> {
+  if (!cnj.trim()) {
+    await postSlack(channel, "❓ Use: `/dotobot resumir [CNJ do processo]`\nExemplo: `/dotobot resumir 0001234-56.2023.8.04.0001`");
+    return;
+  }
+  await postSlack(channel, `🔍 Buscando dados do processo _${cnj}_...`);
+
+  try {
+    const cnj_digits = cnj.replace(/[^0-9]/g, "").substring(0, 20);
+    const { data: processos } = await dbPublic
+      .from("processos")
+      .select("id, numero_cnj, tipo_processo, instancia, polo_ativo, polo_passivo, freshsales_account_id")
+      .ilike("numero_cnj", `%${cnj_digits.substring(0, 15)}%`)
+      .limit(1);
+
+    const processo = processos?.[0];
+    if (!processo) {
+      await postSlack(channel, `⚠️ Processo _${cnj}_ não encontrado no banco de dados.`);
+      return;
+    }
+
+    const [pubsResult, prazosResult] = await Promise.all([
+      db.from("publicacoes")
+        .select("data_publicacao, ai_resumo, ai_tipo_ato, ai_urgencia, conteudo")
+        .eq("processo_id", processo.id)
+        .order("data_publicacao", { ascending: false })
+        .limit(5),
+      db.from("prazo_calculado")
+        .select("data_prazo, tipo_prazo, status")
+        .eq("processo_id", processo.id)
+        .order("data_prazo", { ascending: false })
+        .limit(3),
+    ]);
+
+    const blocos: unknown[] = [
+      header(`📋 Processo ${processo.numero_cnj}`),
+      section(
+        `*Tipo:* ${processo.tipo_processo || "N/D"} | *Instância:* ${processo.instancia || "N/D"}\n` +
+        `*Polo Ativo:* ${processo.polo_ativo || "N/D"}\n` +
+        `*Polo Passivo:* ${processo.polo_passivo || "N/D"}`
+      ),
+    ];
+
+    if (pubsResult.data && pubsResult.data.length > 0) {
+      const pubTexto = pubsResult.data.map(p => {
+        const urgEmoji = p.ai_urgencia === "critica" ? "🔴" : p.ai_urgencia === "alta" ? "🟠" : "";
+        return `• ${p.data_publicacao?.split("T")[0] || ""} ${urgEmoji} — ${p.ai_resumo || p.conteudo?.substring(0, 120) || ""}`;
+      }).join("\n");
+      blocos.push(divider());
+      blocos.push(section(`*📢 Últimas Publicações:*\n${pubTexto}`));
+    }
+
+    if (prazosResult.data && prazosResult.data.length > 0) {
+      const prazoTexto = prazosResult.data.map(p =>
+        `• ${p.data_prazo} — ${p.tipo_prazo} _(${p.status})_`
+      ).join("\n");
+      blocos.push(divider());
+      blocos.push(section(`*⏱️ Prazos:*\n${prazoTexto}`));
+    }
+
+    if (processo.freshsales_account_id) {
+      blocos.push(divider());
+      blocos.push(section(`*🔗 CRM:* <https://hmadv-org.myfreshworks.com/crm/sales/accounts/${processo.freshsales_account_id}|Ver no Freshsales>`));
+    }
+
+    blocos.push(context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`]));
+    await postSlack(channel, `📋 Resumo: ${processo.numero_cnj}`, blocos);
+  } catch (e) {
+    await postSlack(channel, `❌ Erro ao resumir processo: ${String(e)}`);
+  }
+}
+
+async function handleIaEnriquecer(channel: string, userId: string): Promise<void> {
+  await postSlack(channel, "🧠 Iniciando enriquecimento IA das publicações pendentes...");
+  try {
+    const result = await invokeFunction("advise-ai-enricher", { batch_size: 20 }) as Record<string, unknown>;
+    if (result?.status === "queue_empty") {
+      await postSlack(channel, "✅ Todas as publicações com conteúdo já foram enriquecidas com IA!");
+    } else {
+      const blocks = [
+        header("🧠 Enriquecimento IA — Resultado"),
+        section(
+          `• Enriquecidas: *${result?.enriquecidas ?? 0}*\n` +
+          `• Erros: ${result?.erros ?? 0}\n` +
+          `• Tokens usados: ${result?.tokens_total ?? 0}\n` +
+          `• Tempo: ${result?.elapsed_ms ?? 0}ms`
+        ),
+        context([`_Acionado por <@${userId}>_`]),
+      ];
+      await postSlack(channel, `🧠 Enriquecimento IA: ${result?.enriquecidas ?? 0} publicações processadas`, blocks);
+    }
+  } catch (e) {
+    await postSlack(channel, `❌ Erro: ${String(e)}`);
+  }
+}
+
+async function handleIaStatus(channel: string): Promise<void> {
+  try {
+    const [total, enriquecidas, criticas, altas] = await Promise.all([
+      db.from("publicacoes").select("id", { count: "exact", head: true }).not("conteudo", "is", null).neq("conteudo", ""),
+      db.from("publicacoes").select("id", { count: "exact", head: true }).not("ai_enriquecido_at", "is", null),
+      db.from("publicacoes").select("id", { count: "exact", head: true }).eq("ai_urgencia", "critica"),
+      db.from("publicacoes").select("id", { count: "exact", head: true }).eq("ai_urgencia", "alta"),
+    ]);
+
+    const tot = total.count ?? 0;
+    const enr = enriquecidas.count ?? 0;
+    const pend = tot - enr;
+    const pct = tot > 0 ? Math.round((enr / tot) * 100) : 0;
+    const barra = "█".repeat(Math.floor(pct / 10)) + "░".repeat(10 - Math.floor(pct / 10));
+
+    const blocks = [
+      header("🧠 Status do Enriquecimento IA"),
+      section(
+        `\`${barra}\` *${pct}%*\n` +
+        `• Total com conteúdo: *${tot.toLocaleString("pt-BR")}*\n` +
+        `• Enriquecidas: *${enr.toLocaleString("pt-BR")}*\n` +
+        `• Pendentes: *${pend.toLocaleString("pt-BR")}*\n` +
+        `• 🔴 Urgência Crítica: ${criticas.count ?? 0}\n` +
+        `• 🟠 Urgência Alta: ${altas.count ?? 0}`
+      ),
+      context([`_Cron: a cada 10 min | Modelo: gpt-4.1-mini | Batch: 20 publicações_`]),
+    ];
+    await postSlack(channel, `🧠 Status IA: ${pct}% enriquecido`, blocks);
+  } catch (e) {
+    await postSlack(channel, `❌ Erro: ${String(e)}`);
+  }
+}
+
 async function handleHelp(channel: string): Promise<void> {
   const blocks = [
     header("🤖 DotoBot v2.0 — Comandos Disponíveis"),
@@ -1082,6 +1290,14 @@ async function handleHelp(channel: string): Promise<void> {
       `*⏱️ Cálculo de Prazos*\n` +
       `• \`/dotobot calcular-prazos\` — Calcular prazos (memória extensiva PrazoFácil)\n` +
       `• \`/dotobot tpu-enrich\` — Enriquecer processos via TPU/CNJ local`
+    ),
+    divider(),
+    section(
+      `*🧠 Inteligência Artificial (v3.0)*\n` +
+      `• \`/dotobot perguntar [consulta]\` — Consulta conversacional com IA sobre o escritório\n` +
+      `• \`/dotobot resumir [CNJ]\` — Resumo completo do processo com publicações e prazos\n` +
+      `• \`/dotobot enriquecer-ia\` — Enriquecer publicações pendentes com análise IA\n` +
+      `• \`/dotobot ia-status\` — Status do enriquecimento IA das publicações`
     ),
     divider(),
     section(
@@ -1364,7 +1580,7 @@ Deno.serve(async (req) => {
     );
 
     // Processar em background
-    const cmd = text || "status";
+    const [cmd, ...args] = (text || "status").split(" ");
     EdgeRuntime.waitUntil((async () => {
       try {
         if (cmd === "status") await handleStatus(channelId, userId);
@@ -1398,6 +1614,11 @@ Deno.serve(async (req) => {
         else if (cmd === "prazo-fim" || cmd === "prazo_fim") await handlePrazoFim(channelId, userId);
         else if (cmd === "higienizar-contatos" || cmd === "higienizar_contatos") await handleHigienizarContatos(channelId, userId);
         else if (cmd === "relatorio-financeiro" || cmd === "relatorio_financeiro") await handleRelatorioFinanceiro(channelId);
+        // Comandos de IA v3.0
+        else if (cmd.startsWith("perguntar")) await handleIaPerguntar(channelId, userId, text.replace(/^perguntar\s*/i, ""));
+        else if (cmd.startsWith("resumir")) await handleIaResumirProcesso(channelId, userId, text.replace(/^resumir\s*/i, ""));
+        else if (cmd === "enriquecer-ia" || cmd === "enriquecer_ia") await handleIaEnriquecer(channelId, userId);
+        else if (cmd === "ia-status" || cmd === "ia_status") await handleIaStatus(channelId);
         else await handleHelp(channelId);
       } catch (e) {
         await postSlack(channelId, `❌ Erro ao processar comando \`${cmd}\`: ${String(e)}`);
