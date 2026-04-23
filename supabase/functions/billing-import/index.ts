@@ -160,33 +160,62 @@ async function buscarOuCriarContact(
   return null;
 }
 
-// ─── Freshsales: buscar account por CNJ (via sales_accounts/filter POST) ──────
-async function buscarAccountPorCNJ(cnj: string): Promise<string | null> {
-  if (!cnj) return null;
+// ─── Freshsales: buscar account por CNJ ou nome (via sales_accounts/filter POST) ──────
+async function buscarAccountPorCNJ(cnj: string | null, nomeContato?: string | null): Promise<string | null> {
   const domain = fsDomain();
-  const cnjNorm = cnj.trim();
 
-  try {
-    const res = await fetch(
-      `https://${domain}/crm/sales/api/sales_accounts/filter`,
-      {
-        method: "POST",
-        headers: fsHeaders(),
-        body: JSON.stringify({
-          filter_rule: [{ attribute: "sales_account_name.name", operator: "contains", value: cnjNorm.substring(0, 30) }],
-          sort: "id",
-          sort_type: "desc",
-          page: 1,
-          per_page: 1,
-        }),
+  // 1. Buscar por CNJ (mais preciso)
+  if (cnj) {
+    const cnjNorm = cnj.trim();
+    try {
+      const res = await fetch(
+        `https://${domain}/crm/sales/api/sales_accounts/filter`,
+        {
+          method: "POST",
+          headers: fsHeaders(),
+          body: JSON.stringify({
+            filter_rule: [{ attribute: "sales_account_name.name", operator: "contains", value: cnjNorm.substring(0, 30) }],
+            sort: "id",
+            sort_type: "desc",
+            page: 1,
+            per_page: 1,
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const accounts = data?.sales_accounts ?? [];
+        if (accounts.length > 0) return String(accounts[0].id);
       }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      const accounts = data?.sales_accounts ?? [];
-      if (accounts.length > 0) return String(accounts[0].id);
-    }
-  } catch (_) { /* continuar */ }
+    } catch (_) { /* continuar */ }
+  }
+
+  // 2. Fallback: buscar por nome do contato (quando não há CNJ)
+  if (nomeContato && nomeContato.trim().length > 3) {
+    const nomeBusca = nomeContato.trim().split(" ").slice(0, 3).join(" "); // primeiras 3 palavras
+    try {
+      const res = await fetch(
+        `https://${domain}/crm/sales/api/sales_accounts/filter`,
+        {
+          method: "POST",
+          headers: fsHeaders(),
+          body: JSON.stringify({
+            filter_rule: [{ attribute: "sales_account_name.name", operator: "contains", value: nomeBusca }],
+            sort: "id",
+            sort_type: "desc",
+            page: 1,
+            per_page: 1,
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const accounts = data?.sales_accounts ?? [];
+        if (accounts.length > 0) return String(accounts[0].id);
+      }
+    } catch (_) { /* continuar */ }
+  }
+
   return null;
 }
 
@@ -224,19 +253,32 @@ function buildDealPayload(
       quantity: 1,
       price:    amount > 0 ? amount : amountOriginal,
     }],
-    // Campos customizados
+    // Campos customizados (mapeados de freshsales-billing.js cf_hmadv_*)
     custom_field: {
-      cf_valor_original:                  amountOriginal,
-      cf_valor_corrigido:                 Number(item.amount_corrected ?? 0),
-      cf_multa:                           Number(item.late_fee_amount ?? 0),
-      cf_juros_mora:                      Number(item.interest_mora_amount ?? 0),
-      cf_juros_compensatorios:            Number(item.interest_compensatory_amount ?? 0),
-      cf_saldo_devedor:                   amount,
-      cf_dias_atraso:                     Number(item.days_overdue ?? 0),
-      cf_indice_correcao:                 (item.correction_index_name as string) ?? "IGPM",
-      cf_numero_fatura:                   invoiceNum ?? "",
-      cf_tipo_recebivel:                  (item.receivable_type as string) ?? "honorario",
-      cf_status_fatura:                   status,
+      // Campos cf_hmadv_* conforme freshsales-billing.js
+      cf_hmadv_external_reference:          (item.id as string) ?? "",
+      cf_hmadv_invoice_number:              invoiceNum ?? "",
+      cf_hmadv_receivable_status:           status,
+      cf_hmadv_billing_type:                (item.receivable_type as string) ?? "honorario",
+      cf_hmadv_balance_due:                 amount,
+      cf_hmadv_amount_original:             amountOriginal,
+      cf_hmadv_correction_amount:           Number(item.correction_amount ?? 0),
+      cf_hmadv_late_fee_amount:             Number(item.late_fee_amount ?? 0),
+      cf_hmadv_interest_mora_amount:        Number(item.interest_mora_amount ?? 0),
+      cf_hmadv_interest_compensatory_amount: Number(item.interest_compensatory_amount ?? 0),
+      cf_hmadv_process_reference:           processRef ?? "",
+      // Campos adicionais de suporte
+      cf_valor_original:                    amountOriginal,
+      cf_valor_corrigido:                   Number(item.amount_corrected ?? 0),
+      cf_multa:                             Number(item.late_fee_amount ?? 0),
+      cf_juros_mora:                        Number(item.interest_mora_amount ?? 0),
+      cf_juros_compensatorios:              Number(item.interest_compensatory_amount ?? 0),
+      cf_saldo_devedor:                     amount,
+      cf_dias_atraso:                       Number(item.days_overdue ?? 0),
+      cf_indice_correcao:                   (item.correction_index_name as string) ?? "IGPM",
+      cf_numero_fatura:                     invoiceNum ?? "",
+      cf_tipo_recebivel:                    (item.receivable_type as string) ?? "honorario",
+      cf_status_fatura:                     status,
     },
   };
 
@@ -284,7 +326,23 @@ async function criarOuAtualizarDeal(
       return data?.deal?.id ? String(data.deal.id) : null;
     }
     const errText = await res.text();
-    console.error("Erro ao criar deal:", errText.substring(0, 300));
+    console.error("Erro ao criar deal (HTTP", res.status, "):", errText.substring(0, 500));
+    // Tentar sem campos customizados se erro 400 (campos inválidos)
+    if (res.status === 400) {
+      const payloadSimplificado = JSON.parse(JSON.stringify(payload));
+      delete payloadSimplificado.deal.custom_field;
+      const res2 = await fetch(
+        `https://${domain}/crm/sales/api/deals`,
+        { method: "POST", headers: fsHeaders(), body: JSON.stringify(payloadSimplificado) }
+      );
+      if (res2.ok) {
+        const data2 = await res2.json();
+        console.log("Deal criado sem custom_fields:", data2?.deal?.id);
+        return data2?.deal?.id ? String(data2.deal.id) : null;
+      }
+      const errText2 = await res2.text();
+      console.error("Erro ao criar deal simplificado:", errText2.substring(0, 300));
+    }
   } catch (e) {
     console.error("Exceção ao criar deal:", String(e));
   }
@@ -315,11 +373,9 @@ async function processarItem(item: Record<string, unknown>): Promise<{
     contactId = await buscarOuCriarContact(contactName ?? "Cliente", contactEmail);
   }
 
-  // Buscar account por CNJ
+  // Buscar account por CNJ ou nome do contato (fallback)
   let accountId: string | null = null;
-  if (processRef) {
-    accountId = await buscarAccountPorCNJ(processRef);
-  }
+  accountId = await buscarAccountPorCNJ(processRef, contactName);
 
   // Criar/atualizar deal
   const dealId = await criarOuAtualizarDeal(item, contactId, accountId);
