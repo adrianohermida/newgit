@@ -133,6 +133,14 @@ export const defaultAdapter: DataJudAdapter = {
         'dadosBasicos.dataUltimaMovimentacao',
       ])),
       valor_causa: toNumber(pickFirst(payload, ['valorCausa', 'dadosBasicos.valorCausa'])),
+      formato: (() => {
+        const fmtObj = pickFirst(payload, ['formato', 'dadosBasicos.formato']);
+        if (fmtObj && typeof fmtObj === 'object') {
+          const rec = fmtObj as Record<string, unknown>;
+          return toText(rec.nome) ?? null;
+        }
+        return toText(fmtObj) ?? null;
+      })(),
       segredo_justica: toBool(pickFirst(payload, ['segredoJustica', 'dadosBasicos.segredoJustica'])),
       arquivado: toBool(pickFirst(payload, ['arquivado', 'dadosBasicos.arquivado'])),
       partes: parsePartes(payload),

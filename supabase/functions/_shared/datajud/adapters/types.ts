@@ -39,6 +39,7 @@ export type CanonicalProcesso = {
   data_distribuicao?: string | null;
   data_ultima_movimentacao?: string | null;
   valor_causa?: number | null;
+  formato?: string | null;
   segredo_justica?: boolean | null;
   arquivado?: boolean | null;
   partes?: CanonicalParte[];
