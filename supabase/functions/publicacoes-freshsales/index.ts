@@ -372,24 +372,71 @@ async function resolverAccountId(
   return accountId;
 }
 
-async function atualizarAccountFields(accountId:string,processoId:string,pubId:string,cnj:string): Promise<void> {
+async function atualizarAccountFields(
+  accountId: string,
+  processoId: string,
+  pubId: string,
+  cnj: string,
+  pub?: Record<string, unknown>,
+): Promise<void> {
   const {data:p} = await db.from('processos')
     .select('numero_cnj,polo_ativo,polo_passivo,classe,tribunal,segredo_justica,status_atual_processo,data_ajuizamento')
     .eq('id',processoId).maybeSingle();
   if (!p) return;
-  const cf:Record<string,unknown> = {};
+
+  const cf: Record<string,unknown> = {};
   if (p.numero_cnj)              cf.cf_numero_cnj         = p.numero_cnj;
   if (p.polo_ativo)              cf.cf_polo_ativo         = p.polo_ativo;
   if (p.polo_passivo)            cf.cf_parte_adversa      = p.polo_passivo;
   if (p.classe)                  cf.cf_acao               = p.classe;
   if (p.tribunal)                cf.cf_tribunal           = p.tribunal;
   if (p.segredo_justica!=null)   cf.cf_segredo_justica    = p.segredo_justica;
-  if (p.status_atual_processo)   cf.cf_status             = p.status_atual_processo;
+  // Status: usar do processo ou definir Ativo como padrão (nunca deixar em branco)
+  cf.cf_status = p.status_atual_processo || 'Ativo';
   if (p.data_ajuizamento)        cf.cf_data_de_distribuio = p.data_ajuizamento;
-  if (!Object.keys(cf).length)   return;
+
+  // Campos de publicação: sempre atualizar com a publicação mais recente
+  if (pub) {
+    const dtDisp = publicacaoDisponibilizacao(pub) ?? (pub.data_publicacao ? new Date(String(pub.data_publicacao)) : null);
+    if (dtDisp) cf.cf_publicacao_em = dtDisp.toISOString().split('T')[0];
+    const conteudo = String(pub.conteudo || pub.despacho || '').trim();
+    if (conteudo) cf.cf_contedo_publicacao = conteudo.substring(0, 32000);
+  }
+
+  // Verificar se o nome do Dr. Adriano está na publicação para gerenciar a tag Datajud
+  const NOME_DR = 'ADRIANO MENEZES HERMIDA MAIA';
+  const conteudoPub = String(pub?.conteudo || pub?.despacho || '').toUpperCase();
+  const contemNome = conteudoPub.includes(NOME_DR);
+
+  // Buscar tags atuais do Account
+  let tagsAtuais: string[] = [];
   try {
-    await fsPut(`sales_accounts/${accountId}`,{sales_account:{custom_field:cf}});
-    log('info','resolve_account',pubId,cnj,{sub:'account_fields_ok',campos:Object.keys(cf)});
+    const { data: acc } = await fsGet(`sales_accounts/${accountId}`);
+    const accData = (acc as Record<string, unknown>)?.sales_account as Record<string, unknown> | undefined;
+    tagsAtuais = (accData?.tags as string[] | undefined) ?? [];
+  } catch { /* ignora */ }
+
+  const temTagDatajud = tagsAtuais.includes('Datajud');
+  let novasTags = [...tagsAtuais];
+
+  if (contemNome && !temTagDatajud) {
+    // Adicionar tag Datajud pois o Dr. Adriano está na publicação
+    novasTags = [...novasTags, 'Datajud'];
+  } else if (!contemNome && temTagDatajud) {
+    // Remover tag Datajud pois o Dr. Adriano não está na publicação
+    novasTags = novasTags.filter(t => t !== 'Datajud');
+  }
+
+  if (!Object.keys(cf).length && novasTags.length === tagsAtuais.length) return;
+
+  const payload: Record<string, unknown> = { custom_field: cf };
+  if (novasTags.length !== tagsAtuais.length || JSON.stringify(novasTags.sort()) !== JSON.stringify(tagsAtuais.sort())) {
+    payload.tags = novasTags;
+  }
+
+  try {
+    await fsPut(`sales_accounts/${accountId}`, { sales_account: payload });
+    log('info','resolve_account',pubId,cnj,{sub:'account_fields_ok',campos:Object.keys(cf),tags:novasTags});
   } catch(e) { log('warn','resolve_account',pubId,cnj,{sub:'account_fields_falhou',erro:String(e)}); }
 }
 
@@ -480,7 +527,9 @@ async function enviarPublicacao(
       sales_activity_type_id: FS_ACTIVITY_TYPE_ID,
       title: tituloPublicacao(pub, dtDisp),
       start_date: freshsalesDate(dtDisp, 'start'),
-      end_date: freshsalesDate(dtPub, 'end'),
+      end_date: freshsalesDate(dtDisp, 'end'),
+      // Marcar como concluída imediatamente — publicação é evento passado, não pendência
+      completed_date: dtDisp.toISOString(),
       notes: descricaoPublicacao(pub, dtDisp, dtPub),
     },
   });
@@ -606,7 +655,8 @@ async function actionSync(batchSize:number): Promise<Record<string,unknown>> {
 
       if (!accountFieldsFeito.has(cnj)) {
         accountFieldsFeito.add(cnj);
-        await atualizarAccountFields(accountId,processoId,pubId,cnj);
+        // Passar pub para preencher cf_publicacao_em, cf_contedo_publicacao e gerenciar tags Datajud
+        await atualizarAccountFields(accountId, processoId, pubId, cnj, pub as Record<string,unknown>);
       }
 
       const result = await enviarPublicacao(pub as Record<string,unknown>,accountId);
@@ -643,6 +693,26 @@ Deno.serve(async (req:Request) => {
         const raw   = url.searchParams.get('batch')??String(body.batch??25);
         const batch = Math.min(Math.max(Number(raw)||25,1),100);
         result = await actionSync(batch);
+        // Notificar Slack se houve activities criadas com sucesso
+        const syncResult = result as Record<string,unknown>;
+        if ((syncResult.sucesso as number) > 0) {
+          fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/dotobot-slack`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: 'notify_cron_status',
+              job: 'publicacoes-freshsales',
+              status: (syncResult.erro as number) === 0 ? 'ok' : 'aviso',
+              inseridas: syncResult.sucesso,
+              erros: syncResult.erro,
+              detalhes: `${syncResult.total} publicacoes processadas`,
+            }),
+            signal: AbortSignal.timeout(8_000),
+          }).catch(e => console.warn('dotobot-slack:', String(e)));
+        }
         break;
       }
       case 'activity_types':

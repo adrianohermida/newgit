@@ -543,20 +543,28 @@ async function registrarActivityConsulta(
     ].join('\n');
   }
 
-  const dtFim = new Date(agora); dtFim.setHours(agora.getHours() + 1);
+  // Sucesso: marcar como concluída imediatamente (completed_date = agora)
+  // Falha: deixar em aberto com end_date futuro para gerar pendência
+  const dtFim = new Date(agora);
+  if (!sucesso) dtFim.setDate(agora.getDate() + 1); // pendência para amanhã
+
+  const actPayload: Record<string, unknown> = {
+    targetable_type: 'SalesAccount',
+    targetable_id: Number(accountId),
+    owner_id: FS_OWNER_ID,
+    sales_activity_type_id: FS_TYPE_CONSULTA,
+    title: tituloAct,
+    start_date: `${toDate(agora)}T${agora.toISOString().slice(11,19)}Z`,
+    end_date: `${toDate(sucesso ? agora : dtFim)}T${(sucesso ? agora : dtFim).toISOString().slice(11,19)}Z`,
+    notes,
+  };
+  if (sucesso) {
+    // Marcar como concluída — sem pendência no pipeline do usuário
+    actPayload.completed_date = agora.toISOString();
+  }
+
   try {
-    const { status } = await fsPost('sales_activities', {
-      sales_activity: {
-        targetable_type: 'SalesAccount',
-        targetable_id: Number(accountId),
-        owner_id: FS_OWNER_ID,
-        sales_activity_type_id: FS_TYPE_CONSULTA,
-        title: tituloAct,
-        start_date: `${toDate(agora)}T${agora.toISOString().slice(11,19)}Z`,
-        end_date: `${toDate(dtFim)}T${dtFim.toISOString().slice(11,19)}Z`,
-        notes,
-      },
-    });
+    const { status } = await fsPost('sales_activities', { sales_activity: actPayload });
     log(status === 200 || status === 201 ? 'info' : 'warn',
       'activity_consulta', { accountId, sucesso, status });
   } catch(e) {
@@ -569,23 +577,28 @@ async function registrarConsultaEvento(
   titulo: string,
   notes: string,
   eventAt = new Date(),
+  isErro = false,
 ): Promise<void> {
   const toDate = (d: Date) => d.toISOString().split('T')[0];
   const dtFim = new Date(eventAt);
-  dtFim.setDate(eventAt.getDate() + 1);
+  if (isErro) dtFim.setDate(eventAt.getDate() + 1); // pendência apenas em caso de erro
+
+  const actPayload: Record<string, unknown> = {
+    targetable_type: 'SalesAccount',
+    targetable_id: Number(accountId),
+    owner_id: FS_OWNER_ID,
+    sales_activity_type_id: FS_TYPE_CONSULTA,
+    title,
+    start_date: `${toDate(eventAt)}T${eventAt.toISOString().slice(11,19)}Z`,
+    end_date: `${toDate(isErro ? dtFim : eventAt)}T${(isErro ? dtFim : eventAt).toISOString().slice(11,19)}Z`,
+    notes: notes.slice(0, 65000),
+  };
+  if (!isErro) {
+    actPayload.completed_date = eventAt.toISOString();
+  }
+
   try {
-    const { status } = await fsPost('sales_activities', {
-      sales_activity: {
-        targetable_type: 'SalesAccount',
-        targetable_id: Number(accountId),
-        owner_id: FS_OWNER_ID,
-        sales_activity_type_id: FS_TYPE_CONSULTA,
-        title,
-        start_date: `${toDate(eventAt)}T${eventAt.toISOString().slice(11,19)}Z`,
-        end_date: `${toDate(dtFim)}T${dtFim.toISOString().slice(11,19)}Z`,
-        notes: notes.slice(0, 65000),
-      },
-    });
+    const { status } = await fsPost('sales_activities', { sales_activity: actPayload });
     log(status === 200 || status === 201 ? 'info' : 'warn', 'consulta_evento', { accountId, titulo, status });
   } catch (e) {
     log('warn', 'consulta_evento_exc', { accountId, titulo, erro: String(e) });
@@ -1005,6 +1018,28 @@ Deno.serve(async (req: Request) => {
 
     resultados.push({ fila_id: fila.id, ...resultado! });
     await sleep(300);
+  }
+
+  // Notificar Slack se processou itens
+  const okCount = resultados.filter((r: Record<string,unknown>) => r.ok).length;
+  const errCount = resultados.filter((r: Record<string,unknown>) => !r.ok).length;
+  if (resultados.length > 0) {
+    fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/dotobot-slack`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'notify_cron_status',
+        job: 'datajud-worker',
+        status: errCount === 0 ? 'ok' : 'aviso',
+        inseridas: okCount,
+        erros: errCount,
+        detalhes: `${resultados.length} item(s) da fila processados`,
+      }),
+      signal: AbortSignal.timeout(8_000),
+    }).catch((e: unknown) => console.warn('dotobot-slack:', String(e)));
   }
 
   return new Response(JSON.stringify({ processados: resultados.length, resultados }),
