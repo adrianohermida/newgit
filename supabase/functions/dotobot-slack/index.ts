@@ -1,5 +1,5 @@
 /**
- * dotobot-slack — Central de Comandos e Notificações do Pipeline HMADV no Slack
+ * dotobot-slack v5.0 — Central de Comandos e Notificações do Pipeline HMADV no Slack
  *
  * Funcionalidades:
  * 1. Recebe comandos slash do Slack (/dotobot) e aciona edge functions
@@ -10,6 +10,9 @@
  * 6. Suporte ao cliente via Freshdesk (tickets, CNJ, IA)
  * 7. Agendamentos: Google Calendar + Zoom + Freshsales
  * 8. Assistente de e-mail: resposta automática de tickets via IA
+ * 9. [v5] IA conversacional via ai-core Worker (multi-provider: OpenAI → HuggingFace → Cloudflare AI)
+ * 10. [v5] Memória RAG persistente via pgvector (ai-core /rag/search + /rag/save)
+ * 11. [v5] Integração com freddy-gateway (contact360) e workspace-ops (CRM operations)
  *
  * Comandos disponíveis:
  *   PAINEL E STATUS
@@ -77,6 +80,9 @@ const SLACK_CHANNEL = Deno.env.get("SLACK_NOTIFY_CHANNEL") || "C09E59J77EU";
 const SLACK_USER_TOKEN = Deno.env.get("SLACK_USER_TOKEN") || "";
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN") || "";
 const SELF_URL = `${SUPABASE_URL}/functions/v1`;
+// ── Dotobot v5 — ai-core + freddy-gateway + workspace-ops ────────────────────
+const AI_CORE_URL = Deno.env.get("AI_CORE_URL") || "https://ai.aetherlab.com.br";
+const HMADV_GATEWAY_SECRET = Deno.env.get("HMADV_GATEWAY_SECRET") || Deno.env.get("FREDDY_ACTION_SHARED_SECRET") || "";
 
 const db = createClient(SUPABASE_URL, SVC_KEY, { db: { schema: "judiciario" } });
 const dbPublic = createClient(SUPABASE_URL, SVC_KEY);
@@ -1059,24 +1065,100 @@ async function handleRelatorioFinanceiro(channel: string): Promise<void> {
   }
 }
 
-// ─── Handlers de IA Conversacional v3.0 ─────────────────────────────────────
+// ─── Dotobot v5 — Helpers de IA (ai-core) ───────────────────────────────────
+
+async function callAiCore(
+  messages: Array<{ role: string; content: string }>,
+  sessionId = "dotobot",
+  systemPrompt?: string
+): Promise<{ text: string; model: string; provider: string; tokens: number }> {
+  const sysMsg = systemPrompt ||
+    "Você é o DotoBot v5, assistente jurídico inteligente do escritório Hermida Maia Advocacia (Dr. Adriano Menezes Hermida Maia, OAB 8894AM|476963SP|107048RS|75394DF). Responda de forma objetiva, profissional e em português brasileiro. Seja preciso e fundamentado em dados reais quando disponíveis.";
+
+  const resp = await fetch(`${AI_CORE_URL}/v1/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(HMADV_GATEWAY_SECRET ? { "x-hmadv-secret": HMADV_GATEWAY_SECRET } : {}),
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      system: sysMsg,
+      messages,
+      max_tokens: 1000,
+      temperature: 0.3,
+    }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text().catch(() => "");
+    throw new Error(`ai-core HTTP ${resp.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const data = await resp.json() as Record<string, unknown>;
+  const content = data?.content as Array<{ type: string; text: string }> | null;
+  const text = content?.[0]?.text || String(data?.text || data?.message || "Sem resposta.");
+  const usage = data?.usage as Record<string, number> | null;
+  const model = String(data?.model || "ai-core");
+  const providerInfo = data?.provider_info as Record<string, string> | null;
+  const provider = providerInfo?.provider || model;
+  const tokens = (usage?.input_tokens || 0) + (usage?.output_tokens || 0);
+
+  return { text, model, provider, tokens };
+}
+
+async function searchRagContext(query: string, topK = 5): Promise<string> {
+  try {
+    const resp = await fetch(`${AI_CORE_URL}/rag/search`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(HMADV_GATEWAY_SECRET ? { "x-hmadv-secret": HMADV_GATEWAY_SECRET } : {}),
+      },
+      body: JSON.stringify({ query, top_k: topK }),
+    });
+    if (!resp.ok) return "";
+    const data = await resp.json() as Record<string, unknown>;
+    const matches = (data?.matches || data?.results || []) as Array<Record<string, unknown>>;
+    if (!matches.length) return "";
+    return matches
+      .slice(0, topK)
+      .map((m) => String(m.text || m.content || ""))
+      .filter(Boolean)
+      .join("\n---\n");
+  } catch {
+    return "";
+  }
+}
+
+async function saveRagMemory(sessionId: string, query: string, responseText: string): Promise<void> {
+  try {
+    await fetch(`${AI_CORE_URL}/rag/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(HMADV_GATEWAY_SECRET ? { "x-hmadv-secret": HMADV_GATEWAY_SECRET } : {}),
+      },
+      body: JSON.stringify({ session_id: sessionId, query, response_text: responseText }),
+    });
+  } catch {
+    // Ignorar erros de persistência de memória
+  }
+}
+
+// ─── Handlers de IA Conversacional v5.0 ─────────────────────────────────────
 
 async function handleIaPerguntar(channel: string, userId: string, query: string): Promise<void> {
   if (!query.trim()) {
     await postSlack(channel, "❓ Use: `/dotobot perguntar [sua pergunta]`\nExemplo: `/dotobot perguntar quais processos têm prazo esta semana?`");
     return;
   }
-  await postSlack(channel, `🤔 Consultando IA sobre: _"${query}"_...`);
+  await postSlack(channel, `🤔 Consultando DotoBot v5 sobre: _"${query}"_...`);
 
   try {
-    const openaiKey = Deno.env.get("OPENAI_API_KEY") || "";
-    if (!openaiKey) {
-      await postSlack(channel, "⚠️ OPENAI_API_KEY não configurada. Configure nos secrets do Supabase.");
-      return;
-    }
-
-    // Buscar contexto recente do Supabase
-    const [pubRecentes, prazosUrgentes] = await Promise.all([
+    // Buscar contexto: RAG + dados recentes do Supabase em paralelo
+    const [ragContext, pubRecentes, prazosUrgentes] = await Promise.all([
+      searchRagContext(query, 5),
       db.from("publicacoes")
         .select("ai_resumo, ai_tipo_ato, ai_urgencia, data_publicacao, nome_cliente")
         .not("ai_resumo", "is", null)
@@ -1090,51 +1172,51 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
         .limit(5),
     ]);
 
-    const contexto = [
-      "Contexto do escritório Hermida Maia Advocacia (Advogado: Dr. Adriano Menezes Hermida Maia, OAB 8894AM):",
-      pubRecentes.data?.length
-        ? `Publicações recentes: ${pubRecentes.data.map(p => `${p.data_publicacao?.split("T")[0]} - ${p.ai_tipo_ato || ""}: ${p.ai_resumo || ""}`).join(" | ")}`
-        : "Sem publicações recentes enriquecidas.",
-      prazosUrgentes.data?.length
-        ? `Prazos pendentes: ${prazosUrgentes.data.map(p => `${p.tipo_prazo} em ${p.data_prazo}`).join(", ")}`
-        : "Sem prazos pendentes imediatos.",
-    ].join("\n");
+    const contextParts: string[] = [
+      "=== CONTEXTO DO ESCRITÓRIO ===",
+      "Escritório: Hermida Maia Advocacia | Advogado: Dr. Adriano Menezes Hermida Maia, OAB 8894AM",
+    ];
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante.\n\n${contexto}`
-          },
-          { role: "user", content: query }
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const resposta = data?.choices?.[0]?.message?.content || "Sem resposta.";
-      const tokens = data?.usage?.total_tokens || 0;
-      const blocks = [
-        header("🤖 DotoBot IA — Resposta"),
-        section(`*Pergunta:* _"${query}"_`),
-        divider(),
-        section(resposta.substring(0, 2900)),
-        context([`_Tokens usados: ${tokens} | Modelo: gpt-4.1-mini | Acionado por <@${userId}>_`]),
-      ];
-      await postSlack(channel, `🤖 DotoBot IA — ${query.substring(0, 60)}`, blocks);
-    } else {
-      const errText = await res.text();
-      await postSlack(channel, `❌ Erro ao consultar IA: HTTP ${res.status} — ${errText.substring(0, 200)}`);
+    if (ragContext) {
+      contextParts.push("\n=== MEMÓRIA RAG ===");
+      contextParts.push(ragContext);
     }
+
+    if (pubRecentes.data?.length) {
+      contextParts.push("\n=== PUBLICAÇÕES RECENTES ===");
+      contextParts.push(pubRecentes.data.map(p =>
+        `${p.data_publicacao?.split("T")[0]} - ${p.ai_tipo_ato || ""}: ${p.ai_resumo || ""}`
+      ).join("\n"));
+    }
+
+    if (prazosUrgentes.data?.length) {
+      contextParts.push("\n=== PRAZOS PENDENTES ===");
+      contextParts.push(prazosUrgentes.data.map(p =>
+        `${p.tipo_prazo} em ${p.data_prazo}`
+      ).join("\n"));
+    }
+
+    const systemPrompt = `Você é o DotoBot v5, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante.\n\n${contextParts.join("\n")}`;
+
+    const { text: resposta, model, provider, tokens } = await callAiCore(
+      [{ role: "user", content: query }],
+      `dotobot-${userId}`,
+      systemPrompt
+    );
+
+    // Salvar memória em background
+    saveRagMemory(`dotobot-${userId}`, query, resposta).catch(() => null);
+
+    const blocks = [
+      header("🤖 DotoBot v5 — Resposta"),
+      section(`*Pergunta:* _"${query}"_`),
+      divider(),
+      section(resposta.substring(0, 2900)),
+      context([`_Tokens: ${tokens} | Modelo: ${model} | Provider: ${provider} | <@${userId}>_`]),
+    ];
+    await postSlack(channel, `🤖 DotoBot v5 — ${query.substring(0, 60)}`, blocks);
   } catch (e) {
-    await postSlack(channel, `❌ Erro: ${String(e)}`);
+    await postSlack(channel, `❌ Erro ao consultar IA: ${String(e)}`);
   }
 }
 
@@ -1249,9 +1331,37 @@ async function handleIaStatus(channel: string): Promise<void> {
     const pct = tot > 0 ? Math.round((enr / tot) * 100) : 0;
     const barra = "█".repeat(Math.floor(pct / 10)) + "░".repeat(10 - Math.floor(pct / 10));
 
+    // Verificar health do ai-core Worker
+    let aiCoreStatus = "⚠️ Desconhecido";
+    let aiCoreProviders = "";
+    try {
+      const hResp = await fetch(`${AI_CORE_URL}/health`, { signal: AbortSignal.timeout(5000) });
+      if (hResp.ok) {
+        const hData = await hResp.json() as Record<string, unknown>;
+        const providers: string[] = [];
+        if (hData.cloudflare_ai) providers.push("☁️ Cloudflare AI");
+        if (hData.huggingface) providers.push("🤗 HuggingFace");
+        if (hData.openai) providers.push("🔮 OpenAI");
+        if (hData.rag) providers.push("🧠 RAG");
+        aiCoreStatus = providers.length > 0 ? "✅ Online" : "⚠️ Sem providers";
+        aiCoreProviders = providers.join(" | ");
+      } else {
+        aiCoreStatus = `❌ HTTP ${hResp.status}`;
+      }
+    } catch (e) {
+      aiCoreStatus = `❌ ${String(e).substring(0, 50)}`;
+    }
+
     const blocks = [
-      header("🧠 Status do Enriquecimento IA"),
+      header("🧠 DotoBot v5 — Status IA"),
       section(
+        `*🤖 ai-core Worker:* ${aiCoreStatus}\n` +
+        (aiCoreProviders ? `• Providers: ${aiCoreProviders}\n` : "") +
+        `• URL: \`${AI_CORE_URL}\``
+      ),
+      divider(),
+      section(
+        `*📊 Enriquecimento de Publicações*\n` +
         `\`${barra}\` *${pct}%*\n` +
         `• Total com conteúdo: *${tot.toLocaleString("pt-BR")}*\n` +
         `• Enriquecidas: *${enr.toLocaleString("pt-BR")}*\n` +
@@ -1259,9 +1369,9 @@ async function handleIaStatus(channel: string): Promise<void> {
         `• 🔴 Urgência Crítica: ${criticas.count ?? 0}\n` +
         `• 🟠 Urgência Alta: ${altas.count ?? 0}`
       ),
-      context([`_Cron: a cada 10 min | Modelo: gpt-4.1-mini | Batch: 20 publicações_`]),
+      context([`_DotoBot v5 | ai-core multi-provider | RAG pgvector | Batch: 20 publicações_`]),
     ];
-    await postSlack(channel, `🧠 Status IA: ${pct}% enriquecido`, blocks);
+    await postSlack(channel, `🧠 DotoBot v5 — Status IA: ${pct}% enriquecido`, blocks);
   } catch (e) {
     await postSlack(channel, `❌ Erro: ${String(e)}`);
   }
