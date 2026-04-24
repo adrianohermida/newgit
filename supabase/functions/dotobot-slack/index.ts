@@ -1143,24 +1143,48 @@ async function callAiCore(
 
 async function searchRagContext(query: string, topK = 5): Promise<string> {
   try {
-    const resp = await fetch(`${AI_CORE_URL}/rag/search`, {
+    // 1. Gerar embedding da query via ai-core (necessário para a parte semântica da busca híbrida)
+    const embedResp = await fetch(`${AI_CORE_URL}/rag/embed`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(HMADV_GATEWAY_SECRET ? { "x-hmadv-secret": HMADV_GATEWAY_SECRET } : {}),
       },
-      body: JSON.stringify({ query, top_k: topK }),
+      body: JSON.stringify({ text: query }),
     });
-    if (!resp.ok) return "";
-    const data = await resp.json() as Record<string, unknown>;
-    const matches = (data?.matches || data?.results || []) as Array<Record<string, unknown>>;
-    if (!matches.length) return "";
+
+    if (!embedResp.ok) {
+      // Fallback para busca simples se o embedding falhar
+      const simpleResp = await fetch(`${AI_CORE_URL}/rag/search`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(HMADV_GATEWAY_SECRET ? { "x-hmadv-secret": HMADV_GATEWAY_SECRET } : {}),
+        },
+        body: JSON.stringify({ query, top_k: topK }),
+      });
+      const data = await simpleResp.json();
+      return (data?.matches || []).map((m: any) => m.text).join("\n---\n");
+    }
+
+    const { embedding } = await embedResp.json();
+
+    // 2. Chamar a nova função de Busca Híbrida no Supabase via RPC
+    const { data: matches, error } = await dbPublic.rpc("hybrid_search_dotobot_memory", {
+      query_text: query,
+      query_embedding: embedding,
+      match_count: topK,
+      full_text_weight: 1.0,
+      semantic_weight: 1.0
+    });
+
+    if (error || !matches || matches.length === 0) return "";
+
     return matches
-      .slice(0, topK)
-      .map((m) => String(m.text || m.content || ""))
-      .filter(Boolean)
+      .map((m: any) => `[Score: ${m.combined_score.toFixed(4)}] ${m.query}\nResp: ${m.response_text}`)
       .join("\n---\n");
-  } catch {
+  } catch (err) {
+    console.error("Erro na busca híbrida:", err);
     return "";
   }
 }
