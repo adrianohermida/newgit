@@ -30,7 +30,8 @@ Estado honesto:
 - catalogacao: concluida
 - classificacao operacional: concluida
 - treinamento de selecao: concluido em nivel estrutural
-- execucao tool-by-tool: parcial
+- execucao tool-by-tool: parcial, com dispatcher central ativo para `advise-sync`, `advise-ai-enricher`, `datajud-search`, `processo-sync`, `publicacoes-audiencias`, `publicacoes-freshsales`, `publicacoes-prazos`, `fc-ingest-conversations`, `fc-last-conversation`, `fc-update-conversation` e `tpu-enricher`
+- suporte administrativo roteado: `tpu-sync`
 - smoke tests funcao por funcao: pendente
 
 ## Prioridade de evolucao
