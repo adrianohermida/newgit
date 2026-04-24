@@ -1515,7 +1515,7 @@ async function handleImportarPlanilhas(channel: string, userId: string): Promise
 async function handleSyncPublicacoes(channel: string, userId: string): Promise<void> {
   try {
     await postSlack(channel, `⏳ Sincronizando publicações → Freshsales (activities)...`);
-    const result = await invokeFunction("publicacoes-freshsales", { action: "sync_batch", batch_size: 50 }) as Record<string, unknown>;
+    const result = await invokeFunction("publicacoes-freshsales", { action: "sync", batch_size: 50 }) as Record<string, unknown>;
     const criados = Number(result.criados || 0);
     const erros = Number(result.errors || 0);
     const blocks = [
@@ -1535,7 +1535,7 @@ async function handleSyncPublicacoes(channel: string, userId: string): Promise<v
 async function handleExtrairAudiencias(channel: string, userId: string): Promise<void> {
   try {
     await postSlack(channel, `⏳ Extraindo audiências das publicações → appointments Freshsales...`);
-    const result = await invokeFunction("publicacoes-audiencias", { action: "extrair_batch", batch_size: 50 }) as Record<string, unknown>;
+    const result = await invokeFunction("publicacoes-audiencias", { action: "extract_batch", batch_size: 50 }) as Record<string, unknown>;
     const extraidas = Number(result.extraidas || 0);
     const criadas_fs = Number(result.criadas_freshsales || 0);
     const erros = Number(result.errors || 0);
@@ -1648,7 +1648,7 @@ async function handlePrazoFim(channel: string, userId: string): Promise<void> {
 async function handleHigienizarContatos(channel: string, userId: string): Promise<void> {
   try {
     await postSlack(channel, `⏳ Detectando e mesclando contatos duplicados no Freshsales...`);
-    const result = await invokeFunction("sync-worker", { action: "higienizar_contatos", batch_size: 50 }) as Record<string, unknown>;
+    const result = await invokeFunction("fs-contacts-sync", { action: "find_duplicates", batch_size: 50 }) as Record<string, unknown>;
     const duplicados = Number(result.duplicados || 0);
     const mesclados = Number(result.mesclados || 0);
     const erros = Number(result.errors || 0);

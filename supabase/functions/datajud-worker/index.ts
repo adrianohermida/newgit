@@ -957,6 +957,52 @@ Deno.serve(async (req: Request) => {
       });
     }
   }
+
+  if (action === 'enrich_formato') {
+    // Atualiza o campo tipo_processo (Físico/Eletrônico) nos processos e no Freshsales
+    try {
+      const bodyRaw = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+      const batchSize = Number((bodyRaw as Record<string, unknown>).batch_size ?? url.searchParams.get('batch_size') ?? 50);
+      const { data: processos, error } = await db
+        .from('processos')
+        .select('id, numero_cnj, account_id_freshsales, raw_datajud')
+        .is('tipo_processo', null)
+        .not('raw_datajud', 'is', null)
+        .not('account_id_freshsales', 'is', null)
+        .limit(batchSize);
+      if (error) return new Response(JSON.stringify({ ok: false, erro: error.message }), { headers: { 'Content-Type': 'application/json' } });
+      if (!processos || processos.length === 0) {
+        return new Response(JSON.stringify({ ok: true, atualizados: 0, mensagem: 'Nenhum processo pendente de enriquecimento de formato' }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      let atualizados = 0; let fisicos = 0; let eletronicos = 0; let erros = 0;
+      for (const proc of processos) {
+        try {
+          const raw = proc.raw_datajud as Record<string, unknown> | null;
+          const sistemaRaw = raw?.sistema ?? raw?.classeProcessual?.sistema ?? '';
+          const sistema = String(typeof sistemaRaw === 'object' ? JSON.stringify(sistemaRaw) : sistemaRaw).toLowerCase();
+          let tipo: string | null = null;
+          if (sistema.includes('eletronico') || sistema.includes('eletrônico') || sistema.includes('pje') || sistema.includes('esaj') || sistema.includes('eproc')) {
+            tipo = 'Eletrônico';
+          } else if (sistema.includes('fisico') || sistema.includes('físico')) {
+            tipo = 'Físico';
+          }
+          if (tipo) {
+            await db.from('processos').update({ tipo_processo: tipo }).eq('id', proc.id);
+            if (proc.account_id_freshsales) {
+              await fsPut(`accounts/${proc.account_id_freshsales}`, { account: { cf_tipo_processo: tipo } }).catch(() => {});
+            }
+            atualizados++;
+            if (tipo === 'Eletrônico') eletronicos++; else fisicos++;
+          }
+        } catch { erros++; }
+        await sleep(100);
+      }
+      return new Response(JSON.stringify({ ok: true, atualizados, fisicos, eletronicos, erros, total_candidatos: processos.length }), { headers: { 'Content-Type': 'application/json' } });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, erro: String(e) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+
   // Auto-libera jobs travados há mais de 8 minutos
   await db.from('monitoramento_queue')
     .update({ status: 'pendente', ultimo_erro: 'auto_reset_timeout' })

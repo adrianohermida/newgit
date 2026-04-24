@@ -295,6 +295,67 @@ async function resetDatajud(): Promise<Record<string, unknown>> {
   return { resetados: data?.length ?? 0, erro: error?.message };
 }
 
+// ─── Ação: criar_processos_ausentes ─────────────────────────────────────────
+// Cria Accounts no Freshsales para processos que ainda não têm account_id_freshsales
+async function criarProcessosAusentes(batch = 20): Promise<Record<string, unknown>> {
+  const { data: processos, error } = await supabase
+    .from("processos")
+    .select("id, numero_cnj, numero_processo, polo_ativo, polo_passivo, instancia, tipo_processo")
+    .is("account_id_freshsales", null)
+    .not("numero_cnj", "is", null)
+    .limit(batch);
+
+  if (error) return { error: error.message };
+  if (!processos || processos.length === 0) return { criados: 0, vinculados: 0, mensagem: "Nenhum processo sem account_id encontrado" };
+
+  let criados = 0;
+  let vinculados = 0;
+  let erros = 0;
+
+  for (const proc of processos) {
+    try {
+      const nome = proc.numero_cnj || proc.numero_processo || `Processo ${proc.id}`;
+      const descricao = [
+        proc.polo_ativo ? `Polo Ativo: ${proc.polo_ativo}` : null,
+        proc.polo_passivo ? `Polo Passivo: ${proc.polo_passivo}` : null,
+        proc.instancia ? `Instância: ${proc.instancia}` : null,
+        proc.tipo_processo ? `Tipo: ${proc.tipo_processo}` : null,
+      ].filter(Boolean).join(" | ");
+
+      const resp = await fetch(`https://${FS_DOMAIN}/crm/sales/api/accounts`, {
+        method: "POST",
+        headers: { "Authorization": `Token token=${FS_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ account: { name: nome, description: descricao } }),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json() as Record<string, unknown>;
+        const account = data.account as Record<string, unknown> | undefined;
+        const accountId = String(account?.id || "");
+        if (accountId) {
+          await supabase.from("processos").update({ account_id_freshsales: accountId }).eq("id", proc.id);
+          criados++;
+          // Contar publicações órfãs que serão sincronizadas no próximo ciclo
+          const { count } = await supabase
+            .from("publicacoes")
+            .select("id", { count: "exact", head: true })
+            .eq("processo_id", proc.id)
+            .is("freshsales_activity_id", null);
+          if (count) vinculados += count;
+        }
+      } else {
+        erros++;
+      }
+    } catch {
+      erros++;
+    }
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  return { criados, vinculados, erros, total_candidatos: processos.length };
+}
+
 // ─── Ação: fix_all ────────────────────────────────────────────────────────────
 
 async function fixAll(batch = 100): Promise<Record<string, unknown>> {
@@ -352,10 +413,15 @@ Deno.serve(async (req) => {
       case "fix_all":
         resultado = await fixAll(batch);
         break;
+      case "criar_processos_ausentes": {
+        const batchSize = Number(body.batch_size ?? body.batch ?? url.searchParams.get("batch_size") ?? 20);
+        resultado = await criarProcessosAusentes(batchSize);
+        break;
+      }
       default:
         resultado = {
           error: `Ação desconhecida: ${action}`,
-          acoes_disponiveis: ["status", "fix_instancia", "fix_status", "fix_partes", "fix_fs_sync", "reset_datajud", "fix_all"]
+          acoes_disponiveis: ["status", "fix_instancia", "fix_status", "fix_partes", "fix_fs_sync", "reset_datajud", "fix_all", "criar_processos_ausentes"]
         };
     }
   } catch (e) {

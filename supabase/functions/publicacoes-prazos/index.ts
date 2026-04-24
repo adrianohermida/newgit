@@ -1156,9 +1156,57 @@ Deno.serve(async (req) => {
         restantes: restantes ?? 0,
       }), { headers: { "Content-Type": "application/json" } });
     }
+    if (action === "atualizar_prazo_fim") {
+      // Atualiza o campo cf_prazo_fim nos Accounts do Freshsales com o próximo prazo em aberto
+      const batchSizePF = Number(body.batch_size ?? 100);
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+      const hoje = new Date().toISOString().split("T")[0];
+      const { data: prazos, error: errPF } = await supabase
+        .schema("judiciario")
+        .from("prazo_calculado")
+        .select("processo_id, data_vencimento")
+        .eq("status", "pendente")
+        .gte("data_vencimento", hoje)
+        .order("data_vencimento", { ascending: true })
+        .limit(batchSizePF * 5);
+      if (errPF) return new Response(JSON.stringify({ error: errPF.message }), { headers: { "Content-Type": "application/json" } });
+      // Agrupar por processo_id: pegar o prazo mais próximo de cada processo
+      const mapaProcesso: Record<string, string> = {};
+      for (const p of (prazos ?? [])) {
+        if (p.processo_id && !mapaProcesso[p.processo_id]) mapaProcesso[p.processo_id] = p.data_vencimento;
+      }
+      const processoIds = Object.keys(mapaProcesso).slice(0, batchSizePF);
+      if (processoIds.length === 0) {
+        return new Response(JSON.stringify({ atualizados: 0, mensagem: "Nenhum prazo pendente encontrado" }), { headers: { "Content-Type": "application/json" } });
+      }
+      // Buscar account_id_freshsales de cada processo
+      const { data: procs } = await supabase
+        .schema("judiciario")
+        .from("processos")
+        .select("id, account_id_freshsales")
+        .in("id", processoIds)
+        .not("account_id_freshsales", "is", null);
+      let atualizados = 0; let errosPF = 0;
+      for (const proc of (procs ?? [])) {
+        const prazoFim = mapaProcesso[proc.id];
+        if (!prazoFim || !proc.account_id_freshsales) continue;
+        try {
+          const r = await fetch(`https://${fsDomain()}/crm/sales/api/accounts/${proc.account_id_freshsales}`, {
+            method: "PUT",
+            headers: { "Authorization": authHeader(), "Content-Type": "application/json" },
+            body: JSON.stringify({ account: { cf_prazo_fim: prazoFim } }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (r.ok) atualizados++; else errosPF++;
+        } catch { errosPF++; }
+        await sleep(100);
+      }
+      return new Response(JSON.stringify({ atualizados, erros: errosPF, total_candidatos: processoIds.length }), { headers: { "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({
       error: "Ação inválida",
-      actions: ["calcular_batch", "calcular_single", "alertas", "status", "criar_tasks_pendentes"],
+      actions: ["calcular_batch", "calcular_single", "alertas", "status", "criar_tasks_pendentes", "atualizar_prazo_fim"],
     }), { status: 400, headers: { "Content-Type": "application/json" } });
 
   } catch (e) {
