@@ -40,19 +40,69 @@ export class AiOrchestrator {
         parameters: { email: "string" }
       },
       {
+        name: "contact_update",
+        description: "Atualiza dados de um contato no Freshsales.",
+        parameters: { id: "string", patch: "object (ex: { mobile_number: '...' })" }
+      },
+      {
+        name: "account_view",
+        description: "Visualiza detalhes de uma conta (empresa/cliente) no Freshsales.",
+        parameters: { id: "string" }
+      },
+      {
+        name: "deal_view",
+        description: "Visualiza detalhes de um negócio (deal) no Freshsales.",
+        parameters: { id: "string" }
+      },
+      {
+        name: "deal_update",
+        description: "Atualiza um negócio (deal) no Freshsales.",
+        parameters: { id: "string", patch: "object" }
+      },
+      {
         name: "tasks_list",
         description: "Lista as tarefas pendentes no Freshsales.",
         parameters: { limit: "number" }
       },
       {
+        name: "task_view",
+        description: "Visualiza detalhes de uma tarefa específica.",
+        parameters: { id: "string" }
+      },
+      {
         name: "task_create",
         description: "Cria uma nova tarefa no Freshsales.",
-        parameters: { title: "string", description: "string", due_date: "string (YYYY-MM-DD)" }
+        parameters: { title: "string", description: "string", due_date: "string (YYYY-MM-DD)", targetable_type: "string (Contact/SalesAccount)", targetable_id: "string" }
+      },
+      {
+        name: "task_update",
+        description: "Atualiza uma tarefa existente.",
+        parameters: { id: "string", patch: "object" }
+      },
+      {
+        name: "task_delete",
+        description: "Remove uma tarefa do Freshsales.",
+        parameters: { id: "string" }
       },
       {
         name: "tickets_list",
         description: "Lista os últimos tickets de suporte no Freshdesk.",
         parameters: { limit: "number" }
+      },
+      {
+        name: "ticket_view",
+        description: "Visualiza detalhes de um ticket no Freshdesk.",
+        parameters: { id: "string" }
+      },
+      {
+        name: "ticket_create",
+        description: "Cria um novo ticket no Freshdesk.",
+        parameters: { subject: "string", description: "string", email: "string", priority: "number (1-4)", status: "number (2-5)" }
+      },
+      {
+        name: "conversation_threads",
+        description: "Busca threads de conversa do Agentlab/WhatsApp por e-mail do cliente.",
+        parameters: { email: "string", limit: "number" }
       }
     ];
   }
@@ -63,18 +113,23 @@ export class AiOrchestrator {
   async run(query: string, context: any = {}): Promise<{ result: string; steps: OrchestrationStep[] }> {
     const steps: OrchestrationStep[] = [];
     const tools = this.getAvailableTools();
-    let currentQuery = query;
     let iterations = 0;
-    const maxIterations = 3;
+    const maxIterations = 5; // Aumentado para permitir tarefas mais complexas
 
     while (iterations < maxIterations) {
       iterations++;
       
       // 1. Planejar/Pensar usando o ai-core
-      const prompt = this.buildOrchestrationPrompt(currentQuery, steps, tools, context);
+      const prompt = this.buildOrchestrationPrompt(query, steps, tools, context);
       const aiResponse = await this.callAi(prompt, context.session_id);
       
       const parsed = this.parseAiResponse(aiResponse);
+      
+      // Se a IA não retornar um pensamento válido ou decidir parar
+      if (!parsed || !parsed.thought) {
+        break;
+      }
+
       steps.push({ thought: parsed.thought, tool: parsed.tool, tool_input: parsed.tool_input });
 
       if (!parsed.tool) {
@@ -91,7 +146,9 @@ export class AiOrchestrator {
       }
     }
 
-    return { result: "Não consegui concluir todas as tarefas no tempo limite.", steps };
+    // Fallback se estourar iterações
+    const lastThought = steps[steps.length - 1]?.thought || "Não consegui concluir a tarefa.";
+    return { result: lastThought, steps };
   }
 
   private async callAi(prompt: string, sessionId: string) {
@@ -103,34 +160,41 @@ export class AiOrchestrator {
       },
       body: JSON.stringify({
         session_id: sessionId,
-        system: "Você é um orquestrador multitarefa. Responda APENAS em formato JSON.",
+        system: "Você é o cérebro do DotoBot v5.1, um orquestrador multitarefa jurídico. Use as ferramentas para resolver a solicitação do usuário. Responda APENAS em formato JSON.",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 500,
+        max_tokens: 800,
         temperature: 0,
       }),
     });
+    
+    if (!resp.ok) return JSON.stringify({ thought: "Erro ao conectar com o ai-core.", tool: null });
+    
     const data = await resp.json();
     return data?.content?.[0]?.text || data?.text || "";
   }
 
   private buildOrchestrationPrompt(query: string, steps: OrchestrationStep[], tools: ToolDefinition[], context: any) {
     return `
-Tarefa: ${query}
-Contexto: ${JSON.stringify(context)}
+Usuário: ${query}
+Contexto do Escritório: ${JSON.stringify(context)}
 
 Ferramentas Disponíveis:
 ${JSON.stringify(tools, null, 2)}
 
-Histórico de Pensamento:
+Histórico de Execução:
 ${steps.map((s, i) => `Passo ${i+1}:
 Pensamento: ${s.thought}
 Ação: ${s.tool}(${JSON.stringify(s.tool_input)})
 Observação: ${s.observation}`).join("\n\n")}
 
-Responda no formato JSON:
+Instruções:
+1. Analise a solicitação e o histórico.
+2. Se precisar de mais informações, use uma ferramenta.
+3. Se já tiver a resposta final, defina "tool" como null.
+4. Responda SEMPRE no formato JSON:
 {
-  "thought": "seu raciocínio aqui",
-  "tool": "nome_da_ferramenta_ou_null_se_terminou",
+  "thought": "seu raciocínio detalhado",
+  "tool": "nome_da_ferramenta_ou_null",
   "tool_input": { "param": "valor" }
 }
 `;
@@ -138,7 +202,6 @@ Responda no formato JSON:
 
   private parseAiResponse(text: string) {
     try {
-      // Limpar possíveis markdown blocks
       const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
       return JSON.parse(jsonStr);
     } catch {
