@@ -14,6 +14,15 @@ function buildSupabaseUrl(env, path) {
   };
 }
 
+function parseContentRangeCount(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const match = raw.match(/\/(\d+|\*)$/);
+  if (!match || match[1] === "*") return null;
+  const count = Number(match[1]);
+  return Number.isFinite(count) ? count : null;
+}
+
 export async function fetchSupabaseAdmin(env, path, init = {}) {
   const { url, apiKey } = buildSupabaseUrl(env, path);
 
@@ -40,4 +49,25 @@ export async function fetchSupabaseAdmin(env, path, init = {}) {
   } catch (error) {
     throw new Error(`Supabase admin response invalida: ${error?.message || "JSON invalido"}`);
   }
+}
+
+export async function countSupabaseAdmin(env, path, options = {}) {
+  const { url, apiKey } = buildSupabaseUrl(env, path);
+  const response = await fetch(url, {
+    method: "HEAD",
+    ...options,
+    headers: {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      Prefer: "count=exact",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(detail || `Supabase admin count failed with status ${response.status}`);
+  }
+
+  return parseContentRangeCount(response.headers.get("content-range"));
 }

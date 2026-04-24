@@ -120,6 +120,13 @@ function normalizeSlackText(text) {
     .trim();
 }
 
+function normalizeIntentText(text) {
+  return normalizeSlackText(text)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function splitArgs(text) {
   return String(text || "")
     .split(/\s+/)
@@ -345,7 +352,86 @@ function buildWorkspaceHelpText() {
   ].join("\n");
 }
 
-async function maybeRunWorkspaceCommand(env, text) {
+function detectNaturalWorkspaceIntent(text, userProfile = null) {
+  const normalized = normalizeIntentText(text);
+  if (!normalized) return null;
+
+  const cnj = extractCnj(text);
+  const wantsCount = /\b(quantos|quantas|qtd|total|numero de)\b/.test(normalized);
+  const wantsList = /\b(lista|listar|mostre|mostrar|ultim[oa]s|proxim[oa]s|quais)\b/.test(normalized);
+  const wantsSummary = /\b(resuma|resumo|detalhes|detalhar|ficha)\b/.test(normalized);
+
+  if (wantsCount && /\bprocessos?\b/.test(normalized)) {
+    return { operation: "count_processes", args: {} };
+  }
+
+  if (wantsCount && /\b(publicacoes|publicacao)\b/.test(normalized)) {
+    return { operation: "count_publications", args: {} };
+  }
+
+  if (wantsCount && /\b(movimentacoes|movimentos|andamentos)\b/.test(normalized)) {
+    return { operation: "count_movements", args: {} };
+  }
+
+  if (wantsCount && /\b(audiencias|audiencia)\b/.test(normalized)) {
+    return { operation: "count_appointments", args: {} };
+  }
+
+  if (wantsCount && /\b(prazos|prazo)\b/.test(normalized)) {
+    return { operation: "count_deadlines", args: {} };
+  }
+
+  if ((wantsList || /\b(publicacoes|publicacao)\b/.test(normalized)) && /\b(publicacoes|publicacao)\b/.test(normalized) && /\b(ultim[oa]s|recentes)\b/.test(normalized)) {
+    return { operation: "recent_publications", args: { limit: 5 } };
+  }
+
+  if ((wantsList || wantsCount) && /\b(audiencias|audiencia)\b/.test(normalized) && /\b(agenda|proxim[oa]s|futuras)\b/.test(normalized)) {
+    return { operation: "upcoming_audiencias", args: { limit: 5 } };
+  }
+
+  if ((wantsList || wantsCount) && /\b(prazos|prazo)\b/.test(normalized) && /\b(pendentes|urgentes|abertos|aberto)\b/.test(normalized)) {
+    return { operation: "deadlines_list", args: { limit: 5 } };
+  }
+
+  if (cnj && wantsSummary && /\bprocesso\b/.test(normalized)) {
+    return { operation: "process_summary_by_cnj", args: { cnj } };
+  }
+
+  if (cnj && /\b(movimentacoes|movimentos|andamentos)\b/.test(normalized) && (wantsList || /\bultim[oa]s|recentes\b/.test(normalized))) {
+    return { operation: "recent_movements_by_cnj", args: { cnj, limit: 5 } };
+  }
+
+  const scheduleMatch = normalized.match(/\b(agende|agendar|marque|marcar)\b.*\b(reuniao|consulta|compromisso)\b/);
+  if (scheduleMatch) {
+    const timeMatch = normalized.match(/\b(?:as|às)?\s*(\d{1,2})(?::|h)?(\d{2})?\b/);
+    const hour = timeMatch ? String(timeMatch[1]).padStart(2, "0") : null;
+    const minute = timeMatch ? String(timeMatch[2] || "00").padStart(2, "0") : null;
+    const date =
+      /\bamanha\b/.test(normalized)
+        ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + 86400000))
+        : /\bhoje\b/.test(normalized)
+          ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())
+          : null;
+
+    if (date && hour && minute) {
+      return {
+        operation: "schedule_meeting_simple",
+        args: {
+          date,
+          time: `${hour}:${minute}`,
+          name: userProfile?.full_name || userProfile?.display_name || "Solicitante Slack",
+          email: userProfile?.email || null,
+          area: "Atendimento",
+          observacoes: `Agendamento criado a partir do Slack: ${normalizeSlackText(text)}`,
+        },
+      };
+    }
+  }
+
+  return null;
+}
+
+async function maybeRunWorkspaceCommand(env, text, userProfile = null) {
   const normalized = normalizeSlackText(text);
   if (!normalized) return null;
 
@@ -476,11 +562,19 @@ async function maybeRunWorkspaceCommand(env, text) {
     };
   }
 
+  const naturalIntent = detectNaturalWorkspaceIntent(normalized, userProfile);
+  if (naturalIntent) {
+    return {
+      ...(await executeWorkspaceOp(env, naturalIntent.operation, naturalIntent.args)),
+      mode: "workspace_op",
+    };
+  }
+
   return null;
 }
 
 async function runSlackAssistant(env, { text, channelId, threadTs, userProfile, slackUserId }) {
-  const workspaceCommand = await maybeRunWorkspaceCommand(env, text).catch((error) => ({
+  const workspaceCommand = await maybeRunWorkspaceCommand(env, text, userProfile).catch((error) => ({
     ok: false,
     text: "Tive um problema ao executar essa acao agora. Posso tentar novamente ou seguir por outro caminho.",
     mode: "workspace_op_error",
