@@ -1,5 +1,6 @@
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
+const fs = require("node:fs");
 
 function run(command, args, extraEnv = {}) {
   const isWindows = process.platform === "win32";
@@ -30,6 +31,22 @@ function run(command, args, extraEnv = {}) {
 
 run("npm", ["run", "build:core"], { STATIC_EXPORT: "1" });
 run("node", [path.join("scripts", "normalize-pages-export-assets.js")], { STATIC_EXPORT: "1" });
+
+const outDir = path.join(process.cwd(), "out");
+const requiredStaticExportArtifacts = [
+  outDir,
+  path.join(outDir, "index.html"),
+  path.join(outDir, "_next", "static"),
+];
+
+const missingArtifacts = requiredStaticExportArtifacts.filter((artifact) => !fs.existsSync(artifact));
+if (missingArtifacts.length) {
+  console.error("build:pages falhou: o export estatico nao gerou os artefatos esperados.");
+  for (const artifact of missingArtifacts) {
+    console.error(` - ausente: ${artifact}`);
+  }
+  process.exit(1);
+}
 
 const shouldAutoDeploy =
   String(process.env.AUTO_DEPLOY_WRANGLER || "").trim() === "1" &&

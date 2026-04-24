@@ -3,13 +3,30 @@ import Layout from "../../components/Layout";
 import { getPublishedBlogPostBySlug, getPublishedBlogPosts } from "../../lib/blog/posts";
 
 function renderParagraphs(content) {
-  return content
+  return String(content || "")
     .split("\n\n")
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
 }
 
 export default function BlogPostPage({ post }) {
+  if (!post) {
+    return (
+      <Layout>
+        <article className="pt-32 pb-24">
+          <div className="mx-auto max-w-4xl px-6">
+            <div
+              className="rounded-sm px-6 py-8 text-sm leading-relaxed opacity-70"
+              style={{ border: "1px solid #2D2E2E", background: "rgba(18, 18, 18, 0.35)" }}
+            >
+              Este artigo nao esta disponivel no momento.
+            </div>
+          </div>
+        </article>
+      </Layout>
+    );
+  }
+
   const paragraphs = renderParagraphs(post.content);
 
   return (
@@ -65,9 +82,10 @@ export default function BlogPostPage({ post }) {
 
 export async function getStaticPaths() {
   const posts = await getPublishedBlogPosts();
+  const safePosts = Array.isArray(posts) ? posts : [];
 
   return {
-    paths: posts.map((post) => ({ params: { slug: post.slug } })),
+    paths: safePosts.map((post) => ({ params: { slug: post.slug } })),
     fallback: false,
   };
 }

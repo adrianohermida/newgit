@@ -57,6 +57,10 @@ async function networkFirst(request, cacheName, fallbackToOffline = false) {
     }
 
     const url = new URL(request.url);
+    if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/_next/data/')) {
+      return Response.error();
+    }
+
     if (url.pathname.startsWith('/api/')) {
       return new Response(JSON.stringify({ ok: false, error: 'offline_or_network_failure' }), {
         status: 503,
@@ -114,6 +118,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkFirst(request, DATA_CACHE, false));
+    return;
+  }
+
+  if (url.pathname.startsWith('/_next/data/')) {
     event.respondWith(networkFirst(request, DATA_CACHE, false));
     return;
   }

@@ -182,6 +182,7 @@ function hasPartiallyUsableNextArtifacts() {
 function isBenignWindowsNextBuildFailure(output) {
   if (os.platform() !== 'win32') return false;
   const text = String(output || '');
+  if (/ENOSPC|no space left on device/i.test(text)) return false;
   const finishedCompilation = text.includes('✓ Compiled successfully');
   const reachedPostCompileStage =
     finishedCompilation ||
@@ -190,7 +191,7 @@ function isBenignWindowsNextBuildFailure(output) {
     text.includes('Generating static pages using 1 worker');
   const hasKnownEnoent = BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS.some((pattern) => text.includes(pattern));
   const hasRealAppFailure =
-    /Module not found: Can't resolve|Failed to compile|Type error|SyntaxError|ReferenceError/i.test(text) ||
+    /Module not found: Can't resolve|Failed to compile|Type error|SyntaxError|ReferenceError|ENOSPC|no space left on device/i.test(text) ||
     (/Error occurred prerendering page/i.test(text) && !/\.next[\\/](export|server)/i.test(text));
 
   return reachedPostCompileStage && hasKnownEnoent && !hasRealAppFailure;
@@ -234,7 +235,10 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (stdout) process.stdout.write(stdout);
     if (stderr) process.stderr.write(stderr);
 
-    const hasRealAppFailure = /Module not found: Can't resolve|Failed to compile|Type error|SyntaxError|ReferenceError/i.test(combinedOutput);
+    const hasRealAppFailure =
+      /Module not found: Can't resolve|Failed to compile|Type error|SyntaxError|ReferenceError|ENOSPC|no space left on device/i.test(
+        combinedOutput
+      );
     if (isBenignWindowsNextBuildFailure(combinedOutput) || (os.platform() === 'win32' && hasPartiallyUsableNextArtifacts() && !hasRealAppFailure)) {
       console.warn('guard-next-build-lock: detected a recoverable internal Next.js Windows failure after usable artifacts were generated; accepting build for commit/deploy flow.');
       exitCode = 0;
