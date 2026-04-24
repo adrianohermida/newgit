@@ -1,0 +1,23 @@
+--- index.ts
++++ index.ts.new
+@@ -82,6 +82,10 @@
+ function isAuctionPublication(pub: Record<string, unknown>): boolean {
+   const raw = (pub.raw_payload ?? {}) as Record<string, unknown>;
++  
++  // Tratamento para publicações de planilha (onde raw_payload é string JSON)
++  if (typeof pub.raw_payload === 'string') {
++    const despacho = String(pub.despacho || '').toUpperCase();
++    return despacho === 'LEILÕES' || despacho.includes('LEILÃO') || despacho.includes('LEILOES') || despacho.includes('LEILAO');
++  }
++
+   const palavras = Array.isArray(raw.palavrasChave) ? raw.palavrasChave : [];
+   return palavras
+@@ -574,7 +578,7 @@
+     .select('id,numero_processo_api,processo_id,freshsales_activity_id,data_publicacao,'+
+             'nome_diario,cidade_comarca_descricao,vara_descricao,nome_caderno_diario,'+
+             'pagina_inicial_publicacao,pagina_final_publicacao,despacho,conteudo,raw_payload')
+     .is('freshsales_activity_id',null)
+     .not('numero_processo_api','is',null)
+-    .order('data_publicacao',{ascending:false})
++    .order('data_publicacao',{ascending:true}) // CORREÇÃO: processar as mais antigas primeiro para drenar a fila
+     .limit(batchSize);

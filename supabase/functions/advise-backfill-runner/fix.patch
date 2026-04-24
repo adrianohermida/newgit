@@ -1,0 +1,11 @@
+--- index.ts
++++ index.ts.new
+@@ -111,7 +111,7 @@
+     try {
+-      const result = await callFn('advise-sync', {
++      const result = await callFn(`advise-sync?action=sync_range&data_inicio=${diaInicio}&data_fim=${diaFim}&max_paginas=100`, {
+         action: 'sync_range',
+         data_inicio: diaInicio,
+         data_fim: diaFim,
+         max_paginas: 100,
+       });

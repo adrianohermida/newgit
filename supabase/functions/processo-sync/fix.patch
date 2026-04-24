@@ -1,0 +1,19 @@
+--- index.ts
++++ index.ts.new
+@@ -533,7 +533,7 @@
+             'data_ajuizamento,data_ultima_movimentacao,status_atual_processo,'+
+             'parte_representada_adriano')
+     .is('account_id_freshsales', null)
+-    .limit(limite);
++    .limit(limite * 2); // CORREÇÃO: processar o dobro de processos sem account por vez
+ 
+   let criados = 0, vinculados = 0, errosCriar = 0;
+@@ -900,7 +900,7 @@
+   }
+ 
+-  const limite = Number(url.searchParams.get('limite') ?? '50');
+-  const batch  = Number(url.searchParams.get('batch')  ?? '25');
++  const limite = Number(url.searchParams.get('limite') ?? '100'); // CORREÇÃO: aumentar limite padrão para 100
++  const batch  = Number(url.searchParams.get('batch')  ?? '50');  // CORREÇÃO: aumentar batch padrão para 50
+ 
+   let result: Record<string,unknown> = { ok: true };
