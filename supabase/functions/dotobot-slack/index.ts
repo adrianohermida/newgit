@@ -416,6 +416,79 @@ function fmtDate(d: string | null | undefined): string {
   return dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function normalizeTemporalText(text: string): string {
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getNowInSaoPaulo() {
+  const now = new Date();
+  const dateLabel = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  }).format(now);
+  const timeLabel = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  }).format(now);
+  const isoDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  }).format(now);
+  return { now, dateLabel, timeLabel, isoDate };
+}
+
+function offsetDateLabel(days: number): string {
+  const target = new Date(Date.now() + days * 86400000);
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  }).format(target);
+}
+
+function resolveTemporalAnswer(query: string): string | null {
+  const normalized = normalizeTemporalText(query);
+  const { dateLabel, timeLabel } = getNowInSaoPaulo();
+
+  if (
+    normalized.includes("que dia e hoje") ||
+    normalized.includes("que dia eh hoje") ||
+    normalized.includes("data de hoje") ||
+    normalized.includes("hoje e que dia")
+  ) {
+    return `Hoje é ${dateLabel}.`;
+  }
+
+  if (
+    normalized.includes("que horas sao") ||
+    normalized.includes("qual a hora agora") ||
+    normalized.includes("hora atual") ||
+    normalized.includes("agora sao que horas")
+  ) {
+    return `Agora são ${timeLabel} em ${dateLabel}.`;
+  }
+
+  if (normalized.includes("que dia foi ontem") || normalized.includes("ontem foi que dia")) {
+    return `Ontem foi ${offsetDateLabel(-1)}.`;
+  }
+
+  if (normalized.includes("que dia sera amanha") || normalized.includes("amanha sera que dia") || normalized.includes("que dia e amanha")) {
+    return `Amanhã será ${offsetDateLabel(1)}.`;
+  }
+
+  return null;
+}
+
 async function invokeFunction(name: string, body: unknown): Promise<unknown> {
   const r = await fetch(`${SELF_URL}/${name}`, {
     method: "POST",
@@ -1330,6 +1403,20 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
     await postSlack(channel, "❓ Use: `/dotobot perguntar [sua pergunta]`\nExemplo: `/dotobot perguntar quais processos têm prazo esta semana?`");
     return;
   }
+
+  const temporalAnswer = resolveTemporalAnswer(query);
+  if (temporalAnswer) {
+    const blocks = [
+      header("🕰️ DotoBot — Data e Hora"),
+      section(`*Pergunta:* _"${query}"_`),
+      divider(),
+      section(temporalAnswer),
+      context([`_Referência temporal: America/Sao_Paulo | Acionado por <@${userId}>_`]),
+    ];
+    await postSlack(channel, temporalAnswer, blocks);
+    return;
+  }
+
   await postSlack(channel, `🤔 Consultando IA sobre: _"${query}"_...`);
 
   try {
@@ -1354,7 +1441,9 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
         .limit(5),
     ]);
 
+    const agora = getNowInSaoPaulo();
     const contexto = [
+      `Referência temporal absoluta: hoje é ${agora.dateLabel}, agora são ${agora.timeLabel} (America/Sao_Paulo), data ISO ${agora.isoDate}.`,
       "Contexto do escritório Hermida Maia Advocacia (Advogado: Dr. Adriano Menezes Hermida Maia, OAB 8894AM):",
       pubRecentes.data?.length
         ? `Publicações recentes: ${pubRecentes.data.map(p => `${p.data_publicacao?.split("T")[0]} - ${p.ai_tipo_ato || ""}: ${p.ai_resumo || ""}`).join(" | ")}`
@@ -1372,7 +1461,7 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
         messages: [
           {
             role: "system",
-            content: `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante.\n\n${contexto}`
+            content: `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante. Nunca invente datas. Para qualquer referência temporal relativa como hoje, ontem, amanhã, agora, esta semana ou este mês, use a referência temporal absoluta fornecida no contexto.\n\n${contexto}`
           },
           { role: "user", content: query }
         ],
