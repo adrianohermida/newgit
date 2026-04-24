@@ -147,6 +147,23 @@ function extractCnj(text) {
   return match ? match[0] : null;
 }
 
+function extractNaturalDateAndTime(normalized) {
+  const timeMatch = normalized.match(/\b(?:as|às|a)?\s*(\d{1,2})(?::|h)?(\d{2})?\b/);
+  const hour = timeMatch ? String(timeMatch[1]).padStart(2, "0") : null;
+  const minute = timeMatch ? String(timeMatch[2] || "00").padStart(2, "0") : null;
+  const date =
+    /\bamanha\b/.test(normalized)
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + 86400000))
+      : /\bhoje\b/.test(normalized)
+        ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())
+        : null;
+
+  return {
+    date,
+    time: hour && minute ? `${hour}:${minute}` : null,
+  };
+}
+
 function buildSlackSessionId(channelId, threadTs, userId) {
   return ["slack", channelId || "channel", threadTs || "root", userId || "user"].join(":");
 }
@@ -419,6 +436,30 @@ function detectNaturalWorkspaceIntent(text, userProfile = null) {
     return { operation: "deadlines_list", args: { limit: 5 } };
   }
 
+  if ((wantsList || wantsSummary) && /\b(deals|deal|negocios|negocio)\b/.test(normalized)) {
+    return { operation: "deals_list", args: { limit: 5 } };
+  }
+
+  if ((wantsList || wantsSummary) && /\b(contas|conta|accounts|account)\b/.test(normalized) && /\b(crm|freshsales|cliente|clientes)\b/.test(normalized)) {
+    return { operation: "accounts_list", args: { limit: 5 } };
+  }
+
+  if ((wantsList || wantsSummary) && /\b(activities|atividade|atividades)\b/.test(normalized)) {
+    return { operation: "activities_list", args: { limit: 5 } };
+  }
+
+  if ((wantsList || wantsSummary) && /\b(produtos|produto|products|product)\b/.test(normalized)) {
+    return { operation: "products_list", args: { limit: 5 } };
+  }
+
+  if ((wantsList || wantsSummary) && /\bfreshchat\b/.test(normalized) && /\b(conversas|conversa|atendimentos)\b/.test(normalized)) {
+    return { operation: "freshchat_conversations_list", args: { limit: 5 } };
+  }
+
+  if ((wantsList || wantsSummary) && /\bfreshdesk\b/.test(normalized) && /\b(tickets|ticket|fila)\b/.test(normalized)) {
+    return { operation: "freshdesk_queue", args: { limit: 5 } };
+  }
+
   if (cnj && wantsSummary && /\bprocesso\b/.test(normalized)) {
     return { operation: "process_summary_by_cnj", args: { cnj } };
   }
@@ -427,24 +468,57 @@ function detectNaturalWorkspaceIntent(text, userProfile = null) {
     return { operation: "recent_movements_by_cnj", args: { cnj, limit: 5 } };
   }
 
+  if (/\b(google calendar|google agenda|calendar|calendario)\b/.test(normalized) && /\b(disponivel|disponibilidade|livre|ocupado)\b/.test(normalized)) {
+    const { date, time } = extractNaturalDateAndTime(normalized);
+    if (date && time) {
+      return {
+        operation: "google_calendar_check",
+        args: { date, time },
+      };
+    }
+  }
+
+  if (/\b(crie|criar|agende|agendar|marque|marcar)\b/.test(normalized) && /\b(google calendar|google agenda|calendario)\b/.test(normalized)) {
+    const { date, time } = extractNaturalDateAndTime(normalized);
+    if (date && time && userProfile?.email) {
+      return {
+        operation: "google_calendar_create_simple",
+        args: {
+          date,
+          time,
+          email: userProfile.email,
+          name: userProfile?.full_name || userProfile?.display_name || "Solicitante Slack",
+          area: "Atendimento",
+        },
+      };
+    }
+  }
+
+  if (/\b(crie|criar|agende|agendar|marque|marcar)\b/.test(normalized) && /\b(zoom|reuniao no zoom)\b/.test(normalized)) {
+    const { date, time } = extractNaturalDateAndTime(normalized);
+    if (date && time) {
+      return {
+        operation: "zoom_meeting_create_simple",
+        args: {
+          date,
+          time,
+          email: userProfile?.email || null,
+          name: userProfile?.full_name || userProfile?.display_name || "Solicitante Slack",
+          topic: "Reuniao criada pelo DotoBot",
+        },
+      };
+    }
+  }
+
   const scheduleMatch = normalized.match(/\b(agende|agendar|marque|marcar)\b.*\b(reuniao|consulta|compromisso)\b/);
   if (scheduleMatch) {
-    const timeMatch = normalized.match(/\b(?:as|às)?\s*(\d{1,2})(?::|h)?(\d{2})?\b/);
-    const hour = timeMatch ? String(timeMatch[1]).padStart(2, "0") : null;
-    const minute = timeMatch ? String(timeMatch[2] || "00").padStart(2, "0") : null;
-    const date =
-      /\bamanha\b/.test(normalized)
-        ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + 86400000))
-        : /\bhoje\b/.test(normalized)
-          ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date())
-          : null;
-
-    if (date && hour && minute) {
+    const { date, time } = extractNaturalDateAndTime(normalized);
+    if (date && time) {
       return {
         operation: "schedule_meeting_simple",
         args: {
           date,
-          time: `${hour}:${minute}`,
+          time,
           name: userProfile?.full_name || userProfile?.display_name || "Solicitante Slack",
           email: userProfile?.email || null,
           area: "Atendimento",
