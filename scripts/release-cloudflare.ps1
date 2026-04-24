@@ -1,8 +1,11 @@
 param(
   [string]$CommitMessage,
+  [string[]]$Paths,
+  [switch]$AllowAllChanges,
   [switch]$SkipCommit,
   [switch]$SkipPush,
   [switch]$SkipWorkerDeploy,
+  [switch]$UseGitHubWorkerDeploy,
   [switch]$StaticPagesDeploy,
   [string]$PagesProject = "newgit-pages"
 )
@@ -57,6 +60,29 @@ function Has-GitChanges() {
   return -not [string]::IsNullOrWhiteSpace(($status | Out-String).Trim())
 }
 
+function Has-StagedChanges() {
+  $status = & git diff --cached --name-only
+  if ($LASTEXITCODE -ne 0) {
+    throw "Falha ao verificar staged changes."
+  }
+  return -not [string]::IsNullOrWhiteSpace(($status | Out-String).Trim())
+}
+
+function Stage-ReleasePaths([string[]]$SelectedPaths, [bool]$AllowStageAll) {
+  if ($AllowStageAll) {
+    Invoke-CheckedCommand -FilePath "git" -Arguments @("add", "-A")
+    return
+  }
+
+  if ($null -eq $SelectedPaths -or $SelectedPaths.Count -eq 0) {
+    throw "Worktree com mudancas detectado. Informe -Paths com os arquivos deste release ou use -AllowAllChanges conscientemente."
+  }
+
+  $gitArgs = @("add", "--")
+  $gitArgs += $SelectedPaths
+  Invoke-CheckedCommand -FilePath "git" -Arguments $gitArgs
+}
+
 Import-LocalEnvFile (Join-Path $PSScriptRoot "..\.dev.vars")
 if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN) -and -not [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_WORKER_API_TOKEN)) {
   $env:CLOUDFLARE_API_TOKEN = $env:CLOUDFLARE_WORKER_API_TOKEN
@@ -88,11 +114,10 @@ if (-not $SkipCommit) {
       if ([string]::IsNullOrWhiteSpace($message)) {
         $message = "chore: release cloudflare $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
       }
-      Invoke-CheckedCommand -FilePath "git" -Arguments @("add", "-A")
+      Stage-ReleasePaths -SelectedPaths $Paths -AllowStageAll $AllowAllChanges
 
-      $statusBefore = Get-GitOutput -GitArgs @("status", "--porcelain")
-      if ([string]::IsNullOrWhiteSpace($statusBefore)) {
-        Write-Host "No staged changes to commit after add." -ForegroundColor Yellow
+      if (-not (Has-StagedChanges)) {
+        Write-Host "No staged changes to commit after git add." -ForegroundColor Yellow
       } else {
         Invoke-CheckedCommand -FilePath "git" -Arguments @("commit", "-m", $message)
       }
@@ -109,7 +134,10 @@ if (-not $SkipPush) {
   }
 }
 
-if (-not $SkipWorkerDeploy) {
+if ($UseGitHubWorkerDeploy) {
+  Write-Host ""
+  Write-Host "Worker deploy local ignorado: o GitHub Actions fara o deploy via Wrangler apos o push." -ForegroundColor Yellow
+} elseif (-not $SkipWorkerDeploy) {
   Invoke-Step "Deploying Worker hmadv-process-ai" {
     Invoke-CheckedCommand -FilePath "npm" -Arguments @("run", "deploy:hmadv-ai")
   }

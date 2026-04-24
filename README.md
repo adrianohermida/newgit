@@ -19,11 +19,26 @@ Deploy manual:
 npm run deploy:pages
 ```
 
-Release completo (commit + push + deploy worker):
+Release completo local (commit + push + deploy worker local):
 
 ```bash
 npm run release:cf -- -CommitMessage "sua mensagem"
 ```
+
+Release preferido (commit seletivo + push; GitHub aciona o deploy correto):
+
+```bash
+npm run release:auto -- -CommitMessage "sua mensagem" -Paths package.json,scripts/release-cloudflare.ps1,.github/workflows/deploy-cloudflare-worker.yml,.github/workflows/nextjs.yml,README.md
+```
+
+Esse fluxo:
+
+- faz o commit apenas dos caminhos informados em `-Paths`
+- envia o branch atual ao GitHub
+- deixa o frontend publicar pelo Cloudflare Pages conectado ao repositorio
+- deixa o worker `hmadv-process-ai` publicar automaticamente pelo GitHub Actions via Wrangler
+
+Se o worktree tiver mudancas misturadas e voce realmente quiser levar tudo, use `-AllowAllChanges` conscientemente.
 
 Automacao opcional no build (build + deploy Wrangler):
 
@@ -61,8 +76,10 @@ npm run diagnose:pages-admin
 
 Deploy por GitHub Actions:
 
-- o workflow [`.github/workflows/nextjs.yml`](/workspaces/newgit/.github/workflows/nextjs.yml) nao deve mais sobrescrever producao com upload estatico puro
-- exige `CLOUDFLARE_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` nos secrets do GitHub
+- o workflow `.github/workflows/nextjs.yml` continua apenas como validacao
+- o workflow `.github/workflows/deploy-cloudflare-worker.yml` faz o deploy automatico do worker `hmadv-process-ai` via Wrangler em pushes para `main`
+- configure os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` no GitHub
+- o projeto `newgit-pages` continua devendo usar o build conectado do Cloudflare Pages para o deploy do frontend
 
 ## Desenvolvimento local
 

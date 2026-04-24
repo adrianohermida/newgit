@@ -590,7 +590,7 @@ async function registrarConsultaEvento(
     targetable_id: Number(accountId),
     owner_id: FS_OWNER_ID,
     sales_activity_type_id: FS_TYPE_CONSULTA,
-    title,
+    title: titulo,
     start_date: `${toDate(eventAt)}T${eventAt.toISOString().slice(11,19)}Z`,
     end_date: `${toDate(isErro ? dtFim : eventAt)}T${(isErro ? dtFim : eventAt).toISOString().slice(11,19)}Z`,
     notes: notes.slice(0, 65000),

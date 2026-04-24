@@ -1,14 +1,22 @@
 /**
- * advise-drain-by-date
+ * advise-drain-by-date  v2
  * 
- * Drena a API Advise usando filtros de data (janelas de 7 dias),
+ * Drena a API Advise usando filtros de data (janelas de N dias),
  * priorizando os últimos 120 dias. Mais eficiente que paginação reversa.
+ * 
+ * v2 changes:
+ *   - Janela padrão reduzida de 7 para 2 dias (evita timeout)
+ *   - Timeout da API aumentado de 20s para 45s
+ *   - maxPaginas por janela reduzido de 20 para 10
+ *   - Retry automático com backoff em caso de timeout
+ *   - Vinculação de processos para novas publicações
  * 
  * Parâmetros:
  *   - dataInicio: data de início (YYYY-MM-DD), padrão: hoje - 120 dias
  *   - dataFim: data de fim (YYYY-MM-DD), padrão: hoje
- *   - janelaDias: tamanho da janela em dias (padrão: 7)
- *   - maxJanelas: máximo de janelas por execução (padrão: 2)
+ *   - janelaDias: tamanho da janela em dias (padrão: 2)
+ *   - maxJanelas: máximo de janelas por execução (padrão: 3)
+ *   - lido: filtro de lido (padrão: "false")
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -69,6 +77,24 @@ function buildRecord(item: Record<string, unknown>) {
   };
 }
 
+async function fetchComRetry(url: string, opts: RequestInit, maxRetries = 2): Promise<Response> {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const resp = await fetch(url, {
+        ...opts,
+        signal: AbortSignal.timeout(45_000), // 45s timeout
+      });
+      return resp;
+    } catch (e) {
+      if (i === maxRetries) throw e;
+      const wait = 2000 * (i + 1);
+      console.warn(`Retry ${i + 1}/${maxRetries} após ${wait}ms:`, String(e));
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  throw new Error("fetchComRetry esgotado");
+}
+
 async function buscarJanela(dataIni: string, dataFim: string, lido: string): Promise<{
   itens: Record<string, unknown>[];
   total: number;
@@ -78,7 +104,7 @@ async function buscarJanela(dataIni: string, dataFim: string, lido: string): Pro
   let pagina = 1;
   let totalPaginas = 1;
   
-  while (pagina <= totalPaginas && pagina <= 20) { // máx 20 páginas por janela
+  while (pagina <= totalPaginas && pagina <= 10) { // máx 10 páginas por janela
     const params = new URLSearchParams({
       paginaAtual: String(pagina),
       registrosPorPagina: '100',
@@ -87,9 +113,8 @@ async function buscarJanela(dataIni: string, dataFim: string, lido: string): Pro
       Lido: lido,
     });
     
-    const resp = await fetch(`${ADVISE_URL}?${params}`, {
+    const resp = await fetchComRetry(`${ADVISE_URL}?${params}`, {
       headers: { Authorization: `Bearer ${ADVISE_TOKEN}` },
-      signal: AbortSignal.timeout(20_000),
     });
     
     if (!resp.ok) {
@@ -108,7 +133,7 @@ async function buscarJanela(dataIni: string, dataFim: string, lido: string): Pro
     pagina++;
     
     if (pagina <= totalPaginas) {
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 300));
     }
   }
   
@@ -158,6 +183,30 @@ async function salvarPublicacoes(publicacoes: Record<string, unknown>[]): Promis
   return { novas, duplicadas, erros };
 }
 
+async function vincularProcessos(publicacoes: Record<string, unknown>[]): Promise<number> {
+  let vinculados = 0;
+  const comNumero = publicacoes.filter(p => p.numero_processo_api);
+  for (const pub of comNumero) {
+    const cnj = String(pub.numero_processo_api).trim();
+    if (!cnj) continue;
+    const { data: proc } = await supabase
+      .from("processos")
+      .select("id")
+      .eq("numero_cnj", cnj)
+      .limit(1)
+      .maybeSingle();
+    if (proc?.id) {
+      await supabase
+        .from("publicacoes")
+        .update({ processo_id: proc.id })
+        .eq("advise_id_publicacao_cliente", pub.advise_id_publicacao_cliente)
+        .is("processo_id", null);
+      vinculados++;
+    }
+  }
+  return vinculados;
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   let body: Record<string, unknown> = {};
@@ -166,8 +215,8 @@ Deno.serve(async (req) => {
   const hoje = new Date();
   const dataFimParam = String(body.dataFim ?? url.searchParams.get("dataFim") ?? formatDate(hoje));
   const dataInicioParam = String(body.dataInicio ?? url.searchParams.get("dataInicio") ?? formatDate(addDays(hoje, -120)));
-  const janelaDias = Number(body.janelaDias ?? url.searchParams.get("janelaDias") ?? 7);
-  const maxJanelas = Number(body.maxJanelas ?? url.searchParams.get("maxJanelas") ?? 2);
+  const janelaDias = Number(body.janelaDias ?? url.searchParams.get("janelaDias") ?? 2);
+  const maxJanelas = Number(body.maxJanelas ?? url.searchParams.get("maxJanelas") ?? 3);
   const lidoParam = String(body.lido ?? url.searchParams.get("lido") ?? "false");
   
   const dataFim = new Date(dataFimParam);
@@ -190,6 +239,7 @@ Deno.serve(async (req) => {
     total_novas: 0,
     total_duplicadas: 0,
     total_erros: 0,
+    total_vinculados: 0,
     detalhes: [] as Record<string, unknown>[],
   };
   
@@ -201,10 +251,17 @@ Deno.serve(async (req) => {
       const publicacoes = itens.map(buildRecord);
       const { novas, duplicadas, erros } = await salvarPublicacoes(publicacoes);
       
+      // Vincular processos para novas publicações
+      let vinculados = 0;
+      if (novas > 0) {
+        vinculados = await vincularProcessos(publicacoes);
+      }
+      
       resultado.janelas_processadas++;
       resultado.total_novas += novas;
       resultado.total_duplicadas += duplicadas;
       resultado.total_erros += erros;
+      resultado.total_vinculados += vinculados;
       resultado.detalhes.push({
         janela: `${janela.ini} a ${janela.fim}`,
         api_total: total,
@@ -212,6 +269,7 @@ Deno.serve(async (req) => {
         novas,
         duplicadas,
         erros,
+        vinculados,
       });
       
       // Disparar sync-worker se houve novas publicações
@@ -248,7 +306,7 @@ Deno.serve(async (req) => {
         status: resultado.total_erros === 0 ? "ok" : "aviso",
         inseridas: resultado.total_novas,
         erros: resultado.total_erros,
-        detalhes: `${resultado.janelas_processadas} janela(s), ${resultado.total_duplicadas} duplicadas ignoradas`,
+        detalhes: `${resultado.janelas_processadas} janela(s), ${resultado.total_duplicadas} duplicadas, ${resultado.total_vinculados} vinculados`,
       }),
       signal: AbortSignal.timeout(8_000),
     }).catch(e => console.warn("dotobot-slack:", String(e)));
