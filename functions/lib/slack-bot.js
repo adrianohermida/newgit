@@ -1,4 +1,5 @@
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
+import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 import {
   handleFreddyGetContact360,
   handleFreddySaveMemory,
@@ -346,7 +347,21 @@ function buildWorkspaceHelpText() {
     "- tickets <email>",
     "- ticket abrir <email> | Assunto | Descricao | prioridade opcional | status opcional",
     "- freshdesk [limite]",
+    "- freshdesk ticket <id>",
+    "- freshdesk ticket atualizar <id> campo=valor",
+    "- freshdesk nota <ticket_id> | texto da nota",
+    "- freshdesk contatos [email opcional]",
+    "- freshdesk contato <id>",
+    "- freshdesk agentes [limite]",
+    "- freshdesk grupos [limite]",
     "- conversas <email>",
+    "- freshchat conversas [limite]",
+    "- freshchat conversa <id>",
+    "- freshchat atualizar <id> campo=valor",
+    "- freshchat usuarios [email opcional]",
+    "- freshchat agentes [limite]",
+    "- freshchat grupos [limite]",
+    "- freshchat mensagem <conversa_id> | texto",
     "",
     "Qualquer outra mensagem segue para o agente conversacional com memoria compartilhada.",
   ].join("\n");
@@ -549,6 +564,57 @@ async function maybeRunWorkspaceCommand(env, text, userProfile = null) {
   }
 
   if (args[0] === "freshdesk") {
+    if (args[1] === "ticket" && args[2] === "atualizar" && args[3]) {
+      const patch = parseWorkspacePatch(normalized.split(args.slice(0, 4).join(" "))[1]);
+      return {
+        ...(await executeWorkspaceOp(env, "freshdesk_ticket_update", { id: args[3], patch })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "ticket" && args[2]) {
+      return {
+        ...(await executeWorkspaceOp(env, "freshdesk_ticket_view", { id: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "nota") {
+      const [id, body] = parsePipeFields(normalized.replace(/^freshdesk\s+nota/i, ""));
+      return {
+        ...(await executeWorkspaceOp(env, "freshdesk_ticket_note", { id, body })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "contatos") {
+      return {
+        ...(await executeWorkspaceOp(env, "freshdesk_contacts_list", { email: args[2] || null, limit: 10 })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "contato" && args[2]) {
+      return {
+        ...(await executeWorkspaceOp(env, "freshdesk_contact_view", { id: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "agentes") {
+      return {
+        ...(await executeWorkspaceOp(env, "freshdesk_agents_list", { limit: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "grupos") {
+      return {
+        ...(await executeWorkspaceOp(env, "freshdesk_groups_list", { limit: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
     return {
       ...(await executeWorkspaceOp(env, "freshdesk_queue", { limit: args[1] })),
       mode: "workspace_op",
@@ -560,6 +626,59 @@ async function maybeRunWorkspaceCommand(env, text, userProfile = null) {
       ...(await executeWorkspaceOp(env, "conversations_by_email", { email: args[1] })),
       mode: "workspace_op",
     };
+  }
+
+  if (args[0] === "freshchat") {
+    if (args[1] === "conversas") {
+      return {
+        ...(await executeWorkspaceOp(env, "freshchat_conversations_list", { limit: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "conversa" && args[2]) {
+      return {
+        ...(await executeWorkspaceOp(env, "freshchat_conversation_view", { id: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "atualizar" && args[2]) {
+      const patch = parseWorkspacePatch(normalized.split(args.slice(0, 3).join(" "))[1]);
+      return {
+        ...(await executeWorkspaceOp(env, "freshchat_conversation_update", { id: args[2], patch })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "usuarios") {
+      return {
+        ...(await executeWorkspaceOp(env, "freshchat_users_list", { email: args[2] || null, limit: 10 })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "agentes") {
+      return {
+        ...(await executeWorkspaceOp(env, "freshchat_agents_list", { limit: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "grupos") {
+      return {
+        ...(await executeWorkspaceOp(env, "freshchat_groups_list", { limit: args[2] })),
+        mode: "workspace_op",
+      };
+    }
+
+    if (args[1] === "mensagem") {
+      const [id, message] = parsePipeFields(normalized.replace(/^freshchat\s+mensagem/i, ""));
+      return {
+        ...(await executeWorkspaceOp(env, "freshchat_message_send", { id, message })),
+        mode: "workspace_op",
+      };
+    }
   }
 
   const naturalIntent = detectNaturalWorkspaceIntent(normalized, userProfile);
@@ -611,6 +730,14 @@ async function runSlackAssistant(env, { text, channelId, threadTs, userProfile, 
         full_name: userProfile?.full_name || userProfile?.display_name || null,
         slack_user_id: slackUserId || null,
       },
+      repositoryContext: buildDotobotRepositoryContext({
+        route: "/slack/events",
+        profile: {
+          id: slackUserId || null,
+          email: userProfile?.email || null,
+          role: "internal_slack_user",
+        },
+      }),
       crm: {
         summary: contact360?.data?.summary || null,
         contact_id: contact360?.data?.identifiers?.contact_id || null,

@@ -10,11 +10,29 @@ import {
   viewFreshsalesSalesAccount,
 } from "./freshsales-crm.js";
 import {
+  listFreshchatAgents,
+  listFreshchatConversations,
+  listFreshchatGroups,
+  listFreshchatUsers,
+  sendFreshchatConversationMessage,
+  updateFreshchatConversation,
+  viewFreshchatConversation,
+} from "./freshchat-admin.js";
+import {
   createClientTicket,
   listClientDocumentos,
   listClientTickets,
 } from "./client-data.js";
-import { listFreshdeskTickets } from "./freshdesk-admin.js";
+import {
+  createFreshdeskNote,
+  listFreshdeskAgents,
+  listFreshdeskContacts,
+  listFreshdeskGroups,
+  listFreshdeskTickets,
+  updateFreshdeskTicket,
+  viewFreshdeskContact,
+  viewFreshdeskTicket,
+} from "./freshdesk-admin.js";
 import { countSupabaseAdmin, fetchSupabaseAdmin } from "./supabase-rest.js";
 
 function clean(value) {
@@ -248,6 +266,35 @@ function summarizeAppointment(appointment) {
 
 function summarizeTicket(ticket) {
   return `${ticket.id || "n/d"} · ${ticket.subject || "Sem assunto"} · status ${ticket.status || ticket.status_label || "n/d"} · prioridade ${ticket.priority || ticket.priority_label || "n/d"}`;
+}
+
+function summarizeFreshdeskContact(contact) {
+  return `${contact.id || "n/d"} · ${contact.name || contact.email || "Sem nome"} · ${contact.email || "sem email"} · ${contact.phone || "sem telefone"}`;
+}
+
+function summarizeFreshdeskAgent(agent) {
+  return `${agent.id || "n/d"} · ${agent.contact?.name || agent.name || "Sem nome"} · ${agent.contact?.email || agent.email || "sem email"}`;
+}
+
+function summarizeFreshdeskGroup(group) {
+  return `${group.id || "n/d"} · ${group.name || "Sem nome"} · agentes ${group.agent_ids?.length || 0}`;
+}
+
+function summarizeFreshchatConversation(conversation) {
+  return `${conversation.id || "n/d"} · status ${conversation.status || "n/d"} · prioridade ${conversation.priority || "n/d"} · grupo ${conversation.group_id || "n/d"}`;
+}
+
+function summarizeFreshchatAgent(agent) {
+  return `${agent.id || "n/d"} · ${agent.name || agent.email || "Sem nome"} · ${agent.email || "sem email"}`;
+}
+
+function summarizeFreshchatGroup(group) {
+  return `${group.id || "n/d"} · ${group.name || "Sem nome"} · membros ${group.member_count || group.members_count || "n/d"}`;
+}
+
+function summarizeFreshchatUser(user) {
+  const name = [user.first_name || user.name || user.email || "Sem nome", user.last_name || ""].join(" ").trim();
+  return `${user.id || "n/d"} · ${name} · ${user.email || "sem email"}`;
 }
 
 function parseKeyValuePatch(input) {
@@ -581,6 +628,81 @@ export async function executeWorkspaceOp(env, operation, args = {}) {
         data: items,
       };
     }
+    case "freshdesk_ticket_view": {
+      if (!args.id) return { ok: false, text: "Informe o ID do ticket." };
+      const ticket = await viewFreshdeskTicket(env, args.id);
+      return {
+        ok: true,
+        text: ticket ? summarizeTicket(ticket) : `Nao encontrei ticket ${args.id}.`,
+        data: ticket,
+      };
+    }
+    case "freshdesk_ticket_update": {
+      if (!args.id) return { ok: false, text: "Informe o ID do ticket." };
+      const ticket = await updateFreshdeskTicket(env, args.id, args.patch || {});
+      return {
+        ok: true,
+        text: `Ticket atualizado.\n${summarizeTicket(ticket)}`,
+        data: ticket,
+      };
+    }
+    case "freshdesk_ticket_note": {
+      if (!args.id || !clean(args.body)) {
+        return { ok: false, text: "Informe o ID do ticket e a nota a ser registrada." };
+      }
+      const note = await createFreshdeskNote(env, args.id, {
+        body: args.body,
+        private: Boolean(args.private ?? true),
+      });
+      return {
+        ok: true,
+        text: `Nota registrada no ticket ${args.id}.`,
+        data: note,
+      };
+    }
+    case "freshdesk_contacts_list": {
+      const contacts = await listFreshdeskContacts(env, {
+        page: 1,
+        perPage: Number(args.limit) || 10,
+        email: args.email || null,
+      });
+      return {
+        ok: true,
+        text: contacts.length
+          ? `Contatos Freshdesk:\n${listToBullets(contacts, (item) => summarizeFreshdeskContact(item))}`
+          : "Nenhum contato encontrado no Freshdesk.",
+        data: contacts,
+      };
+    }
+    case "freshdesk_contact_view": {
+      if (!args.id) return { ok: false, text: "Informe o ID do contato." };
+      const contact = await viewFreshdeskContact(env, args.id);
+      return {
+        ok: true,
+        text: contact ? summarizeFreshdeskContact(contact) : `Nao encontrei contato ${args.id}.`,
+        data: contact,
+      };
+    }
+    case "freshdesk_agents_list": {
+      const agents = await listFreshdeskAgents(env, { page: 1, perPage: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: agents.length
+          ? `Agentes Freshdesk:\n${listToBullets(agents, (item) => summarizeFreshdeskAgent(item))}`
+          : "Nenhum agente encontrado no Freshdesk.",
+        data: agents,
+      };
+    }
+    case "freshdesk_groups_list": {
+      const groups = await listFreshdeskGroups(env, { page: 1, perPage: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: groups.length
+          ? `Grupos Freshdesk:\n${listToBullets(groups, (item) => summarizeFreshdeskGroup(item))}`
+          : "Nenhum grupo encontrado no Freshdesk.",
+        data: groups,
+      };
+    }
     case "conversations_by_email": {
       const email = normalizeEmail(args.email);
       if (!email) return { ok: false, text: "Informe um email para buscar conversas." };
@@ -591,6 +713,85 @@ export async function executeWorkspaceOp(env, operation, args = {}) {
           ? `Conversas registradas:\n${listToBullets(threads, (item) => `${item.id} · ${item.source || "fonte"} · ${toDateLabel(item.last_message_at) || "sem data"} · ${truncate(item.summary || item.customer_name || item.customer_email || "", 140)}`)}`
           : `Nenhuma conversa encontrada para ${email}.`,
         data: threads,
+      };
+    }
+    case "freshchat_conversations_list": {
+      const conversations = await listFreshchatConversations(env, {
+        limit: Number(args.limit) || 10,
+        status: args.status || null,
+        groupId: args.group_id || null,
+        userId: args.user_id || null,
+      });
+      return {
+        ok: true,
+        text: conversations.length
+          ? `Conversas Freshchat:\n${listToBullets(conversations, (item) => summarizeFreshchatConversation(item))}`
+          : "Nenhuma conversa encontrada no Freshchat.",
+        data: conversations,
+      };
+    }
+    case "freshchat_conversation_view": {
+      if (!args.id) return { ok: false, text: "Informe o ID da conversa." };
+      const conversation = await viewFreshchatConversation(env, args.id);
+      return {
+        ok: true,
+        text: conversation ? summarizeFreshchatConversation(conversation) : `Nao encontrei a conversa ${args.id}.`,
+        data: conversation,
+      };
+    }
+    case "freshchat_conversation_update": {
+      if (!args.id) return { ok: false, text: "Informe o ID da conversa." };
+      const conversation = await updateFreshchatConversation(env, args.id, args.patch || {});
+      return {
+        ok: true,
+        text: `Conversa atualizada.\n${summarizeFreshchatConversation(conversation)}`,
+        data: conversation,
+      };
+    }
+    case "freshchat_agents_list": {
+      const agents = await listFreshchatAgents(env, { limit: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: agents.length
+          ? `Agentes Freshchat:\n${listToBullets(agents, (item) => summarizeFreshchatAgent(item))}`
+          : "Nenhum agente encontrado no Freshchat.",
+        data: agents,
+      };
+    }
+    case "freshchat_groups_list": {
+      const groups = await listFreshchatGroups(env, { limit: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: groups.length
+          ? `Grupos Freshchat:\n${listToBullets(groups, (item) => summarizeFreshchatGroup(item))}`
+          : "Nenhum grupo encontrado no Freshchat.",
+        data: groups,
+      };
+    }
+    case "freshchat_users_list": {
+      const users = await listFreshchatUsers(env, {
+        limit: Number(args.limit) || 10,
+        email: args.email || null,
+        externalId: args.external_id || null,
+        phone: args.phone || null,
+      });
+      return {
+        ok: true,
+        text: users.length
+          ? `Usuarios Freshchat:\n${listToBullets(users, (item) => summarizeFreshchatUser(item))}`
+          : "Nenhum usuario encontrado no Freshchat.",
+        data: users,
+      };
+    }
+    case "freshchat_message_send": {
+      if (!args.id || !clean(args.message)) {
+        return { ok: false, text: "Informe o ID da conversa e a mensagem a enviar." };
+      }
+      const message = await sendFreshchatConversationMessage(env, args.id, args.message);
+      return {
+        ok: true,
+        text: `Mensagem enviada para a conversa ${args.id}.`,
+        data: message,
       };
     }
     default:
