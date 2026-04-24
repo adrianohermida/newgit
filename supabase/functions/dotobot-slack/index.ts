@@ -456,6 +456,34 @@ function offsetDateLabel(days: number): string {
   }).format(target);
 }
 
+function monthLabel(offsetMonths = 0): string {
+  const target = new Date();
+  target.setMonth(target.getMonth() + offsetMonths);
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  }).format(target);
+}
+
+function weekRangeLabel(offsetWeeks = 0): string {
+  const now = new Date();
+  const localNow = new Date(now);
+  const day = localNow.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const start = new Date(localNow);
+  start.setDate(localNow.getDate() + mondayOffset + (offsetWeeks * 7));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const fmt = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  });
+  return `${fmt.format(start)} até ${fmt.format(end)}`;
+}
+
 function resolveTemporalAnswer(query: string): string | null {
   const normalized = normalizeTemporalText(query);
   const { dateLabel, timeLabel } = getNowInSaoPaulo();
@@ -484,6 +512,22 @@ function resolveTemporalAnswer(query: string): string | null {
 
   if (normalized.includes("que dia sera amanha") || normalized.includes("amanha sera que dia") || normalized.includes("que dia e amanha")) {
     return `Amanhã será ${offsetDateLabel(1)}.`;
+  }
+
+  if (normalized.includes("esta semana") || normalized.includes("essa semana")) {
+    return `Esta semana corresponde ao período de ${weekRangeLabel(0)}.`;
+  }
+
+  if (normalized.includes("proxima semana")) {
+    return `A próxima semana corresponde ao período de ${weekRangeLabel(1)}.`;
+  }
+
+  if (normalized.includes("este mes") || normalized.includes("esse mes")) {
+    return `Estamos em ${monthLabel(0)}.`;
+  }
+
+  if (normalized.includes("mes passado") || normalized.includes("ultimo mes")) {
+    return `O mês passado foi ${monthLabel(-1)}.`;
   }
 
   return null;

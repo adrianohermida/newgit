@@ -688,6 +688,112 @@ registerTest("runLawdeskChat dispatches DataJud intent before provider execution
   }
 });
 
+const routedEdgeChatScenarios = [
+  {
+    name: "runLawdeskChat dispatches advise-sync intent before provider execution",
+    query: "sincronizar advise",
+    functionName: "advise-sync",
+    response: { ok: true, total: 5 },
+    expectedTitle: "advise_sync",
+    expectedMessage: /Sincronizacao incremental de publicacoes do Advise executada com sucesso/i,
+  },
+  {
+    name: "runLawdeskChat dispatches processo-sync intent before provider execution",
+    query: "executar pipeline de processos",
+    functionName: "processo-sync",
+    response: { ok: true, action: "pipeline" },
+    expectedTitle: "processo_sync",
+    expectedMessage: /Pipeline de sincronizacao de processos executado com sucesso/i,
+  },
+  {
+    name: "runLawdeskChat dispatches publicacoes-prazos intent before provider execution",
+    query: "calcular prazos das publicações",
+    functionName: "publicacoes-prazos",
+    response: { ok: true, action: "calcular_batch" },
+    expectedTitle: "publicacoes_prazos",
+    expectedMessage: /Calculo de prazos em lote executado com sucesso/i,
+  },
+  {
+    name: "runLawdeskChat dispatches publicacoes-audiencias intent before provider execution",
+    query: "extrair audiências das publicações",
+    functionName: "publicacoes-audiencias",
+    response: { ok: true, action: "extract_batch" },
+    expectedTitle: "publicacoes_audiencias",
+    expectedMessage: /Extracao de audiencias em lote executada com sucesso/i,
+  },
+  {
+    name: "runLawdeskChat dispatches fc-last-conversation intent before provider execution",
+    query: "ultima conversa 550e8400-e29b-41d4-a716-446655440000",
+    functionName: "fc-last-conversation",
+    response: { conversation_id: "conv-123", status: "open" },
+    expectedTitle: "fc_last_conversation",
+    expectedMessage: /A ultima conversa encontrada foi conv-123, com status open/i,
+  },
+  {
+    name: "runLawdeskChat dispatches fc-update-conversation intent before provider execution",
+    query: "atualizar conversa 550e8400-e29b-41d4-a716-446655440000 para resolvida",
+    functionName: "fc-update-conversation",
+    response: { ok: true, conversation_id: "conv-123" },
+    expectedTitle: "fc_update_conversation",
+    expectedMessage: /Conversa conv-123 atualizada com sucesso/i,
+  },
+];
+
+for (const scenario of routedEdgeChatScenarios) {
+  registerTest(scenario.name, async () => {
+    const { runLawdeskChat } = await loadLawdeskModules();
+    let aiCalls = 0;
+    const originalFetch = globalThis.fetch;
+    const calls = [];
+
+    globalThis.fetch = async (url, options = {}) => {
+      const href = String(url);
+      calls.push({ url: href, options });
+
+      if (href.includes(`/functions/v1/${scenario.functionName}`)) {
+        return new Response(JSON.stringify(scenario.response), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    try {
+      const result = await runLawdeskChat(
+        {
+          SUPABASE_URL: "https://sspvizogbcyigquqycsz.supabase.co",
+          SUPABASE_SERVICE_ROLE_KEY: "sb_secret_test_value",
+          AI: {
+            async run() {
+              aiCalls += 1;
+              return { response: "Isto nao deveria ser usado." };
+            },
+          },
+        },
+        {
+          query: scenario.query,
+          provider: "cloudflare",
+          context: { route: "/interno/dotobot" },
+        }
+      );
+
+      assert.equal(aiCalls, 0);
+      assert.equal(result.status, "ok");
+      assert.equal(result._metadata.source, "direct_tool_router");
+      assert.equal(result.steps[0].output.title, scenario.expectedTitle);
+      assert.match(result.result.message, scenario.expectedMessage);
+      assert.ok(calls.some((item) => item.url.includes(`/functions/v1/${scenario.functionName}`)));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+}
+
 registerTest("runLawdeskProvidersHealth reports local provider operational when compatible endpoint responds", async () => {
   const { runLawdeskProvidersHealth } = await loadLawdeskModules();
   const originalFetch = globalThis.fetch;
