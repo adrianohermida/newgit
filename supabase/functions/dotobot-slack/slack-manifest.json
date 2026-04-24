@@ -46,7 +46,10 @@
   "settings": {
     "event_subscriptions": {
       "bot_events": [
-        "app_home_opened"
+        "app_home_opened",
+        "app_mention",
+        "message.im",
+        "message.mpim"
       ]
     },
     "interactivity": {

@@ -12,3 +12,21 @@ verify_jwt = false
 
 [functions.fc-ingest-conversations]
 verify_jwt = false
+
+[functions.advise-sync]
+verify_jwt = false
+
+[functions.datajud-search]
+verify_jwt = false
+
+[functions.processo-sync]
+verify_jwt = false
+
+[functions.publicacoes-prazos]
+verify_jwt = false
+
+[functions.publicacoes-audiencias]
+verify_jwt = false
+
+[functions.dotobot-slack]
+verify_jwt = false

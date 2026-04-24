@@ -57,6 +57,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SVC_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const FUNCTIONS_API_KEY =
+  Deno.env.get("SUPABASE_ANON_KEY") ||
+  Deno.env.get("NEXT_PUBLIC_SUPABASE_ANON_KEY") ||
+  Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ||
+  SVC_KEY;
+const FUNCTIONS_BEARER_KEY = String(FUNCTIONS_API_KEY || "").startsWith("eyJ")
+  ? FUNCTIONS_API_KEY
+  : SVC_KEY;
 const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET") || "";
 const SLACK_CHANNEL = Deno.env.get("SLACK_NOTIFY_CHANNEL") || "C09E59J77EU";
 const SLACK_USER_TOKEN = Deno.env.get("SLACK_USER_TOKEN") || "";
@@ -424,6 +432,13 @@ function normalizeTemporalText(text: string): string {
     .trim();
 }
 
+function normalizeSlackConversationText(text: string): string {
+  return String(text || "")
+    .replace(/<@[A-Z0-9]+>/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getNowInSaoPaulo() {
   const now = new Date();
   const dateLabel = new Intl.DateTimeFormat("pt-BR", {
@@ -443,6 +458,14 @@ function getNowInSaoPaulo() {
     timeZone: "America/Sao_Paulo",
   }).format(now);
   return { now, dateLabel, timeLabel, isoDate };
+}
+
+function isoDateInSaoPaulo(offsetDays = 0): string {
+  const target = new Date();
+  target.setDate(target.getDate() + offsetDays);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  }).format(target);
 }
 
 function offsetDateLabel(days: number): string {
@@ -534,12 +557,16 @@ function resolveTemporalAnswer(query: string): string | null {
 }
 
 async function invokeFunction(name: string, body: unknown): Promise<unknown> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    apikey: FUNCTIONS_API_KEY,
+  };
+  if (FUNCTIONS_BEARER_KEY) {
+    headers.Authorization = `Bearer ${FUNCTIONS_BEARER_KEY}`;
+  }
   const r = await fetch(`${SELF_URL}/${name}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${SVC_KEY}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(55000),
   });
@@ -562,12 +589,16 @@ async function invokeFunctionRequest(
 
   const url = `${SELF_URL}/${name}${query.size ? `?${query.toString()}` : ""}`;
   const method = options.method || (options.body ? "POST" : "GET");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    apikey: FUNCTIONS_API_KEY,
+  };
+  if (FUNCTIONS_BEARER_KEY) {
+    headers.Authorization = `Bearer ${FUNCTIONS_BEARER_KEY}`;
+  }
   const response = await fetch(url, {
     method,
-    headers: {
-      Authorization: `Bearer ${SVC_KEY}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: method === "POST" ? JSON.stringify(options.body || {}) : undefined,
     signal: AbortSignal.timeout(55000),
   });
@@ -599,6 +630,31 @@ function summarizeDeterministicQuestionResult(
   data: Record<string, unknown>,
   context: Record<string, unknown> = {},
 ): string {
+  const rawError = typeof data.error === "string"
+    ? data.error
+    : typeof data.message === "string" && String(data.code || "").toUpperCase().startsWith("UNAUTHORIZED")
+      ? data.message
+      : "";
+  if (rawError) {
+    switch (route) {
+      case "advise_sync":
+        return `Tive um problema ao sincronizar o Advise agora: ${rawError}`;
+      case "datajud_search":
+        return `Não consegui consultar o DataJud agora: ${rawError}`;
+      case "processo_sync":
+        return `Tive um problema ao executar a rotina de processos: ${rawError}`;
+      case "publicacoes_prazos":
+        return `Não consegui executar o cálculo de prazos agora: ${rawError}`;
+      case "publicacoes_audiencias":
+        return `Não consegui processar a rotina de audiências agora: ${rawError}`;
+      case "fc_last_conversation":
+        return `Não encontrei uma conversa para o contato informado: ${rawError}`;
+      case "fc_update_conversation":
+        return `Não consegui atualizar a conversa informada: ${rawError}`;
+      default:
+        return `Tive um problema ao executar essa ação: ${rawError}`;
+    }
+  }
   switch (route) {
     case "advise_sync":
       return context.action === "status"
@@ -643,18 +699,24 @@ async function tryDeterministicQuestionRoute(query: string): Promise<{ route: st
   const isoDates = extractIsoDates(query);
 
   if (normalized.includes("sincronizar advise") || normalized.includes("sync advise")) {
-    const action = isoDates.length >= 2 ? "sync_range" : normalized.includes("status") ? "status" : "sync";
+    const action = isoDates.length >= 2 || normalized.includes("sincronizar")
+      ? "sync_range"
+      : normalized.includes("status")
+        ? "status"
+        : "sync";
+    const dataInicio = isoDates[0] || (action === "sync_range" ? isoDateInSaoPaulo(-1) : undefined);
+    const dataFim = isoDates[1] || (action === "sync_range" ? isoDateInSaoPaulo(0) : undefined);
     const data = await invokeFunctionRequest("advise-sync", {
       method: "GET",
       query: {
         action,
-        data_inicio: isoDates[0],
-        data_fim: isoDates[1],
+        data_inicio: dataInicio,
+        data_fim: dataFim,
       },
     }) as Record<string, unknown>;
     return {
       route: "advise_sync",
-      answer: summarizeDeterministicQuestionResult("advise_sync", data, { action, data_inicio: isoDates[0], data_fim: isoDates[1] }),
+      answer: summarizeDeterministicQuestionResult("advise_sync", data, { action, data_inicio: dataInicio, data_fim: dataFim }),
       data,
     };
   }
@@ -1951,6 +2013,48 @@ async function handleHelp(channel: string): Promise<void> {
   await postSlack(channel, "🤖 DotoBot v2.0 — Ajuda", blocks);
 }
 
+async function dispatchSlackTextCommand(channelId: string, userId: string, text: string): Promise<void> {
+  const normalizedText = (text || "status").trim();
+  const lowered = normalizedText.toLowerCase();
+  const [cmd] = lowered.split(" ");
+
+  if (cmd === "status") await handleStatus(channelId, userId);
+  else if (cmd === "publicacoes") await handlePublicacoes(channelId);
+  else if (cmd === "andamentos") await handleAndamentos(channelId);
+  else if (cmd === "audiencias") await handleAudiencias(channelId);
+  else if (cmd === "pendencias") await handlePendencias(channelId);
+  else if (cmd === "fix-activities" || cmd === "fix_activities") await handleFixActivities(channelId, userId);
+  else if (cmd === "drain-advise" || cmd === "drain_advise") await handleDrainAdvise(channelId, userId);
+  else if (cmd === "datajud") await handleDatajud(channelId, userId);
+  else if (cmd === "backfill" || cmd === "run-backfill" || cmd === "run_backfill") await handleRunBackfill(channelId, userId);
+  else if (cmd === "backfill-status" || cmd === "backfill_status") await handleBackfillStatus(channelId);
+  else if (cmd === "repair-orphans" || cmd === "repair_orphans") await handleRepairOrphans(channelId, userId, "fix_all");
+  else if (cmd === "repair-instancia" || cmd === "repair_instancia") await handleRepairOrphans(channelId, userId, "fix_instancia");
+  else if (cmd === "repair-partes" || cmd === "repair_partes") await handleRepairOrphans(channelId, userId, "fix_partes");
+  else if (cmd === "repair-fs" || cmd === "repair_fs") await handleRepairOrphans(channelId, userId, "fix_fs_sync");
+  else if (cmd === "reset-datajud" || cmd === "reset_datajud") await handleResetDatajud(channelId, userId);
+  else if (cmd === "processo-sync" || cmd === "processo_sync") await handleProcessoSync(channelId, userId);
+  else if (cmd === "prazos") await handlePrazos(channelId);
+  else if (cmd === "calcular-prazos" || cmd === "calcular_prazos") await handleCalcularPrazos(channelId, userId);
+  else if (cmd === "tpu-enrich" || cmd === "tpu_enrich") await handleTpuEnricher(channelId, userId);
+  else if (cmd === "deals-status" || cmd === "deals_status") await handleDealsStatus(channelId);
+  else if (cmd === "deals-sync" || cmd === "deals_sync") await handleDealsSync(channelId, userId);
+  else if (cmd === "importar-planilhas" || cmd === "importar_planilhas") await handleImportarPlanilhas(channelId, userId);
+  else if (cmd === "sync-publicacoes" || cmd === "sync_publicacoes") await handleSyncPublicacoes(channelId, userId);
+  else if (cmd === "extrair-audiencias" || cmd === "extrair_audiencias") await handleExtrairAudiencias(channelId, userId);
+  else if (cmd === "extrair-partes" || cmd === "extrair_partes") await handleExtrairPartes(channelId, userId);
+  else if (cmd === "criar-processos" || cmd === "criar_processos") await handleCriarProcessos(channelId, userId);
+  else if (cmd === "tipo-processo" || cmd === "tipo_processo") await handleTipoProcesso(channelId, userId);
+  else if (cmd === "prazo-fim" || cmd === "prazo_fim") await handlePrazoFim(channelId, userId);
+  else if (cmd === "higienizar-contatos" || cmd === "higienizar_contatos") await handleHigienizarContatos(channelId, userId);
+  else if (cmd === "relatorio-financeiro" || cmd === "relatorio_financeiro") await handleRelatorioFinanceiro(channelId);
+  else if (cmd.startsWith("perguntar")) await handleIaPerguntar(channelId, userId, normalizedText.replace(/^perguntar\s*/i, ""));
+  else if (cmd.startsWith("resumir")) await handleIaResumirProcesso(channelId, userId, normalizedText.replace(/^resumir\s*/i, ""));
+  else if (cmd === "enriquecer-ia" || cmd === "enriquecer_ia") await handleIaEnriquecer(channelId, userId);
+  else if (cmd === "ia-status" || cmd === "ia_status") await handleIaStatus(channelId);
+  else await handleIaPerguntar(channelId, userId, normalizedText);
+}
+
 // ── Notificações Automáticas (chamadas por outras edge functions) ──────────────
 
 async function handleNotifyPublicacao(body: Record<string, unknown>): Promise<Response> {
@@ -2082,6 +2186,26 @@ Deno.serve(async (req) => {
       if (event?.type === "app_home_opened" && typeof event.user === "string") {
         await publishHomeView(event.user, "inicio");
       }
+      const eventType = String(event?.type || "");
+      const eventSubtype = String(event?.subtype || "");
+      const eventChannelType = String(event?.channel_type || "");
+      const eventUser = typeof event?.user === "string" ? event.user : null;
+      const eventChannel = typeof event?.channel === "string" ? event.channel : null;
+      const rawEventText = typeof event?.text === "string" ? event.text : "";
+      const eventText = normalizeSlackConversationText(rawEventText);
+      const isDirectMessage = eventType === "message" && (eventChannelType === "im" || eventChannelType === "mpim");
+      const isMention = eventType === "app_mention";
+      const isHumanMessage = !eventSubtype && !event?.bot_id;
+
+      if ((isDirectMessage || isMention) && isHumanMessage && eventUser && eventChannel && eventText) {
+        EdgeRuntime.waitUntil((async () => {
+          try {
+            await dispatchSlackTextCommand(eventChannel, eventUser, eventText);
+          } catch (error) {
+            await postSlack(eventChannel, `❌ Erro ao processar mensagem: ${String(error)}`);
+          }
+        })());
+      }
       return new Response("OK");
     }
 
@@ -2089,6 +2213,23 @@ Deno.serve(async (req) => {
     if (action === "notify_andamento") return handleNotifyAndamento(body);
     if (action === "notify_audiencia") return handleNotifyAudiencia(body);
     if (action === "notify_cron_status") return handleNotifyCronStatus(body);
+    if (action === "diagnose_chat") {
+      const text = String(body.text || "").trim();
+      const temporalAnswer = resolveTemporalAnswer(text);
+      if (temporalAnswer) {
+        return new Response(JSON.stringify({ ok: true, mode: "temporal", text: temporalAnswer }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      const deterministicRoute = await tryDeterministicQuestionRoute(text).catch((error) => ({
+        route: "error",
+        answer: String(error),
+        data: null,
+      }));
+      return new Response(JSON.stringify({ ok: true, mode: deterministicRoute ? "deterministic" : "llm", result: deterministicRoute }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     // Comandos diretos via JSON (para testes)
     if (action === "status") {
@@ -2264,7 +2405,7 @@ Deno.serve(async (req) => {
     );
 
     // Processar em background
-    const [cmd, ...args] = (text || "status").split(" ");
+    const [cmd] = (text || "status").split(" ");
     EdgeRuntime.waitUntil((async () => {
       try {
         if (cmd === "status") await handleStatus(channelId, userId);
