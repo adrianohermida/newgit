@@ -1,4 +1,3 @@
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 export interface Tool {
@@ -12,42 +11,56 @@ export class AiOrchestrator {
   private supabase: any;
   private tools: Map<string, Tool> = new Map();
   private maxIterations = 5;
+  private config: any;
+  private systemPrompt: string;
 
-  constructor(supabaseUrl: string, supabaseKey: string) {
+  constructor(supabaseUrl: string, supabaseKey: string, config: any) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
+    this.config = config;
+    this.systemPrompt = `
+Você é o DotoBot v5.2, o assistente de IA oficial do escritório Hermida Maia Advocacia.
+Sua missão é ser proativo, preciso e operacional.
+
+DIRETRIZES DE COMPORTAMENTO:
+1. Use as ferramentas disponíveis para consultar dados reais antes de responder.
+2. Se o usuário pedir algo sobre clientes, tarefas ou tickets, use as ferramentas de CRM/Suporte.
+3. Mantenha um tom profissional, mas amigável.
+4. SEMPRE cite a base legal ou o contexto do processo quando disponível na memória RAG.
+5. Se não encontrar uma informação, admita e sugira o próximo passo.
+
+PADRÕES DE RESPOSTA (Baseados no Slack Bolt):
+- Use formatação mrkdwn do Slack (*negrito*, _itálico_, > citações).
+- Responda em tópicos quando houver muita informação.
+- Não invente dados que não estão nas ferramentas ou na memória.
+`;
     this.registerDefaultTools();
   }
 
   private registerDefaultTools() {
-    // CRM Tools
-    this.registerTool({
-      name: "contact_lookup",
-      description: "Busca um contato no Freshsales por e-mail ou telefone",
-      parameters: { email: "string", phone: "string" },
-      execute: async (args) => this.callWorkspaceOp("contact_lookup", args)
+    const workspaceOps = [
+      { name: "contact_lookup", desc: "Busca contato por email/telefone" },
+      { name: "contact_update", desc: "Atualiza dados de um contato" },
+      { name: "tasks_list", desc: "Lista tarefas pendentes" },
+      { name: "task_create", desc: "Cria uma nova tarefa" },
+      { name: "tickets_list", desc: "Lista tickets no Freshdesk" },
+      { name: "deal_view", desc: "Visualiza detalhes de um negócio" }
+    ];
+
+    workspaceOps.forEach(op => {
+      this.registerTool({
+        name: op.name,
+        description: op.desc,
+        parameters: {},
+        execute: async (args) => this.callWorkspaceOp(op.name, args)
+      });
     });
 
     this.registerTool({
-      name: "tasks_list",
-      description: "Lista tarefas pendentes no Freshsales",
-      parameters: { filter: "string" },
-      execute: async (args) => this.callWorkspaceOp("tasks_list", args)
-    });
-
-    this.registerTool({
-      name: "tickets_list",
-      description: "Lista tickets de suporte no Freshdesk",
-      parameters: { status: "string" },
-      execute: async (args) => this.callWorkspaceOp("tickets_list", args)
-    });
-
-    // Cloudflare Agents SDK Skill
-    this.registerTool({
-      name: "cloudflare_agent_build",
-      description: "Gera código de exemplo para agentes Cloudflare usando o Agents SDK",
-      parameters: { requirement: "string" },
+      name: "cloudflare_agent_info",
+      description: "Fornece informações sobre o Cloudflare Agents SDK e melhores práticas",
+      parameters: { topic: "string" },
       execute: async (args) => {
-        return `// Exemplo de Agente Cloudflare para: ${args.requirement}\nimport { Agent } from "@cloudflare/agents";\nexport class MyAgent extends Agent {\n  async onMessage(msg) {\n    const state = await this.getState();\n    await this.setState({ ...state, lastMsg: msg });\n    return "Processado";\n  }\n}`;
+        return "O Cloudflare Agents SDK permite criar agentes com estado persistente usando Durable Objects. Use `runFiber()` para garantir resiliência e `setState()` para persistência.";
       }
     });
   }
@@ -57,24 +70,71 @@ export class AiOrchestrator {
   }
 
   private async callWorkspaceOp(op: string, params: any) {
-    // Simulação de chamada ao workspace-ops.js via Edge Function
-    return { status: "success", operation: op, data: params };
+    const response = await fetch(`${this.config.AI_CORE_URL}/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: op, params })
+    });
+    return response.json();
   }
 
-  async orchestrate(prompt: string, context: string) {
-    let currentPrompt = prompt;
-    let steps = [];
+  private async getConversationHistory(userId: string, limit = 5) {
+    const { data } = await this.supabase
+      .from("dotobot_memory")
+      .select("content, metadata")
+      .eq("metadata->>user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
     
-    for (let i = 0; i < this.maxIterations; i++) {
-      // Aqui entraria a chamada ao LLM (Cloudflare AI) para decidir a próxima ação
-      // Por brevidade, simulamos um passo de decisão
-      steps.push(`Passo ${i+1}: Analisando solicitação...`);
-      break; // Simulação de conclusão
-    }
+    return data?.reverse().map((m: any) => ({
+      role: m.metadata?.role || "user",
+      content: m.content
+    })) || [];
+  }
+
+  private async searchHybridMemory(query: string) {
+    const { data, error } = await this.supabase.rpc("hybrid_search_dotobot_memory", {
+      query_text: query,
+      match_count: 3
+    });
+    if (error) return "";
+    return data.map((d: any) => d.content).join("\n---\n");
+  }
+
+  async orchestrate(prompt: string, userId: string) {
+    const history = await this.getConversationHistory(userId);
+    const context = await this.searchHybridMemory(prompt);
+    
+    const fullSystemPrompt = `${this.systemPrompt}\n\nCONTEXTO RAG:\n${context}\n\nFerramentas disponíveis: ${Array.from(this.tools.keys()).join(", ")}`;
+
+    const llmResponse = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${this.config.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3-8b-instruct`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.config.CLOUDFLARE_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: fullSystemPrompt },
+            ...history,
+            { role: "user", content: prompt }
+          ]
+        }),
+      }
+    ).then(res => res.json());
+
+    const answer = llmResponse.result?.response || "Desculpe, não consegui processar sua solicitação agora.";
+
+    await this.supabase.from("dotobot_memory").insert([
+      { content: prompt, metadata: { user_id: userId, role: "user" } },
+      { content: answer, metadata: { user_id: userId, role: "assistant" } }
+    ]);
 
     return {
-      answer: `Olá! Processei sua solicitação: "${prompt}". Baseado na memória do projeto, identifiquei as ações necessárias.`,
-      steps: steps.length,
+      answer,
+      steps: 1,
       context_used: context.length > 0
     };
   }
