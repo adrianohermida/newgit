@@ -336,13 +336,24 @@ function buildWorkspaceHelpText() {
     "- contato atualizar <id> campo=valor, campo2=valor",
     "- deal <id>",
     "- deal atualizar <id> campo=valor",
+    "- deals [limite]",
     "- conta <id>",
+    "- contas [limite]",
+    "- activities [limite]",
+    "- produtos [limite]",
     "- tasks [limite]",
     "- task <id>",
     "- task criar Titulo | 2026-04-12T14:00:00Z | descricao opcional | owner_id opcional",
     "- task atualizar <id> campo=valor",
     "- task deletar <id>",
     "- appointments [limite]",
+    "- google disponibilidade <YYYY-MM-DD> <HH:MM>",
+    "- google criar <YYYY-MM-DD> <HH:MM> | email | nome opcional | area opcional",
+    "- google deletar <event_id>",
+    "- zoom criar <YYYY-MM-DD> <HH:MM> | email opcional | nome opcional | topico opcional",
+    "- zoom reuniao <meeting_id>",
+    "- zoom participantes <meeting_id>",
+    "- zoom deletar <meeting_id>",
     "- documentos <email>",
     "- tickets <email>",
     "- ticket abrir <email> | Assunto | Descricao | prioridade opcional | status opcional",
@@ -488,8 +499,24 @@ async function maybeRunWorkspaceCommand(env, text, userProfile = null) {
     return { ...(await executeWorkspaceOp(env, "deal_view", { id: args[1] })), mode: "workspace_op" };
   }
 
+  if (args[0] === "deals") {
+    return { ...(await executeWorkspaceOp(env, "deals_list", { limit: args[1] })), mode: "workspace_op" };
+  }
+
   if (args[0] === "conta" && args[1]) {
     return { ...(await executeWorkspaceOp(env, "account_view", { id: args[1] })), mode: "workspace_op" };
+  }
+
+  if (args[0] === "contas") {
+    return { ...(await executeWorkspaceOp(env, "accounts_list", { limit: args[1] })), mode: "workspace_op" };
+  }
+
+  if (args[0] === "activities") {
+    return { ...(await executeWorkspaceOp(env, "activities_list", { limit: args[1] })), mode: "workspace_op" };
+  }
+
+  if (args[0] === "produtos") {
+    return { ...(await executeWorkspaceOp(env, "products_list", { limit: args[1] })), mode: "workspace_op" };
   }
 
   if (args[0] === "tasks") {
@@ -529,6 +556,71 @@ async function maybeRunWorkspaceCommand(env, text, userProfile = null) {
   if (args[0] === "appointments") {
     return {
       ...(await executeWorkspaceOp(env, "appointments_list", { limit: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "google" && args[1] === "disponibilidade" && args[2] && args[3]) {
+    return {
+      ...(await executeWorkspaceOp(env, "google_calendar_check", { date: args[2], time: args[3] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "google" && args[1] === "criar") {
+    const [dateAndTime, email, name, area] = parsePipeFields(normalized.replace(/^google\s+criar/i, ""));
+    const [date, time] = String(dateAndTime || "").trim().split(/\s+/);
+    return {
+      ...(await executeWorkspaceOp(env, "google_calendar_create_simple", {
+        date,
+        time,
+        email,
+        name,
+        area,
+      })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "google" && args[1] === "deletar" && args[2]) {
+    return {
+      ...(await executeWorkspaceOp(env, "google_calendar_delete", { id: args[2] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "zoom" && args[1] === "criar") {
+    const [dateAndTime, email, name, topic] = parsePipeFields(normalized.replace(/^zoom\s+criar/i, ""));
+    const [date, time] = String(dateAndTime || "").trim().split(/\s+/);
+    return {
+      ...(await executeWorkspaceOp(env, "zoom_meeting_create_simple", {
+        date,
+        time,
+        email,
+        name,
+        topic,
+      })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "zoom" && args[1] === "reuniao" && args[2]) {
+    return {
+      ...(await executeWorkspaceOp(env, "zoom_meeting_view", { id: args[2] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "zoom" && args[1] === "participantes" && args[2]) {
+    return {
+      ...(await executeWorkspaceOp(env, "zoom_meeting_participants", { id: args[2] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "zoom" && args[1] === "deletar" && args[2]) {
+    return {
+      ...(await executeWorkspaceOp(env, "zoom_meeting_delete", { id: args[2] })),
       mode: "workspace_op",
     };
   }

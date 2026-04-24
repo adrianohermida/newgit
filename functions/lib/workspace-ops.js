@@ -3,6 +3,7 @@ import {
   freshsalesRequest,
   listFreshsalesAppointmentsFromViews,
   listFreshsalesDealsFromViews,
+  listFreshsalesSalesActivities,
   listFreshsalesSalesAccountsFromViews,
   lookupFreshsalesContactByEmail,
   viewFreshsalesContact,
@@ -33,7 +34,15 @@ import {
   viewFreshdeskContact,
   viewFreshdeskTicket,
 } from "./freshdesk-admin.js";
+import { deleteGoogleEvent, ensureSlotAvailable, upsertGoogleEvent } from "./agendamento-helpers.js";
+import { getGoogleAccessToken } from "./google-auth.js";
 import { countSupabaseAdmin, fetchSupabaseAdmin } from "./supabase-rest.js";
+import {
+  createZoomMeeting,
+  deleteZoomMeeting,
+  getZoomMeeting,
+  listZoomMeetingParticipants,
+} from "./zoom-admin.js";
 
 function clean(value) {
   if (typeof value !== "string") return value ?? null;
@@ -197,6 +206,14 @@ async function updateFreshsalesDeal(env, dealId, patch) {
   return response?.payload?.deal || response?.payload || null;
 }
 
+async function listFreshsalesProducts(env, { page = 1, perPage = 20 } = {}) {
+  const { payload } = await freshsalesRequest(
+    env,
+    `/products?page=${encodeURIComponent(String(page))}&per_page=${encodeURIComponent(String(perPage))}`
+  );
+  return Array.isArray(payload?.products) ? payload.products : Array.isArray(payload) ? payload : [];
+}
+
 async function listAgentlabConversationThreads(env, email, limit = 10) {
   const normalizedEmail = normalizeEmail(email);
   const filters = [
@@ -268,6 +285,14 @@ function summarizeTicket(ticket) {
   return `${ticket.id || "n/d"} · ${ticket.subject || "Sem assunto"} · status ${ticket.status || ticket.status_label || "n/d"} · prioridade ${ticket.priority || ticket.priority_label || "n/d"}`;
 }
 
+function summarizeActivity(activity) {
+  return `${activity.id || "n/d"} · ${activity.title || activity.subject || "Sem titulo"} · ${toDateLabel(activity.activity_date || activity.due_date || activity.created_at) || "n/d"} · ${activity.status || activity.outcome || "n/d"}`;
+}
+
+function summarizeProduct(product) {
+  return `${product.id || "n/d"} · ${product.name || "Sem nome"} · valor ${product.amount || product.price || "n/d"} · status ${product.status || "n/d"}`;
+}
+
 function summarizeFreshdeskContact(contact) {
   return `${contact.id || "n/d"} · ${contact.name || contact.email || "Sem nome"} · ${contact.email || "sem email"} · ${contact.phone || "sem telefone"}`;
 }
@@ -295,6 +320,14 @@ function summarizeFreshchatGroup(group) {
 function summarizeFreshchatUser(user) {
   const name = [user.first_name || user.name || user.email || "Sem nome", user.last_name || ""].join(" ").trim();
   return `${user.id || "n/d"} · ${name} · ${user.email || "sem email"}`;
+}
+
+function summarizeCalendarEvent(event) {
+  return `${event.id || "n/d"} · ${event.summary || "Sem titulo"} · ${toDateLabel(event.start?.dateTime || event.start?.date) || "n/d"}`;
+}
+
+function summarizeZoomMeeting(meeting) {
+  return `${meeting.id || "n/d"} · ${meeting.topic || "Sem topico"} · ${toDateLabel(meeting.start_time) || "n/d"} · status ${meeting.status || "n/d"}`;
 }
 
 function parseKeyValuePatch(input) {
@@ -407,6 +440,46 @@ export async function executeWorkspaceOp(env, operation, args = {}) {
     case "account_view": {
       const account = await viewFreshsalesSalesAccount(env, args.id);
       return { ok: true, text: summarizeAccount(account), data: account };
+    }
+    case "deals_list": {
+      const deals = await listFreshsalesDealsFromViews(env, { maxPages: 1, perPage: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: deals.length
+          ? `Deals:\n${listToBullets(deals, (item) => summarizeDeal(item))}`
+          : "Nenhum deal encontrado.",
+        data: deals,
+      };
+    }
+    case "accounts_list": {
+      const accounts = await listFreshsalesSalesAccountsFromViews(env, { maxPages: 1, perPage: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: accounts.length
+          ? `Contas:\n${listToBullets(accounts, (item) => summarizeAccount(item))}`
+          : "Nenhuma conta encontrada.",
+        data: accounts,
+      };
+    }
+    case "activities_list": {
+      const activities = await listFreshsalesSalesActivities(env, { page: 1, perPage: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: activities.length
+          ? `Activities:\n${listToBullets(activities, (item) => summarizeActivity(item))}`
+          : "Nenhuma activity encontrada.",
+        data: activities,
+      };
+    }
+    case "products_list": {
+      const products = await listFreshsalesProducts(env, { page: 1, perPage: Number(args.limit) || 10 });
+      return {
+        ok: true,
+        text: products.length
+          ? `Produtos:\n${listToBullets(products, (item) => summarizeProduct(item))}`
+          : "Nenhum produto encontrado.",
+        data: products,
+      };
     }
     case "tasks_list": {
       const tasks = await listFreshsalesTasks(env, { page: 1, perPage: Number(args.limit) || 10 });
@@ -572,6 +645,123 @@ export async function executeWorkspaceOp(env, operation, args = {}) {
         ok: true,
         text: `A reuniao foi agendada para ${startLabel}.`,
         data: appointment,
+      };
+    }
+    case "google_calendar_check": {
+      if (!clean(args.date) || !clean(args.time)) {
+        return { ok: false, text: "Preciso de data e horario para consultar a disponibilidade." };
+      }
+      const availability = await ensureSlotAvailable(env, args.date, args.time);
+      if (!availability?.ok) {
+        const body = await availability.response?.json?.().catch(() => null);
+        return {
+          ok: false,
+          text: body?.error || "O horario informado nao esta disponivel.",
+          data: body,
+        };
+      }
+      return {
+        ok: true,
+        text: `O horario ${args.date} ${args.time} esta disponivel no Google Calendar.`,
+        data: availability,
+      };
+    }
+    case "google_calendar_create_simple": {
+      if (!clean(args.date) || !clean(args.time) || !clean(args.email)) {
+        return { ok: false, text: "Use data, horario e email para criar o evento no Google Calendar." };
+      }
+      const availability = await ensureSlotAvailable(env, args.date, args.time);
+      if (!availability?.ok) {
+        const body = await availability.response?.json?.().catch(() => null);
+        return {
+          ok: false,
+          text: body?.error || "Nao consegui reservar esse horario no Google Calendar.",
+          data: body,
+        };
+      }
+      const { accessToken } = await getGoogleAccessToken(env);
+      const event = await upsertGoogleEvent(
+        accessToken,
+        {
+          area: args.area || "Operacional",
+          nome: args.name || "Solicitante",
+          email: args.email,
+          telefone: clean(args.phone) || "",
+          observacoes: args.observacoes || "Evento criado pelo DotoBot.",
+          google_event_id: null,
+        },
+        args.date,
+        args.time
+      );
+      return {
+        ok: true,
+        text: `Evento criado no Google Calendar.\n${summarizeCalendarEvent(event)}`,
+        data: event,
+      };
+    }
+    case "google_calendar_delete": {
+      if (!args.id) return { ok: false, text: "Informe o ID do evento do Google Calendar." };
+      const { accessToken } = await getGoogleAccessToken(env);
+      const result = await deleteGoogleEvent(accessToken, args.id);
+      return {
+        ok: Boolean(result?.ok),
+        text: result?.ok ? `Evento ${args.id} removido do Google Calendar.` : "Nao consegui remover o evento do Google Calendar.",
+        data: result,
+      };
+    }
+    case "zoom_meeting_create_simple": {
+      if (!clean(args.date) || !clean(args.time)) {
+        return { ok: false, text: "Preciso de data e horario para criar a reuniao no Zoom." };
+      }
+      const meeting = await createZoomMeeting(
+        env,
+        {
+          data: args.date,
+          hora: args.time,
+          area: args.area || "Operacional",
+          nome: args.name || "Solicitante",
+          email: args.email || "",
+          telefone: clean(args.phone) || "",
+          observacoes: args.observacoes || "Reuniao criada pelo DotoBot.",
+        },
+        {
+          topic: args.topic || `Reuniao - ${args.area || "Operacional"}`,
+        }
+      );
+      return {
+        ok: true,
+        text: `Reuniao Zoom criada.\n${summarizeZoomMeeting(meeting)}`,
+        data: meeting,
+      };
+    }
+    case "zoom_meeting_view": {
+      if (!args.id) return { ok: false, text: "Informe o ID da reuniao Zoom." };
+      const meeting = await getZoomMeeting(env, args.id);
+      return {
+        ok: true,
+        text: summarizeZoomMeeting(meeting),
+        data: meeting,
+      };
+    }
+    case "zoom_meeting_participants": {
+      if (!args.id) return { ok: false, text: "Informe o ID da reuniao Zoom." };
+      const participants = await listZoomMeetingParticipants(env, args.id);
+      const items = Array.isArray(participants?.participants) ? participants.participants : [];
+      return {
+        ok: true,
+        text: items.length
+          ? `Participantes:\n${listToBullets(items, (item) => `${item.name || item.user_name || "Sem nome"} · ${item.user_email || "sem email"} · entrou ${toDateLabel(item.join_time) || "n/d"}`)}`
+          : "Nenhum participante encontrado para essa reuniao.",
+        data: participants,
+      };
+    }
+    case "zoom_meeting_delete": {
+      if (!args.id) return { ok: false, text: "Informe o ID da reuniao Zoom." };
+      const result = await deleteZoomMeeting(env, args.id);
+      return {
+        ok: Boolean(result?.ok),
+        text: result?.ok ? `Reuniao Zoom ${args.id} removida com sucesso.` : "Nao consegui remover a reuniao Zoom.",
+        data: result,
       };
     }
     case "documents_by_email": {
