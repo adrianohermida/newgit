@@ -1,0 +1,17 @@
+{
+  "name": "hmadv-ai-core-worker",
+  "version": "1.0.0",
+  "description": "HMADV ai-core — Cloudflare Worker com roteamento multi-provider LLM",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:secrets": "bash scripts/set-secrets.sh",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260423.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.84.1"
+  }
+}

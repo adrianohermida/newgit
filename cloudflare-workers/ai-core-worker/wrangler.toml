@@ -1,0 +1,25 @@
+name = "ai-core"
+main = "src/index.ts"
+compatibility_date = "2026-03-02"
+compatibility_flags = ["nodejs_compat"]
+account_id = "b32bcc487dfca3a70fe57a75fa5ac482"
+
+[ai]
+binding = "AI"
+
+[[durable_objects.bindings]]
+name = "COPILOT_CONVERSATIONS_DO"
+class_name = "CopilotConversationRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CopilotConversationRoom"]
+
+[vars]
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+
+workers_dev = true
+
+[[routes]]
+pattern = "ai.aetherlab.com.br/*"
+zone_name = "aetherlab.com.br"
