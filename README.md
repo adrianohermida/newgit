@@ -1,75 +1,176 @@
-# Deploy do projeto
+# Supabase CLI (v1)
 
-Este repositorio deve publicar no projeto Cloudflare Pages `newgit-pages`.
+[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main)
 
-O recurso `newgit` nao deve ser usado para deploy deste codigo. Se ele ainda existir no Cloudflare, mantenha-o apenas se tiver outra funcao operacional; caso contrario, remova-o ou deixe sem relacao com este repositorio para evitar conflito.
+[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
 
-## Cloudflare Pages1
+This repository contains all the functionality for Supabase CLI.
 
-Configure o projeto `newgit-pages` assim:
+- [x] Running Supabase locally
+- [x] Managing database migrations
+- [x] Creating and deploying Supabase Functions
+- [x] Generating types directly from your database schema
+- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
 
-1. `Build command`: `npm run build`
-2. `Build output directory`: `out`
-3. `Deploy command`: deixe vazio
-4. Variaveis e secrets: configure os mesmos valores usados no ambiente local e no teste de integracao
+## Getting started
 
-Deploy manual:
+### Install the CLI
 
-```bash
-npm run deploy:pages
-```
-
-Release completo (commit + push + deploy worker):
+Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
 
 ```bash
-npm run release:cf -- -CommitMessage "sua mensagem"
+npm i supabase --save-dev
 ```
 
-Automacao opcional no build (build + deploy Wrangler):
-
-Windows PowerShell:
-
-```powershell
-$env:AUTO_DEPLOY_WRANGLER='1'; npm run build; Remove-Item Env:AUTO_DEPLOY_WRANGLER -ErrorAction SilentlyContinue
-```
-
-Quando `AUTO_DEPLOY_WRANGLER=1`, o `npm run build` dispara automaticamente:
-
-- `npm run release:cf -- -SkipCommit -SkipPush -StaticPagesDeploy`
-- deploy do worker `hmadv-process-ai`
-- deploy estatico do Pages via Wrangler (opt-in explicito)
-
-Importante:
-
-- `wrangler pages deploy out` publica apenas o conteudo estatico de `out`
-- esse fluxo nao envia `functions/` nem `_routes.json`
-- se usado sozinho, pode deixar `/api/*` indisponivel em producao
-- para runtime administrativo completo, prefira o build conectado do Cloudflare Pages a partir do repositorio
-- se o console mostrar `POST /api/admin-lawdesk-chat 404` e `POST /functions/api/admin-lawdesk-chat 405`, trate como indicio de deploy estatico puro sobrescrevendo o runtime do Pages
-- nesse caso, republique o projeto `newgit-pages` pelo build conectado do Cloudflare Pages e confirme o diagnostico com `npm run diagnose:pages-admin`
-
-Observacao sobre o modulo `HMADV Market Ads`:
-
-- o frontend publicado no Pages continua funcional mesmo se `/api/admin-market-ads` estiver indisponivel
-- nesse caso, o modulo entra em `modo local`, carrega dados locais e persiste operacoes no navegador
-- o backend administrativo completo do modulo ainda depende de um runtime server compativel com dependencias Node que hoje nao estao fechando no Pages Functions
-- apos cada deploy, valide com:
+To install the beta release channel:
 
 ```bash
-npm run diagnose:pages-admin
+npm i supabase@beta --save-dev
 ```
 
-Deploy por GitHub Actions:
+> **Note**
+For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
 
-- o workflow [`.github/workflows/nextjs.yml`](/workspaces/newgit/.github/workflows/nextjs.yml) nao deve mais sobrescrever producao com upload estatico puro
-- exige `CLOUDFLARE_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` nos secrets do GitHub
+<details>
+  <summary><b>macOS</b></summary>
 
-## Desenvolvimento local
+  Available via [Homebrew](https://brew.sh). To install:
 
-Para testar o runtime de Pages localmente:
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To install the beta release channel:
+  
+  ```sh
+  brew install supabase/tap/supabase-beta
+  brew link --overwrite supabase-beta
+  ```
+  
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+</details>
+
+<details>
+  <summary><b>Windows</b></summary>
+
+  Available via [Scoop](https://scoop.sh). To install:
+
+  ```powershell
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+  ```
+
+  To upgrade:
+
+  ```powershell
+  scoop update supabase
+  ```
+</details>
+
+<details>
+  <summary><b>Linux</b></summary>
+
+  Available via [Homebrew](https://brew.sh) and Linux packages.
+
+  #### via Homebrew
+
+  To install:
+
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+
+  #### via Linux packages
+
+  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
+
+  ```sh
+  sudo apk add --allow-untrusted <...>.apk
+  ```
+
+  ```sh
+  sudo dpkg -i <...>.deb
+  ```
+
+  ```sh
+  sudo rpm -i <...>.rpm
+  ```
+
+  ```sh
+  sudo pacman -U <...>.pkg.tar.zst
+  ```
+</details>
+
+<details>
+  <summary><b>Other Platforms</b></summary>
+
+  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
+
+  ```sh
+  go install github.com/supabase/cli@latest
+  ```
+
+  Add a symlink to the binary in `$PATH` for easier access:
+
+  ```sh
+  ln -s "$(go env GOPATH)/cli" /usr/bin/supabase
+  ```
+
+  This works on other non-standard Linux distros.
+</details>
+
+<details>
+  <summary><b>Community Maintained Packages</b></summary>
+
+  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
+  To install in your working directory:
+
+  ```bash
+  pkgx install supabase
+  ```
+
+  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
+</details>
+
+### Run the CLI
 
 ```bash
-npm run dev:pages
+supabase bootstrap
 ```
 
-Isso sobe o site estatico e as `functions/api/*` com `wrangler pages dev`.
+Or using npx:
+
+```bash
+npx supabase bootstrap
+```
+
+The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
+
+## Docs
+
+Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
+
+## Breaking changes
+
+We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
+
+However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
+
+## Developing
+
+To run from source:
+
+```sh
+# Go >= 1.22
+go run . help
+```
