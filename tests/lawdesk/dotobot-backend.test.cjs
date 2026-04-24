@@ -591,6 +591,103 @@ registerTest("runLawdeskChat honors explicit cloudflare provider", async () => {
   assert.equal(result._metadata.source, "workers_ai_direct");
 });
 
+registerTest("runLawdeskChat answers current date through direct dispatcher before provider execution", async () => {
+  const { runLawdeskChat } = await loadLawdeskModules();
+  let aiCalls = 0;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async () => {
+    throw new Error("Date intent should not call fetch in runLawdeskChat");
+  };
+
+  try {
+    const result = await runLawdeskChat(
+      {
+        AI: {
+          async run() {
+            aiCalls += 1;
+            return { response: "Isto nao deveria ser usado." };
+          },
+        },
+      },
+      {
+        query: "que dia é hoje?",
+        provider: "cloudflare",
+        context: { route: "/interno/dotobot", channel: "slack" },
+      }
+    );
+
+    assert.equal(aiCalls, 0);
+    assert.equal(result.status, "ok");
+    assert.equal(result._metadata.source, "direct_tool_router");
+    assert.equal(result._metadata.provider, "direct_tool_router");
+    assert.match(result.result.message, /Hoje e /);
+    assert.equal(result.steps[0].output.title, "current_date");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+registerTest("runLawdeskChat dispatches DataJud intent before provider execution", async () => {
+  const { runLawdeskChat } = await loadLawdeskModules();
+  let aiCalls = 0;
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+
+  globalThis.fetch = async (url, options = {}) => {
+    const href = String(url);
+    calls.push({ url: href, options });
+
+    if (href.includes("/functions/v1/datajud-search")) {
+      return new Response(
+        JSON.stringify({
+          processo_id: "proc-123",
+          numero_cnj: "1234567-89.2024.8.26.0100",
+          movimentos_persistidos: 9,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const result = await runLawdeskChat(
+      {
+        SUPABASE_URL: "https://sspvizogbcyigquqycsz.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "sb_secret_test_value",
+        AI: {
+          async run() {
+            aiCalls += 1;
+            return { response: "Isto nao deveria ser usado." };
+          },
+        },
+      },
+      {
+        query: "buscar processo no datajud 1234567-89.2024.8.26.0100",
+        provider: "cloudflare",
+        context: { route: "/interno/dotobot" },
+      }
+    );
+
+    assert.equal(aiCalls, 0);
+    assert.equal(result.status, "ok");
+    assert.equal(result._metadata.source, "direct_tool_router");
+    assert.equal(result.steps[0].output.title, "datajud_search");
+    assert.match(result.result.message, /Consulta DataJud concluida/i);
+    assert.ok(calls.some((item) => item.url.includes("/functions/v1/datajud-search")));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 registerTest("runLawdeskProvidersHealth reports local provider operational when compatible endpoint responds", async () => {
   const { runLawdeskProvidersHealth } = await loadLawdeskModules();
   const originalFetch = globalThis.fetch;
