@@ -6,6 +6,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 $functions = @(
+  "dotobot-slack",
+  "dotobot-embed",
+  "fc-ingest-conversations",
+  "fc-last-conversation",
+  "fc-update-conversation",
   "datajud-search",
   "datajud-worker",
   "datajud-webhook",
