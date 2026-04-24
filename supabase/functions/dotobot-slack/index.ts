@@ -23,7 +23,7 @@ async function verifySlackSignature(req: Request, signingSecret: string) {
 
   if (!timestamp || !signature) return false;
 
-  const baseString = \`v0:\${timestamp}:\${body}\`;
+  const baseString = "v0:" + timestamp + ":" + body;
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -33,7 +33,7 @@ async function verifySlackSignature(req: Request, signingSecret: string) {
     ["sign"]
   );
   const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(baseString));
-  const sigHex = \`v0=\${Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, "0")).join("")}\`;
+  const sigHex = "v0=" + Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
 
   return sigHex === signature;
 }
@@ -67,7 +67,7 @@ serve(async (req) => {
       await fetch("https://slack.com/api/reactions.add", {
         method: "POST",
         headers: {
-          "Authorization": \`Bearer \${config.SLACK_BOT_TOKEN}\`,
+          "Authorization": "Bearer " + config.SLACK_BOT_TOKEN,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -85,7 +85,7 @@ serve(async (req) => {
       await fetch("https://slack.com/api/chat.postMessage", {
         method: "POST",
         headers: {
-          "Authorization": \`Bearer \${config.SLACK_BOT_TOKEN}\`,
+          "Authorization": "Bearer " + config.SLACK_BOT_TOKEN,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -99,7 +99,7 @@ serve(async (req) => {
             {
               type: "context",
               elements: [
-                { type: "mrkdwn", text: \`*DotoBot v5.2* | Orquestração: \${result.steps} passos | Memória: \${result.context_used ? "Ativa" : "Inativa"}\` }
+                { type: "mrkdwn", text: "*DotoBot v5.2* | Orquestração: " + result.steps + " passos | Memória: " + (result.context_used ? "Ativa" : "Inativa") }
               ]
             }
           ]
