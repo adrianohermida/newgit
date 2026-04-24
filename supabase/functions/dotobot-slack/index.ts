@@ -72,30 +72,35 @@ function slackToken(): string {
   return SLACK_USER_TOKEN || SLACK_BOT_TOKEN;
 }
 
-async function postSlack(channel: string, text: string, blocks?: unknown[]): Promise<void> {
-  const payload: Record<string, unknown> = { channel, text, unfurl_links: false };
-  if (blocks) payload.blocks = blocks;
-  await fetch("https://slack.com/api/chat.postMessage", {
+async function callSlackApi(method: string, payload: Record<string, unknown>, token = slackToken()) {
+  const response = await fetch(`https://slack.com/api/${method}`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${slackToken()}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json; charset=utf-8",
     },
     body: JSON.stringify(payload),
   });
+
+  const raw = await response.text().catch(() => "");
+  const data = raw ? JSON.parse(raw) : {};
+  if (!response.ok || data?.ok === false) {
+    throw new Error(data?.error || `Slack API ${method} falhou (${response.status})`);
+  }
+
+  return data as Record<string, unknown>;
+}
+
+async function postSlack(channel: string, text: string, blocks?: unknown[]): Promise<void> {
+  const payload: Record<string, unknown> = { channel, text, unfurl_links: false };
+  if (blocks) payload.blocks = blocks;
+  await callSlackApi("chat.postMessage", payload);
 }
 
 async function postSlackEphemeral(channel: string, user: string, text: string, blocks?: unknown[]): Promise<void> {
   const payload: Record<string, unknown> = { channel, user, text };
   if (blocks) payload.blocks = blocks;
-  await fetch("https://slack.com/api/chat.postEphemeral", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${slackToken()}`,
-      "Content-Type": "application/json; charset=utf-8",
-    },
-    body: JSON.stringify(payload),
-  });
+  await callSlackApi("chat.postEphemeral", payload);
 }
 
 function divider() {
@@ -128,6 +133,280 @@ function actions(btns: Array<{ text: string; value: string; style?: string }>) {
       ...(b.style ? { style: b.style } : {}),
     })),
   };
+}
+
+function homeNavButton(label: string, tab: string, active: boolean) {
+  return {
+    type: "button",
+    text: { type: "plain_text", text: label, emoji: true },
+    value: tab,
+    action_id: "home_nav",
+    ...(active ? { style: "primary" } : {}),
+  };
+}
+
+function chunkList(items: string[], size: number) {
+  const chunks: string[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function openSlackDm(userId: string): Promise<string> {
+  const data = await callSlackApi("conversations.open", { users: userId });
+  const channelId = String((data.channel as Record<string, unknown> | undefined)?.id || "");
+  if (!channelId) throw new Error("Nao foi possivel abrir DM com o usuario.");
+  return channelId;
+}
+
+type HomeTab = "inicio" | "mensagens" | "sobre";
+
+function buildHomeBlocks(tab: HomeTab) {
+  const nav = {
+    type: "actions",
+    elements: [
+      homeNavButton("Início", "inicio", tab === "inicio"),
+      homeNavButton("Mensagens", "mensagens", tab === "mensagens"),
+      homeNavButton("Sobre", "sobre", tab === "sobre"),
+    ],
+  };
+
+  const blocks: unknown[] = [
+    header("DotoBot"),
+    context([
+      "*Assistente operacional do HMADV no Slack*",
+      "_App Home ativa com atalhos reais, status do pipeline e catálogo de comandos_",
+    ]),
+    nav,
+    divider(),
+  ];
+
+  if (tab === "inicio") {
+    blocks.push(
+      section(
+        "*Painel rápido*\n" +
+        "Use os botões abaixo para abrir uma conversa, atualizar a Home ou disparar consultas operacionais sem depender de slash command."
+      ),
+    );
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Nova conversa", emoji: true },
+          value: "new_conversation",
+          action_id: "home_quick_action",
+          style: "primary",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Status do pipeline", emoji: true },
+          value: "status",
+          action_id: "home_quick_action",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Pendências", emoji: true },
+          value: "pendencias",
+          action_id: "home_quick_action",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Atualizar Home", emoji: true },
+          value: "refresh_inicio",
+          action_id: "home_quick_action",
+        },
+      ],
+    });
+    blocks.push(divider());
+    blocks.push(
+      section(
+        "*Saúde funcional*\n" +
+        "• App Home: *ativa*\n" +
+        "• Slash commands: *ativos via* `/dotobot`\n" +
+        "• Botões da Home: *tratados pela edge function*\n" +
+        "• Catálogo de comandos: *disponível na seção Sobre*"
+      ),
+    );
+    blocks.push(
+      context([
+        "_Se os botões pararem de responder, valide Interactivity + Request URL apontando para esta edge function._",
+      ]),
+    );
+  }
+
+  if (tab === "mensagens") {
+    blocks.push(
+      section(
+        "*Mensagens*\n" +
+        "O botão abaixo inicia uma DM operacional com o DotoBot. Isso cobre o fluxo de abertura rápida enquanto o cabeçalho nativo da aba `Mensagens` depende da configuração do app no Slack."
+      ),
+    );
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Nova conversa", emoji: true },
+          value: "new_conversation",
+          action_id: "home_quick_action",
+          style: "primary",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Enviar ajuda na DM", emoji: true },
+          value: "help_dm",
+          action_id: "home_quick_action",
+        },
+      ],
+    });
+    blocks.push(divider());
+    blocks.push(
+      section(
+        "*Sugestões para iniciar*\n" +
+        "• `status`\n" +
+        "• `pendencias`\n" +
+        "• `publicacoes`\n" +
+        "• `resumir 0000000-00.0000.0.00.0000`\n" +
+        "• `perguntar quais integrações estão ativas hoje?`"
+      ),
+    );
+    blocks.push(
+      context([
+        "_Para colocar `Nova conversa` no cabeçalho nativo da aba Mensagens, o app manifest também precisa estar alinhado no Slack._",
+      ]),
+    );
+  }
+
+  if (tab === "sobre") {
+    const commandGroups = [
+      "*Painel e status*",
+      "`/dotobot status`",
+      "`/dotobot pendencias`",
+      "`/dotobot publicacoes`",
+      "`/dotobot andamentos`",
+      "`/dotobot audiencias`",
+      "`/dotobot prazos`",
+      "`/dotobot deals-status`",
+      "*Sincronização e enriquecimento*",
+      "`/dotobot drain-advise`",
+      "`/dotobot backfill`",
+      "`/dotobot backfill-status`",
+      "`/dotobot importar-planilhas`",
+      "`/dotobot sync-publicacoes`",
+      "`/dotobot extrair-audiencias`",
+      "`/dotobot extrair-partes`",
+      "`/dotobot criar-processos`",
+      "`/dotobot processo-sync`",
+      "`/dotobot deals-sync`",
+      "`/dotobot tipo-processo`",
+      "`/dotobot prazo-fim`",
+      "*IA e higienização*",
+      "`/dotobot perguntar ...`",
+      "`/dotobot resumir ...`",
+      "`/dotobot enriquecer-ia`",
+      "`/dotobot ia-status`",
+      "`/dotobot fix-activities`",
+      "`/dotobot repair-orphans`",
+      "`/dotobot repair-instancia`",
+      "`/dotobot repair-partes`",
+      "`/dotobot repair-fs`",
+      "`/dotobot reset-datajud`",
+      "`/dotobot higienizar-contatos`",
+    ];
+
+    blocks.push(
+      section(
+        "*Sobre o DotoBot*\n" +
+        "O backend ativo hoje concentra Slack, Advise, DataJud, Freshsales, TPU, relatórios operacionais e enriquecimento com IA."
+      ),
+    );
+    blocks.push(divider());
+
+    for (const group of chunkList(commandGroups, 8)) {
+      blocks.push(section(group.join("\n")));
+      blocks.push(divider());
+    }
+
+    blocks.push(
+      section(
+        "*Integrações mapeadas no backend atual*\n" +
+        "• Slack\n" +
+        "• Supabase\n" +
+        "• Advise\n" +
+        "• DataJud\n" +
+        "• Freshsales\n" +
+        "• TPU/CNJ local"
+      ),
+    );
+  }
+
+  return blocks;
+}
+
+async function publishHomeView(userId: string, tab: HomeTab = "inicio") {
+  await callSlackApi("views.publish", {
+    user_id: userId,
+    view: {
+      type: "home",
+      callback_id: "dotobot_home",
+      private_metadata: JSON.stringify({ tab }),
+      blocks: buildHomeBlocks(tab),
+    },
+  });
+}
+
+async function handleHomeQuickAction(userId: string, action: string) {
+  if (action.startsWith("refresh_")) {
+    const tab = action.replace("refresh_", "") as HomeTab;
+    await publishHomeView(userId, tab);
+    return;
+  }
+
+  const dmChannel = await openSlackDm(userId);
+
+  if (action === "new_conversation") {
+    await postSlack(
+      dmChannel,
+      "Nova conversa iniciada. Posso ajudar com status, publicações, andamentos, audiências, prazos, IA e integrações do escritório.",
+    );
+    return;
+  }
+
+  if (action === "help_dm") {
+    await handleHelp(dmChannel);
+    return;
+  }
+
+  if (action === "status") {
+    await handleStatus(dmChannel, userId);
+    return;
+  }
+
+  if (action === "pendencias") {
+    await handlePendencias(dmChannel);
+    return;
+  }
+}
+
+async function verifySlackSignature(req: Request, rawBody: string) {
+  const timestamp = req.headers.get("x-slack-request-timestamp");
+  const signature = req.headers.get("x-slack-signature");
+
+  if (!SLACK_SIGNING_SECRET || !timestamp || !signature) return false;
+
+  const base = `v0:${timestamp}:${rawBody}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(SLACK_SIGNING_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(base));
+  const expected = `v0=${Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  return expected === signature;
 }
 
 function fmtDate(d: string | null | undefined): string {
@@ -1421,13 +1700,41 @@ async function handleNotifyCronStatus(body: Record<string, unknown>): Promise<Re
 // ── Roteador Principal ────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  const url = new URL(req.url);
   const contentType = req.headers.get("content-type") || "";
+  const rawBody = await req.text();
+  const isSlackRequest =
+    Boolean(req.headers.get("x-slack-signature")) ||
+    rawBody.includes("\"type\":\"url_verification\"") ||
+    rawBody.includes("\"type\":\"event_callback\"") ||
+    rawBody.startsWith("payload=") ||
+    rawBody.includes("command=%2Fdotobot") ||
+    rawBody.includes("command=/dotobot");
+
+  if (isSlackRequest) {
+    const signatureOk = await verifySlackSignature(req, rawBody);
+    if (!signatureOk) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+  }
 
   // Notificações automáticas via POST JSON (chamadas por outras edge functions)
   if (contentType.includes("application/json")) {
-    const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+    const body = rawBody ? JSON.parse(rawBody) as Record<string, unknown> : {};
     const action = String(body.action || "");
+
+    if (body.type === "url_verification") {
+      return new Response(JSON.stringify({ challenge: body.challenge }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (body.type === "event_callback") {
+      const event = body.event as Record<string, unknown> | undefined;
+      if (event?.type === "app_home_opened" && typeof event.user === "string") {
+        await publishHomeView(event.user, "inicio");
+      }
+      return new Response("OK");
+    }
 
     if (action === "notify_publicacao") return handleNotifyPublicacao(body);
     if (action === "notify_andamento") return handleNotifyAndamento(body);
@@ -1565,8 +1872,36 @@ Deno.serve(async (req) => {
 
   // Comandos Slash do Slack (application/x-www-form-urlencoded)
   if (contentType.includes("application/x-www-form-urlencoded")) {
-    const formText = await req.text();
-    const params = new URLSearchParams(formText);
+    const params = new URLSearchParams(rawBody);
+
+    if (params.has("payload")) {
+      const payloadRaw = params.get("payload") || "{}";
+      const payload = JSON.parse(payloadRaw) as Record<string, unknown>;
+      const payloadType = String(payload.type || "");
+
+      if (payloadType === "block_actions") {
+        const userId = String((payload.user as Record<string, unknown> | undefined)?.id || "");
+        const actionList = Array.isArray(payload.actions) ? payload.actions as Array<Record<string, unknown>> : [];
+        const firstAction = actionList[0];
+        const actionId = String(firstAction?.action_id || "");
+        const value = String(firstAction?.value || "");
+
+        if (actionId === "home_nav" && userId) {
+          await publishHomeView(userId, (value || "inicio") as HomeTab);
+        }
+
+        if (actionId === "home_quick_action" && userId) {
+          await handleHomeQuickAction(userId, value);
+          const nextTab: HomeTab = value === "new_conversation" || value === "help_dm" ? "mensagens" : "inicio";
+          await publishHomeView(userId, nextTab);
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const command = params.get("command") || "";
     const text = (params.get("text") || "").trim().toLowerCase();
     const channelId = params.get("channel_id") || SLACK_CHANNEL;
