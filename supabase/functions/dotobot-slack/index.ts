@@ -546,6 +546,209 @@ async function invokeFunction(name: string, body: unknown): Promise<unknown> {
   return r.json().catch(() => ({ error: "timeout ou resposta inválida" }));
 }
 
+async function invokeFunctionRequest(
+  name: string,
+  options: {
+    method?: "GET" | "POST";
+    query?: Record<string, string | number | boolean | null | undefined>;
+    body?: unknown;
+  } = {},
+): Promise<unknown> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(options.query || {})) {
+    if (value === null || value === undefined || value === "") continue;
+    query.set(key, String(value));
+  }
+
+  const url = `${SELF_URL}/${name}${query.size ? `?${query.toString()}` : ""}`;
+  const method = options.method || (options.body ? "POST" : "GET");
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${SVC_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: method === "POST" ? JSON.stringify(options.body || {}) : undefined,
+    signal: AbortSignal.timeout(55000),
+  });
+
+  return response.json().catch(() => ({ error: "timeout ou resposta inválida" }));
+}
+
+function extractCnjFromQuestion(text: string): string | null {
+  const match = String(text || "").match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}|\d{20}/);
+  return match ? match[0] : null;
+}
+
+function extractUuidFromQuestion(text: string): string | null {
+  const match = String(text || "").match(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i);
+  return match ? match[0] : null;
+}
+
+function extractIntegerFromQuestion(text: string): number | null {
+  const match = String(text || "").match(/\b\d+\b/);
+  return match ? Number(match[0]) : null;
+}
+
+function extractIsoDates(text: string): string[] {
+  return String(text || "").match(/\b\d{4}-\d{2}-\d{2}\b/g) || [];
+}
+
+function summarizeDeterministicQuestionResult(
+  route: string,
+  data: Record<string, unknown>,
+  context: Record<string, unknown> = {},
+): string {
+  switch (route) {
+    case "advise_sync":
+      return context.action === "status"
+        ? "Status do sincronismo do Advise consultado com sucesso."
+        : context.action === "sync_range"
+          ? `Sincronização do Advise executada para o período ${context.data_inicio} até ${context.data_fim}.`
+          : "Sincronização incremental de publicações do Advise executada com sucesso.";
+    case "datajud_search":
+      return `Consulta DataJud concluída para ${data.numero_cnj || context.numeroProcesso || "o processo informado"}.`;
+    case "processo_sync":
+      return context.action === "pipeline"
+        ? "Pipeline de sincronização de processos executado com sucesso."
+        : context.action === "sync_bidirectional"
+          ? "Sincronização bidirecional de processos executada com sucesso."
+          : "Rotina de processos executada com sucesso.";
+    case "publicacoes_prazos":
+      return context.action === "status"
+        ? "Status do cálculo de prazos consultado com sucesso."
+        : context.action === "alertas"
+          ? "Verificação de alertas de prazos executada com sucesso."
+          : "Cálculo de prazos executado com sucesso.";
+    case "publicacoes_audiencias":
+      return context.action === "status"
+        ? "Status da extração de audiências consultado com sucesso."
+        : context.action === "sync_fs"
+          ? "Sincronização de audiências com o Freshsales executada com sucesso."
+          : "Extração de audiências executada com sucesso.";
+    case "fc_last_conversation":
+      return `A última conversa encontrada foi ${data.conversation_id || "n/d"}, com status ${data.status || "n/d"}.`;
+    case "fc_update_conversation":
+      return `Conversa ${data.conversation_id || context.conversation_id || "informada"} atualizada com sucesso.`;
+    default:
+      return "A ação foi realizada com sucesso.";
+  }
+}
+
+async function tryDeterministicQuestionRoute(query: string): Promise<{ route: string; answer: string; data: unknown } | null> {
+  const normalized = normalizeTemporalText(query);
+  const cnj = extractCnjFromQuestion(query);
+  const uuid = extractUuidFromQuestion(query);
+  const numericId = extractIntegerFromQuestion(query);
+  const isoDates = extractIsoDates(query);
+
+  if (normalized.includes("sincronizar advise") || normalized.includes("sync advise")) {
+    const action = isoDates.length >= 2 ? "sync_range" : normalized.includes("status") ? "status" : "sync";
+    const data = await invokeFunctionRequest("advise-sync", {
+      method: "GET",
+      query: {
+        action,
+        data_inicio: isoDates[0],
+        data_fim: isoDates[1],
+      },
+    }) as Record<string, unknown>;
+    return {
+      route: "advise_sync",
+      answer: summarizeDeterministicQuestionResult("advise_sync", data, { action, data_inicio: isoDates[0], data_fim: isoDates[1] }),
+      data,
+    };
+  }
+
+  if ((normalized.includes("datajud") || normalized.includes("consultar cnj") || normalized.includes("buscar processo no datajud")) && cnj) {
+    const data = await invokeFunctionRequest("datajud-search", {
+      method: "POST",
+      body: { numeroProcesso: cnj, persistir: true },
+    }) as Record<string, unknown>;
+    return {
+      route: "datajud_search",
+      answer: summarizeDeterministicQuestionResult("datajud_search", data, { numeroProcesso: cnj }),
+      data,
+    };
+  }
+
+  if (normalized.includes("sincronizar processo") || normalized.includes("processo sync") || normalized.includes("pipeline de processos")) {
+    const action = normalized.includes("pipeline")
+      ? "pipeline"
+      : normalized.includes("bidirecional")
+        ? "sync_bidirectional"
+        : "levantamento";
+    const data = await invokeFunctionRequest("processo-sync", {
+      method: "GET",
+      query: { action },
+    }) as Record<string, unknown>;
+    return {
+      route: "processo_sync",
+      answer: summarizeDeterministicQuestionResult("processo_sync", data, { action }),
+      data,
+    };
+  }
+
+  if (normalized.includes("prazo") && (normalized.includes("calcular") || normalized.includes("alerta") || normalized.includes("status"))) {
+    const action = normalized.includes("status") ? "status" : normalized.includes("alerta") ? "alertas" : "calcular_batch";
+    const data = await invokeFunctionRequest("publicacoes-prazos", {
+      method: "POST",
+      body: { action, batch_size: 50 },
+    }) as Record<string, unknown>;
+    return {
+      route: "publicacoes_prazos",
+      answer: summarizeDeterministicQuestionResult("publicacoes_prazos", data, { action }),
+      data,
+    };
+  }
+
+  if (normalized.includes("audiencia") && (normalized.includes("extrair") || normalized.includes("sincronizar") || normalized.includes("status"))) {
+    const action = normalized.includes("status") ? "status" : normalized.includes("freshsales") ? "sync_fs" : "extract_batch";
+    const data = await invokeFunctionRequest("publicacoes-audiencias", {
+      method: "POST",
+      body: { action, ...(numericId ? { publicacao_id: String(numericId) } : {}) },
+    }) as Record<string, unknown>;
+    return {
+      route: "publicacoes_audiencias",
+      answer: summarizeDeterministicQuestionResult("publicacoes_audiencias", data, { action, publicacao_id: numericId }),
+      data,
+    };
+  }
+
+  if ((normalized.includes("ultima conversa") || normalized.includes("last conversation")) && uuid) {
+    const data = await invokeFunctionRequest("fc-last-conversation", {
+      method: "GET",
+      query: { contact_id: uuid },
+    }) as Record<string, unknown>;
+    return {
+      route: "fc_last_conversation",
+      answer: summarizeDeterministicQuestionResult("fc_last_conversation", data, { contact_id: uuid }),
+      data,
+    };
+  }
+
+  if ((normalized.includes("atualizar conversa") || normalized.includes("mudar status da conversa")) && uuid) {
+    const status =
+      normalized.includes("resolvid") ? "resolved" :
+      normalized.includes("fechad") ? "closed" :
+      normalized.includes("penden") ? "pending" :
+      normalized.includes("abert") ? "open" : null;
+    const data = await invokeFunctionRequest("fc-update-conversation", {
+      method: "POST",
+      body: {
+        conversation_id: uuid,
+        ...(status ? { status } : {}),
+      },
+    }) as Record<string, unknown>;
+    return {
+      route: "fc_update_conversation",
+      answer: summarizeDeterministicQuestionResult("fc_update_conversation", data, { conversation_id: uuid, status }),
+      data,
+    };
+  }
+
+  return null;
+}
+
 // ── Handlers de Comandos ──────────────────────────────────────────────────────
 
 async function handleStatus(channel: string, userId: string): Promise<void> {
@@ -1458,6 +1661,19 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
       context([`_Referência temporal: America/Sao_Paulo | Acionado por <@${userId}>_`]),
     ];
     await postSlack(channel, temporalAnswer, blocks);
+    return;
+  }
+
+  const deterministicRoute = await tryDeterministicQuestionRoute(query).catch(() => null);
+  if (deterministicRoute) {
+    const blocks = [
+      header("DotoBot - Resposta Operacional"),
+      section(`*Pergunta:* _"${query}"_`),
+      divider(),
+      section(deterministicRoute.answer),
+      context([`_Rota deterministica: ${deterministicRoute.route} | Acionado por <@${userId}>_`]),
+    ];
+    await postSlack(channel, deterministicRoute.answer, blocks);
     return;
   }
 
