@@ -30,6 +30,11 @@ export class AiOrchestrator {
   getAvailableTools(): ToolDefinition[] {
     return [
       {
+        name: "cloudflare_agent_build",
+        description: "Gera código base para um novo agente de IA usando o Cloudflare Agents SDK.",
+        parameters: { name: "string", capabilities: "string[] (ex: ['state', 'schedule', 'rpc'])" }
+      },
+      {
         name: "daily_summary",
         description: "Gera um resumo diário operacional (deals, faturas, audiências, tickets).",
         parameters: {}
