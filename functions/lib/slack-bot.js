@@ -482,7 +482,7 @@ async function maybeRunWorkspaceCommand(env, text) {
 async function runSlackAssistant(env, { text, channelId, threadTs, userProfile, slackUserId }) {
   const workspaceCommand = await maybeRunWorkspaceCommand(env, text).catch((error) => ({
     ok: false,
-    text: `Falha ao executar comando operacional: ${error.message || error}`,
+    text: "Tive um problema ao executar essa acao agora. Posso tentar novamente ou seguir por outro caminho.",
     mode: "workspace_op_error",
   }));
   if (workspaceCommand) {
@@ -524,14 +524,21 @@ async function runSlackAssistant(env, { text, channelId, threadTs, userProfile, 
           ? contact360.data.judicial.identifiers.account_ids[0] || null
           : null,
       },
-      system_prompt_enhancement: enhancement,
+      system_prompt_enhancement: [
+        "Canal Slack: responda em no maximo 2 a 4 linhas quando a pergunta for simples.",
+        "Nao exponha etapas internas, ferramentas, memoria, logs, tokens ou bastidores.",
+        "Se houver erro, diga apenas que houve um problema momentaneo e ofereca nova tentativa ou alternativa.",
+        enhancement,
+      ]
+        .filter(Boolean)
+        .join(" "),
     },
   });
 
   const resultText =
     clean(chatResult?.resultText) ||
     clean(chatResult?.result?.message) ||
-    "Nao consegui produzir uma resposta util nesta tentativa.";
+    "Tive um problema ao acessar isso agora. Posso tentar novamente ou buscar de outra forma.";
 
   await callFreddySaveMemory(env, {
     session_id: buildSlackSessionId(channelId, threadTs, slackUserId),
