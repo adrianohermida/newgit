@@ -4,8 +4,16 @@ Data da auditoria: 2026-04-24
 
 ## Escopo
 
-Esta auditoria considera a superficie real encontrada em `D:\Github\newgit\supabase\functions`.
-No workspace atual nao existe um MCP Supabase HMADV configurado em `.mcp.json`; portanto, a fonte de verdade operacional e o conjunto de Edge Functions versionadas no repositorio.
+Esta auditoria considera duas fontes:
+
+- a superficie real encontrada em `D:\Github\newgit\supabase\functions`
+- o MCP Supabase acessivel na sessao atual
+
+Observacao importante:
+
+- o MCP do Supabase respondeu normalmente
+- porem `list_edge_functions` retornou lista vazia no projeto conectado naquele momento
+- por isso a fonte de verdade operacional desta auditoria continua sendo o conjunto de Edge Functions versionadas no repositorio, cruzado com o MCP disponivel
 
 Resumo:
 
@@ -13,8 +21,10 @@ Resumo:
 - 1 pasta `_shared` de bibliotecas internas
 - Cobertura real forte em `Advise`, `DataJud`, `TPU`, `Freshsales`, `Freshchat`, `Slack` e pipeline HMADV
 - Cobertura parcial em `Freshdesk` via bibliotecas do worker, mas sem Edge Function dedicada ativa no Supabase
-- `Google Calendar` existe em helper local, mas nao aparece como Edge Function dedicada
-- `Google Drive` nao apareceu como Edge Function ativa no Supabase
+- `Google Calendar` existe em helper local e tambem ha connector rico no ambiente Codex
+- `Google Drive` nao apareceu como Edge Function ativa no Supabase nem como connector disponivel
+- `Zoom` tem cobertura local forte por biblioteca, mas sem connector dedicado no ambiente
+- `SurveyMonkey` nao apareceu nem localmente nem como connector disponivel
 
 ## Achados principais
 
@@ -265,9 +275,25 @@ Ha bibliotecas e chamadas no worker principal para Freshdesk, entao existe base 
 
 Existe integracao helper em `functions/lib/agendamento-helpers.js`, inclusive chamadas ao Google Calendar, mas nao uma Edge Function dedicada em `supabase/functions` para o DotoBot operar diretamente.
 
+Ao mesmo tempo, o ambiente Codex atual expoe connector rico de Google Calendar, o que permite cobertura operacional forte se o DotoBot passar a orquestrar connector + backend HMADV.
+
 ### Google Drive
 
 Nao apareceu Edge Function dedicada no Supabase para Google Drive.
+
+### Zoom
+
+Existe camada local forte em `functions/lib/zoom-admin.js` com:
+
+- token OAuth
+- create/update/get/delete meeting
+- list participants
+
+Mas ainda sem Edge Function dedicada nem surface de tools do agente equivalente a cobertura total.
+
+### SurveyMonkey
+
+Nao foi encontrada integracao local nem connector disponivel nesta sessao.
 
 ## Recomendacao de catalogo de tools do DotoBot
 
@@ -309,6 +335,27 @@ Nao apareceu Edge Function dedicada no Supabase para Google Drive.
 - abrir ticket
 
 Observacao: hoje isso depende mais da camada do worker do que de Edge Functions do Supabase.
+
+### Grupo `google_calendar`
+
+- listar agendas
+- consultar eventos
+- criar evento
+- atualizar evento
+- excluir evento
+- consultar disponibilidade
+
+Observacao: a cobertura total mais realista hoje e via connector do Codex, nao via Edge Function do HMADV.
+
+### Grupo `zoom`
+
+- criar reuniao
+- atualizar reuniao
+- consultar reuniao
+- listar participantes
+- excluir reuniao
+
+Observacao: hoje a implementacao esta em biblioteca local, sem Edge Function dedicada.
 
 ### Grupo `pipeline`
 
