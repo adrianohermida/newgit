@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
 
     try {
       // Chamar advise-sync para 1 dia com até 100 páginas
-      const result = await callFn('advise-sync', {
+      const result = await callFn(`advise-sync?action=sync_range&data_inicio=${diaInicio}&data_fim=${diaFim}&max_paginas=100`, {
         action: 'sync_range',
         data_inicio: diaInicio,
         data_fim: diaFim,
