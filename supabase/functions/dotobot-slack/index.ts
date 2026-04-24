@@ -1868,32 +1868,46 @@ async function handleDmConversation(channelId: string, userId: string, text: str
     }
   }
 
-  // Conversa livre — encaminha para ai-core com contexto jurídico HMADV e memória RAG
+    // Conversa livre — Orquestração Multitarefa (v5.1)
   try {
-    // Buscar contexto RAG para a conversa livre
+    const sessionId = `slack-${userId}`;
     const ragContext = await searchRagContext(text, 3);
     
-    const systemPrompt = `Você é o DotoBot v5, assistente jurídico inteligente do escritório Hermida Maia Advocacia (HMADV).
-Responda de forma profissional, objetiva e em português brasileiro.
-Você tem acesso a dados de processos, clientes, prazos e publicações do escritório através da sua memória RAG.
-Para consultas específicas de dados estruturados, sugira o comando adequado (ex: /dotobot status, /dotobot prazos).
-Seja conciso mas completo. Use formatação Slack (*negrito*, _itálico_, \`código\`).
+    // Instanciar o orquestrador multitarefa
+    const { AiOrchestrator } = await import("./ai-orchestrator.ts");
+    const orchestrator = new AiOrchestrator({
+      AI_CORE_URL,
+      HMADV_GATEWAY_SECRET,
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY: SVC_KEY
+    });
 
-=== MEMÓRIA DO PROJETO (RAG) ===
-${ragContext || "Nenhum contexto específico encontrado na memória para esta consulta."}`;
-
-    const sessionId = `slack-${userId}`;
-    const { text: resposta, model, provider } = await callAiCore(
-      [{ role: "user", content: text }],
-      sessionId,
-      systemPrompt
-    );
+    const { result: resposta, steps } = await orchestrator.run(text, {
+      session_id: sessionId,
+      user_id: userId,
+      rag: ragContext
+    });
 
     // Persistir a interação na memória RAG
     saveRagMemory(sessionId, text, resposta).catch(() => null);
 
-    const footer = `_DotoBot v5 • ${provider} • ${model}_`;
-    await postSlack(channelId, resposta + "\n\n" + footer);
+    // Remover a reação de "olhos" antes de responder
+    fetch("https://slack.com/api/reactions.remove", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackToken()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        name: "eyes",
+        timestamp: body.event.ts,
+      }),
+    }).catch(() => null);
+
+    const stepDetails = steps.length > 1 ? `\n\n_Orquestração: ${steps.length} passos executados_` : "";
+    const footer = `\n\n_DotoBot v5.1 • Multitarefa Ativa_` + stepDetails;
+    await postSlack(channelId, resposta + footer);
   } catch (e) {
     await postSlack(channelId, `❌ Erro na conversa: ${String(e)}`);
   }
@@ -2097,8 +2111,27 @@ Deno.serve(async (req) => {
       { headers: { "Content-Type": "application/json" } }
     );
 
-    // Processar em background
+    // Feedback visual imediato para comandos longos ou conversa
     const [cmd, ...args] = (text || "status").split(" ");
+    const isAiCommand = cmd.startsWith("perguntar") || cmd.startsWith("resumir") || (!text.startsWith("/") && !text.startsWith("dotobot "));
+    
+    if (isAiCommand) {
+      // Adicionar uma reação de "olhos" ou "pensando" para feedback imediato
+      fetch("https://slack.com/api/reactions.add", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${slackToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: channelId,
+          name: "eyes",
+          timestamp: body.event.ts,
+        }),
+      }).catch(() => null);
+    }
+
+    // Processar em background
     EdgeRuntime.waitUntil((async () => {
       try {
         if (cmd === "status") await handleStatus(channelId, userId);
