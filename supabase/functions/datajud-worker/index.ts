@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { checkRateLimit, safeBatchSize } from '../_shared/rate-limit.ts';
 
 /**
  * datajud-worker  v11
@@ -1001,6 +1002,12 @@ Deno.serve(async (req: Request) => {
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, erro: String(e) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
+  }
+
+  // Rate limit: ~5 chamadas FS por item (GET account + POST activity + PUT processo + GET datajud + POST nota)
+  const rlWorker = await checkRateLimit(db, 'datajud-worker', 5 * 5);
+  if (!rlWorker.ok) {
+    return new Response(JSON.stringify({ ok: false, motivo: 'rate_limit_global', slots_avail: rlWorker.slots_avail, total_used: rlWorker.total_used }), { headers: { 'Content-Type': 'application/json' } });
   }
 
   // Auto-libera jobs travados há mais de 8 minutos

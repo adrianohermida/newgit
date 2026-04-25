@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { checkRateLimit, safeBatchSize } from '../_shared/rate-limit.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -404,6 +405,10 @@ Deno.serve(async (req) => {
     if (action === 'fix_activities') {
       const batchSize = Math.max(1, Math.min(Number(body.batch_size ?? url.searchParams.get('batch_size') ?? 20), 50));
       const cursor    = Number(body.cursor ?? url.searchParams.get('cursor') ?? 0);
+      // Rate limit: 1 chamada FS por publicação (PUT activity)
+      const rl = await checkRateLimit(db, 'fs-account-repair', batchSize);
+      if (!rl.ok) return new Response(JSON.stringify({ ok: false, motivo: 'rate_limit_global', slots_avail: rl.slots_avail }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+      const safeBatch = safeBatchSize(rl.slots_avail, 1, batchSize);
 
       // Buscar publicações com activity_id registrada mas sem completed_date
       const { data: pubs } = await db.from('publicacoes')
@@ -457,6 +462,9 @@ Deno.serve(async (req) => {
     if (action === 'batch') {
       const limit = Math.max(1, Math.min(Number(body.limit ?? url.searchParams.get('limit') ?? 10), 50));
       const offset = Math.max(0, Number(body.offset ?? url.searchParams.get('offset') ?? 0));
+      // Rate limit: ~5 chamadas FS por processo (GET account + PUT campos custom)
+      const rlBatch = await checkRateLimit(db, 'fs-account-repair', limit * 5);
+      if (!rlBatch.ok) return new Response(JSON.stringify({ ok: false, motivo: 'rate_limit_global', slots_avail: rlBatch.slots_avail }), { status: 429, headers: { 'Content-Type': 'application/json' } });
 
       const { data: processos } = await db.from('processos')
         .select('id,numero_cnj,numero_processo,account_id_freshsales')

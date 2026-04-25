@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { checkRateLimit, safeBatchSize } from '../_shared/rate-limit.ts';
 /**
  * datajud-andamentos-sync  v1
  *
@@ -228,6 +229,12 @@ Deno.serve(async (req: Request) => {
   }
 
   // sync_batch: processar os N processos com fs_deal_id e sem sync recente
+  // Rate limit: ~3 chamadas FS por processo (POST nota + GET deal + PUT deal)
+  const rlAndamentos = await checkRateLimit(db, 'datajud-andamentos-sync', BATCH_SIZE * 3);
+  if (!rlAndamentos.ok) {
+    return Response.json({ ok: false, motivo: 'rate_limit_global', slots_avail: rlAndamentos.slots_avail });
+  }
+  const safeBatchAndamentos = safeBatchSize(rlAndamentos.slots_avail, 3, BATCH_SIZE);
   const { data: processos } = await dbJ
     .from('processos')
     .select('id, cnj, fs_deal_id, tribunal_sigla')

@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { checkRateLimit, safeBatchSize } from '../_shared/rate-limit.ts';
 
 /**
  * processo-sync  v1
@@ -919,7 +920,15 @@ Deno.serve(async (req: Request) => {
         break;
 
       case 'push_freshsales':    // Sprint 5
-        result = await sprintPushFs(limite, batch);
+        // Rate limit: ~4 chamadas FS por processo (POST account + PUT campos + GET verify + POST contact)
+        {
+          const rlPush = await checkRateLimit(db, 'processo-sync', batch * 4);
+          if (!rlPush.ok) {
+            result = { ok: false, motivo: 'rate_limit_global', slots_avail: rlPush.slots_avail };
+          } else {
+            result = await sprintPushFs(limite, safeBatchSize(rlPush.slots_avail, 4, batch));
+          }
+        }
         break;
 
       case 'cron_advise':        // Sprint 6
@@ -935,7 +944,10 @@ Deno.serve(async (req: Request) => {
         const s1 = await sprintLevantamento();
         const s4 = await sprintEnriquecer(Math.min(limite * 5, 500)); // enriquece mais pubs
         const s2 = await sprintSyncBidirectional(Math.min(limite, 30));
-        const s5 = await sprintPushFs(limite, batch);
+        // Rate limit para pipeline
+        const rlPipeline = await checkRateLimit(db, 'processo-sync', batch * 4);
+        const safeBatchPipeline = rlPipeline.ok ? safeBatchSize(rlPipeline.slots_avail, 4, batch) : 0;
+        const s5 = safeBatchPipeline > 0 ? await sprintPushFs(limite, safeBatchPipeline) : { ok: false, motivo: 'rate_limit_global' };
         const s7 = await sprintAuditoria();
         result = { s1_levantamento: s1, s4_enriquecimento: s4, s2_sync_bi: s2, s5_push_fs: s5, s7_auditoria: s7 };
         log('info','pipeline_fim');
