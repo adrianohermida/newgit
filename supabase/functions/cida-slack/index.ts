@@ -669,8 +669,10 @@ function isCircuitOpen(name: string): boolean {
   return false;
 }
 
+let _lastProviderUsed = 'unknown';
 function recordSuccess(name: string) {
   _circuitState[name] = { failures: 0, openUntil: 0 };
+  _lastProviderUsed = name;
 }
 
 function recordFailure(name: string) {
@@ -835,7 +837,7 @@ function llmFactory(supabaseUrl?: string, serviceRoleKey?: string) {
     throw new Error(`[llm-hub] Todos os provedores falharam: ${errors.join(' | ')}`);
   };
 
-  return { runLLM };
+  return { runLLM, get _lastProvider() { return _lastProviderUsed; } };
 }
 
 function orchestratorFactory(deps: {
@@ -1048,37 +1050,44 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
       activeSystemPrompt += "\n\n" + CIDA_LEARNING_MODE_PROMPT + "\n\n" + CIDA_LEARNING_VALIDATED_PROMPT;
     }
 
+    // ── Montar mensagens com histórico individual (melhor para o LLM) ────────
     const messages: ChatMessage[] = [{ role: 'system', content: activeSystemPrompt }];
 
-    if (history.length) {
-      messages.push({
-        role: 'user',
-        content:
-          'Memória (resumo histórico do canal - últimos registros):\n' +
-          history.map((m) => `${m.role}: ${m.content}`).join('\n'),
-      });
+    // Histórico como mensagens individuais (últimas 10 para economizar tokens)
+    const recentHistory = history.slice(-10);
+    for (const m of recentHistory) {
+      messages.push({ role: m.role as 'user' | 'assistant', content: m.content.slice(0, 400) });
     }
 
+    // RAG comprimido (max 1500 chars para economizar tokens)
+    const ragCompressed = knowledgeText ? knowledgeText.slice(0, 1500) : '';
+
     const assembledUser = [
-      'Mensagem do cliente:',
       inputText,
-      '',
-      `Intenção detectada: ${intent.type}`,
-      cnj ? `CNJ extraído: ${cnj}` : '',
-      '',
-      knowledgeText ? `Conhecimento (RAG):\n${knowledgeText}` : 'Conhecimento (RAG): (não encontrado ou vazio)',
-      '',
-      toolContext.length ? `Contexto de tools:\n- ${toolContext.join('\n- ')}` : 'Contexto de tools: (nenhum)',
-      '',
-      'Agora responda como a Cida. Seja extremamente natural, humana e concisa, como em uma conversa de WhatsApp. NUNCA use formato de relatório, "Dados coletados" ou "Próximos passos". Apenas dê a resposta ou faça uma única pergunta.',
-    ].filter(Boolean).join('\n');
+      cnj ? `[CNJ: ${cnj}]` : '',
+      ragCompressed ? `[Base de conhecimento]\n${ragCompressed}` : '',
+      toolContext.length ? `[Contexto]\n${toolContext.join('\n')}` : '',
+    ].filter(Boolean).join('\n\n');
 
     messages.push({ role: 'user', content: assembledUser });
 
     const llmAnswer = await deps.llm.runLLM(messages);
+    
+    // ── Estimar tokens (aprox 4 chars = 1 token) ──────────────────────────
+    const totalChars = messages.reduce((acc, m) => acc + m.content.length, 0) + llmAnswer.length;
+    const estimatedTokens = Math.round(totalChars / 4);
+    const llmProviderUsed = (deps.llm as any)._lastProvider || 'ollama';
 
     await deps.memory.saveMemory(channel, 'user', inputText);
     await deps.memory.saveMemory(channel, 'assistant', llmAnswer);
+
+    // ── Rodapé de status (modelo, memória, tokens) ────────────────────────
+    const providerLabel = llmProviderUsed === 'cloudflare' ? '☁️ Cloudflare AI' :
+                          llmProviderUsed === 'ollama' ? '🦙 Ollama' :
+                          llmProviderUsed === 'huggingface' ? '🤗 HuggingFace' : llmProviderUsed;
+    const memCount = recentHistory.length + 1; // +1 pela mensagem atual
+    const footer = `\n\n_${providerLabel} · 💬 ${memCount} msgs · ⚡ ~${estimatedTokens} tokens_`;
+    const responseWithFooter = llmAnswer + footer;
 
     // ── Captura de aprendizado em modo ativo ──
     if (isLearningMode) {
@@ -1119,7 +1128,7 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
       console.log('[learning] item saved:', savedItem?.id, 'confidence:', confidence);
     }
 
-    return { response: llmAnswer };
+    return { response: responseWithFooter };
   };
 
   return { agent };
@@ -1167,6 +1176,36 @@ async function postToSlack(channel: string, text: string, thread_ts?: string) {
   }
 }
 
+// ── Deduplicação de eventos Slack ─────────────────────────────────────────────
+async function isEventAlreadyProcessed(supabaseUrl: string, serviceRoleKey: string, eventId: string): Promise<boolean> {
+  if (!eventId) return false;
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/processed_events?event_id=eq.${encodeURIComponent(eventId)}&limit=1`,
+      { headers: { 'apikey': serviceRoleKey, 'Authorization': `Bearer ${serviceRoleKey}` } }
+    );
+    if (!res.ok) return false;
+    const rows = await res.json();
+    return Array.isArray(rows) && rows.length > 0;
+  } catch { return false; }
+}
+
+async function markEventProcessed(supabaseUrl: string, serviceRoleKey: string, eventId: string): Promise<void> {
+  if (!eventId) return;
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/processed_events`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ event_id: eventId, processed_at: new Date().toISOString() }),
+    });
+  } catch { /* silencioso */ }
+}
+
 Deno.serve(async (req: Request) => {
   try {
     if (req.method !== 'POST') {
@@ -1174,6 +1213,13 @@ Deno.serve(async (req: Request) => {
         status: 405,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+
+    // ── Deduplicação: ignorar retries do Slack ─────────────────────────────
+    const retryNum = req.headers.get('X-Slack-Retry-Num');
+    if (retryNum && parseInt(retryNum) > 0) {
+      console.log('[handler] ignorando retry do Slack:', retryNum);
+      return new Response('OK', { status: 200 });
     }
 
     const body = await req.json().catch(() => null);
@@ -1187,6 +1233,7 @@ Deno.serve(async (req: Request) => {
     let channel_id = body?.channel_id;
     let thread_ts = undefined;
     let user_id = undefined;
+    let event_id: string | undefined = undefined;
 
     // Tratamento para eventos brutos do Slack
     if (body?.type === 'event_callback') {
@@ -1208,6 +1255,7 @@ Deno.serve(async (req: Request) => {
         channel_id = event.channel || '';
         thread_ts = event.thread_ts || event.ts;
         user_id = event.user;
+        event_id = body.event_id || event.ts || undefined;
         
         message = message.replace(/<@[^>]+>/g, '').trim();
         
@@ -1235,18 +1283,22 @@ Deno.serve(async (req: Request) => {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
     const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
-    console.log('[env] supabase vars check:', {
-      hasUrl: !!SUPABASE_URL,
-      urlPrefix: SUPABASE_URL.slice(0, 30),
-      hasKey: !!SERVICE_ROLE_KEY,
-      keyPrefix: SERVICE_ROLE_KEY.slice(0, 10),
-    });
-
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
       return new Response(JSON.stringify({ error: 'Missing Supabase env vars' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+
+    // ── Deduplicação por event_id no banco ────────────────────────────────
+    if (event_id && body?.type === 'event_callback') {
+      const alreadyProcessed = await isEventAlreadyProcessed(SUPABASE_URL, SERVICE_ROLE_KEY, event_id);
+      if (alreadyProcessed) {
+        console.log('[handler] evento já processado, ignorando:', event_id);
+        return new Response('OK', { status: 200 });
+      }
+      // Marcar como processado imediatamente para evitar race condition
+      await markEventProcessed(SUPABASE_URL, SERVICE_ROLE_KEY, event_id);
     }
 
     console.log('[handler] input ok:', {
@@ -1269,13 +1321,20 @@ Deno.serve(async (req: Request) => {
       serviceRoleKey: SERVICE_ROLE_KEY,
     });
 
-    const result = await orch.agent(message, channel_id, user_id);
-
-    // Enviar mensagem pro Slack de forma assíncrona (se houver token)
+    // ── Para eventos Slack: retornar 200 imediatamente e processar em background
     if (body?.type === 'event_callback') {
-        EdgeRuntime.waitUntil(postToSlack(channel_id, result.response, thread_ts));
-        return new Response("OK", { status: 200 });
+      EdgeRuntime.waitUntil((async () => {
+        try {
+          const result = await orch.agent(message, channel_id, user_id);
+          await postToSlack(channel_id, result.response, thread_ts);
+        } catch (e: any) {
+          console.error('[handler] background error:', e?.message ?? e);
+        }
+      })());
+      return new Response('OK', { status: 200 });
     }
+
+    const result = await orch.agent(message, channel_id, user_id);
 
     return new Response(JSON.stringify({ response: result.response }), {
       headers: {
