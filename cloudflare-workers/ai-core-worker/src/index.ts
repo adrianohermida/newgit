@@ -239,7 +239,7 @@ export default {
         const body = await request.json() as any;
         const input = Array.isArray(body.input) ? body.input : [body.input];
 
-        const result = await env.AI.run('@cf/baai/bge-small-en-v1.5' as any, {
+        const result = await env.AI.run('@cf/baai/bge-base-en-v1.5' as any, {
           text: input,
         } as any) as any;
 
@@ -250,7 +250,7 @@ export default {
             index: i,
             embedding: emb,
           })),
-          model: '@cf/baai/bge-small-en-v1.5',
+          model: '@cf/baai/bge-base-en-v1.5',
         });
       } catch (e: any) {
         return errorResponse(e.message);

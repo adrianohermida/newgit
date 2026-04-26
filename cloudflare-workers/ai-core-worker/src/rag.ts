@@ -16,7 +16,7 @@ export interface MemoryEntry {
 async function generateEmbedding(env: Env, text: string): Promise<number[]> {
   // Tenta Cloudflare Workers AI primeiro (mais rápido, sem custo)
   try {
-    const result = await env.AI.run('@cf/baai/bge-small-en-v1.5' as any, {
+    const result = await env.AI.run('@cf/baai/bge-base-en-v1.5' as any, {
       text: [text],
     } as any) as any;
     if (result?.data?.[0]) return result.data[0];
