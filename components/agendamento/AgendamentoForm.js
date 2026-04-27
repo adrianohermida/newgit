@@ -60,8 +60,8 @@ export default function AgendamentoForm() {
     if (payload.stage === "google_calendar_create" || payload.stage === "supabase_update_google_event_id") {
       return "Nao foi possivel reservar este horario agora. Atualize a pagina e tente novamente.";
     }
-    if (typeof payload.error === "string" && payload.error.includes("ocupado")) {
-      return "Este horario acabou de ficar indisponivel. Escolha outro horario para continuar.";
+    if (typeof payload.error === "string" && (payload.error.includes("ocupado") || payload.error.includes("conflito"))) {
+      return "Este horario acabou de ficar indisponivel ou ja esta ocupado na agenda. Por favor, escolha outro horario.";
     }
 
     return fallbackMessage;
@@ -195,7 +195,7 @@ export default function AgendamentoForm() {
 
   return (
     <div style={{ background: "#050706", minHeight: "100vh" }}>
-      <div className="max-w-6xl mx-auto px-6 pb-20">
+      <div className="max-w-6xl mx-auto px-6 pb-20 pt-32">
         <FallbackWarning />
         {systemMessage && (
           <div
