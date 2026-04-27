@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { checkRateLimit, safeBatchSize, createPublicClient } from '../_shared/rate-limit.ts';
 
 /**
  * processo-sync  v1
@@ -62,6 +63,7 @@ const FS_TYPE_ANDAMENTOS  = Number(envFirst(
 const ADVOGADO_REGEX = /adriano\s+menezes\s+hermida\s+maia/i;
 
 const db = createClient(SUPABASE_URL, SVC_KEY, { db: { schema: 'judiciario' } });
+const dbPublic = createPublicClient(); // schema public para rate limit
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 function log(n: 'info'|'warn'|'error', m: string, e: Record<string,unknown> = {}) {
   console[n](JSON.stringify({ ts: new Date().toISOString(), msg: m, ...e }));
@@ -180,6 +182,19 @@ function mergeSeguro(
 }
 
 // Custom fields para envio ao FS (Supabase → FS)
+// Busca a descrição do último movimento de um processo
+async function getUltimoMovimentoDescricao(processoId: string): Promise<string | null> {
+  const { data } = await db.from('movimentos')
+    .select('descricao, data_movimento')
+    .eq('processo_id', processoId)
+    .not('descricao', 'is', null)
+    .neq('descricao', '')
+    .order('data_movimento', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.descricao ?? null;
+}
+
 // REGRA: só envia campos não-nulos; nunca apaga valor existente no FS
 function buildCF(
   proc: Record<string,unknown>, cnjFmt: string,
@@ -196,11 +211,12 @@ function buildCF(
   set('cf_polo_ativo',           proc.polo_ativo);
   set('cf_parte_adversa',        proc.polo_passivo);
   set('cf_status',               proc.status_atual_processo);
-  set('cf_data_de_distribuio',   proc.data_ajuizamento);
+  set('cf_data_de_distribuio',   proc.data_distribuicao ?? proc.data_ajuizamento);
   set('cf_data_ultimo_movimento',proc.data_ultima_movimentacao);
-  set('cf_descricao_ultimo_movimento', proc.ultimo_movimento_descricao);
+  // cf_descricao_ultimo_movimento: preenchido via getUltimoMovimentoDescricao() antes de chamar buildCF
+  set('cf_descricao_ultimo_movimento', proc.ultimo_movimento_descricao_real);
   set('cf_area',                 proc.area);
-  set('cf_sistema',              proc.sistema);
+  set('cf_sistema',              proc.parser_sistema ?? proc.sistema);
   if (proc.segredo_justica != null) set('cf_segredo_de_justica', proc.segredo_justica);
   set('cf_DJ',                   proc.nome_diario);
   set('cf_publicacao_em',        proc.ultima_publicacao_em);
@@ -433,8 +449,8 @@ async function sprintSyncBidirectional(limite: number): Promise<Record<string,un
   const { data: procs } = await db.from('processos')
     .select('id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,'+
             'tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,'+
-            'classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,'+
-            'status_atual_processo,data_ajuizamento,data_ultima_movimentacao,'+
+            'classe,assunto,assunto_principal,sistema,parser_sistema,comarca,link_externo_processo,segredo_justica,'+
+            'status_atual_processo,data_ajuizamento,data_distribuicao,data_ultima_movimentacao,'+
             'account_id_freshsales,dados_incompletos,parte_representada_adriano')
     .not('account_id_freshsales','is',null)
     .limit(limite);
@@ -494,6 +510,9 @@ async function sprintSyncBidirectional(limite: number): Promise<Record<string,un
       // ── Supabase → FS: envia dados do Supabase que o FS não tem ─────────
       // (só campos vazios no FS, nunca sobrescreve)
       const procMerged = { ...proc, ...sbUpdate } as Record<string,unknown>;
+      // Enriquecer com descrição do último movimento da tabela movimentos
+      const ultimoMovDesc = await getUltimoMovimentoDescricao(proc.id as string);
+      if (ultimoMovDesc) procMerged.ultimo_movimento_descricao_real = ultimoMovDesc;
       const cf = buildCF(procMerged, cnjFmt);
       const std = buildStandardAccountFields(procMerged);
       // Filtra apenas campos que o FS não tem (cf no FS está vazio/nulo)
@@ -529,8 +548,8 @@ async function sprintPushFs(limite: number, batch: number): Promise<Record<strin
   const { data: semAccount } = await db.from('processos')
     .select('id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,'+
             'tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,'+
-            'classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,'+
-            'data_ajuizamento,data_ultima_movimentacao,status_atual_processo,'+
+            'classe,assunto,assunto_principal,sistema,parser_sistema,comarca,link_externo_processo,segredo_justica,'+
+            'data_ajuizamento,data_distribuicao,data_ultima_movimentacao,status_atual_processo,'+
             'parte_representada_adriano')
     .is('account_id_freshsales', null)
     .limit(limite);
@@ -568,8 +587,13 @@ async function sprintPushFs(limite: number, batch: number): Promise<Record<strin
       ? proc.titulo
       : await buildTitulo(proc.id, cnjFmt, proc as Record<string,unknown>);
     try {
-      const cf = buildCF(proc as Record<string,unknown>, cnjFmt);
-      const std = buildStandardAccountFields(proc as Record<string,unknown>);
+      // Enriquecer com descrição do último movimento da tabela movimentos
+      const ultimoMovDescPush = await getUltimoMovimentoDescricao(proc.id as string);
+      const procEnriquecido = ultimoMovDescPush
+        ? { ...proc, ultimo_movimento_descricao_real: ultimoMovDescPush }
+        : proc as Record<string,unknown>;
+      const cf = buildCF(procEnriquecido, cnjFmt);
+      const std = buildStandardAccountFields(procEnriquecido);
       const { status, data } = await fsPost('sales_accounts', {
         sales_account: {
           name: titulo,
@@ -919,7 +943,15 @@ Deno.serve(async (req: Request) => {
         break;
 
       case 'push_freshsales':    // Sprint 5
-        result = await sprintPushFs(limite, batch);
+        // Rate limit: ~4 chamadas FS por processo (POST account + PUT campos + GET verify + POST contact)
+        {
+          const rlPush = await checkRateLimit(dbPublic, 'processo-sync', batch * 4);
+          if (!rlPush.ok) {
+            result = { ok: false, motivo: 'rate_limit_global', slots_avail: rlPush.slots_avail };
+          } else {
+            result = await sprintPushFs(limite, safeBatchSize(rlPush.slots_avail, 4, batch));
+          }
+        }
         break;
 
       case 'cron_advise':        // Sprint 6
@@ -935,7 +967,10 @@ Deno.serve(async (req: Request) => {
         const s1 = await sprintLevantamento();
         const s4 = await sprintEnriquecer(Math.min(limite * 5, 500)); // enriquece mais pubs
         const s2 = await sprintSyncBidirectional(Math.min(limite, 30));
-        const s5 = await sprintPushFs(limite, batch);
+        // Rate limit para pipeline
+        const rlPipeline = await checkRateLimit(dbPublic, 'processo-sync', batch * 4);
+        const safeBatchPipeline = rlPipeline.ok ? safeBatchSize(rlPipeline.slots_avail, 4, batch) : 0;
+        const s5 = safeBatchPipeline > 0 ? await sprintPushFs(limite, safeBatchPipeline) : { ok: false, motivo: 'rate_limit_global' };
         const s7 = await sprintAuditoria();
         result = { s1_levantamento: s1, s4_enriquecimento: s4, s2_sync_bi: s2, s5_push_fs: s5, s7_auditoria: s7 };
         log('info','pipeline_fim');

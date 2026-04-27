@@ -1,7 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { checkRateLimit, safeBatchSize, createPublicClient } from '../_shared/rate-limit.ts';
 
 /**
- * publicacoes-freshsales  v7
+ * publicacoes-freshsales  v8
+ * + Rate limit global integrado (teto 990/hora, quota 300/hora para este caller)
  *
  * CORREÇÕES vs v6:
  *   1. normalizarCNJ agora valida checksum CNJ (algoritmo oficial)
@@ -56,6 +58,7 @@ const DOMAIN_MAP: Record<string, string> = {
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   db: { schema: 'judiciario' },
 });
+const dbPublic = createPublicClient(); // schema public para rate limit
 
 function fsDomain(): string {
   const domain = (FS_DOMAIN_RAW ?? '').trim();
@@ -690,9 +693,15 @@ Deno.serve(async (req:Request) => {
     let result:unknown;
     switch (action) {
       case 'sync': {
-        const raw   = url.searchParams.get('batch')??String(body.batch??25);
+        const raw   = url.searchParams.get('batch_size')??url.searchParams.get('batch')??String(body.batch_size??body.batch??25);
         const batch = Math.min(Math.max(Number(raw)||25,1),100);
-        result = await actionSync(batch);
+        // Rate limit: ~3 chamadas FS por publicação (GET account + POST activity + PATCH)
+        const rl = await checkRateLimit(dbPublic, 'publicacoes-freshsales', batch * 3);
+        if (!rl.ok) {
+          return new Response(JSON.stringify({ ok: false, motivo: 'rate_limit_global', slots_avail: rl.slots_avail, total_used: rl.total_used, global_limit: rl.global_limit }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+        }
+        const safeBatch = safeBatchSize(rl.slots_avail, 3, batch);
+        result = await actionSync(safeBatch);
         // Notificar Slack se houve activities criadas com sucesso
         const syncResult = result as Record<string,unknown>;
         if ((syncResult.sucesso as number) > 0) {

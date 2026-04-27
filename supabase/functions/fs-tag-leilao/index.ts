@@ -24,7 +24,7 @@ const FS_DOMAIN_RAW = Deno.env.get("FRESHSALES_DOMAIN") || "";
 const FS_API_KEY    = Deno.env.get("FRESHSALES_API_KEY") || "";
 
 const CALLER         = "fs-tag-leilao";
-const QUOTA_PER_HOUR = 150;
+const QUOTA_PER_HOUR = 20;
 const BATCH_SIZE     = 30;  // processos por execução
 const TAG_LEILAO     = "LEILÃO";
 

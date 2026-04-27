@@ -53,7 +53,218 @@
  *   /dotobot help                 — Esta ajuda
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+// ─── LLM Hub (injetado da cida-slack) ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// LLM HUB — Roteamento inteligente entre provedores de IA
+// Ordem: Cloudflare Workers AI (primário) → Ollama Cloud (fallback)
+// Circuit breaker por provedor: pausa automaticamente provedores com falhas
+// consecutivas para evitar latência desnecessária.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface LLMProvider {
+  name: string;
+  call: (messages: ChatMessage[]) => Promise<string>;
+}
+
+interface CircuitState {
+  failures: number;
+  openUntil: number; // timestamp ms — 0 = fechado (disponível)
+}
+
+// Estado do circuit breaker (em memória — reseta a cada cold start da Edge Function)
+const _circuitState: Record<string, CircuitState> = {};
+const CIRCUIT_THRESHOLD  = 3;      // falhas consecutivas para abrir o circuito
+const CIRCUIT_TIMEOUT_MS = 60_000; // 60s de pausa após abertura
+
+function isCircuitOpen(name: string): boolean {
+  const s = _circuitState[name];
+  if (!s) return false;
+  if (s.openUntil > 0 && Date.now() < s.openUntil) {
+    console.log(`[llm-hub] circuit OPEN para ${name} — pausa até ${new Date(s.openUntil).toISOString()}`);
+    return true;
+  }
+  if (s.openUntil > 0 && Date.now() >= s.openUntil) {
+    // Half-open: deixar uma tentativa passar
+    s.openUntil = 0;
+    console.log(`[llm-hub] circuit HALF-OPEN para ${name} — tentando recuperar`);
+  }
+  return false;
+}
+
+let _lastProviderUsed = 'unknown';
+function recordSuccess(name: string) {
+  _circuitState[name] = { failures: 0, openUntil: 0 };
+  _lastProviderUsed = name;
+}
+
+function recordFailure(name: string) {
+  const s = _circuitState[name] ?? { failures: 0, openUntil: 0 };
+  s.failures += 1;
+  if (s.failures >= CIRCUIT_THRESHOLD) {
+    s.openUntil = Date.now() + CIRCUIT_TIMEOUT_MS;
+    console.warn(`[llm-hub] circuit ABERTO para ${name} após ${s.failures} falhas`);
+  }
+  _circuitState[name] = s;
+}
+
+// Cache de configuração do app_config (evita query a cada chamada)
+let _llmConfigCache: Record<string, string> | null = null;
+
+async function getLLMConfig(supabaseUrl: string, serviceRoleKey: string): Promise<Record<string, string>> {
+  if (_llmConfigCache) return _llmConfigCache;
+  try {
+    const keys = ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'OLLAMA_API_KEY', 'OLLAMA_BASE_URL', 'OLLAMA_MODEL'];
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/app_config?key=in.(${keys.join(',')})&select=key,value`,
+      { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+    );
+    if (res.ok) {
+      const rows: { key: string; value: string }[] = await res.json();
+      const m: Record<string, string> = {};
+      for (const r of rows) m[r.key] = r.value;
+      _llmConfigCache = m;
+      return m;
+    }
+  } catch (e: any) {
+    console.error('[llm-hub] getLLMConfig error:', e?.message);
+  }
+  return {};
+}
+
+function llmFactory(supabaseUrl?: string, serviceRoleKey?: string) {
+  // ── Provedor 1: Cloudflare Workers AI ────────────────────────────────────
+  const makeCloudflareProvider = (cfAccountId: string, cfApiToken: string): LLMProvider => ({
+    name: 'cloudflare',
+    call: async (messages: ChatMessage[]) => {
+      const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfAccountId)}/ai/run/@cf/meta/llama-3.1-8b-instruct`;
+      console.log('[llm-hub][cloudflare] chamando Cloudflare Workers AI, msgs:', messages.length);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12_000); // 12s timeout
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${cfApiToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: messages.map((m) => ({ role: m.role, content: m.content })),
+            repetition_penalty: 1.3,
+            max_tokens: 512,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        const text = await res.text();
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+        }
+        const data = JSON.parse(text);
+        const output = data?.result?.response ?? data?.result?.output ?? data?.response ?? '';
+        if (!output) throw new Error(`resposta vazia: ${text.slice(0, 100)}`);
+        console.log('[llm-hub][cloudflare] ✓ resposta recebida, chars:', output.length);
+        return String(output);
+      } catch (e: any) {
+        clearTimeout(timeout);
+        throw e;
+      }
+    },
+  });
+
+  // ── Provedor 2: Ollama Cloud ──────────────────────────────────────────────
+  const makeOllamaProvider = (apiKey: string, baseUrl: string, model: string): LLMProvider => ({
+    name: 'ollama',
+    call: async (messages: ChatMessage[]) => {
+      const url = `${baseUrl.replace(/\/$/, '')}/api/chat`;
+      console.log(`[llm-hub][ollama] chamando Ollama Cloud, modelo: ${model}, msgs: ${messages.length}`);
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20_000); // 20s timeout
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: messages.map((m) => ({ role: m.role, content: m.content })),
+            stream: false,
+            options: { temperature: 0.7, num_predict: 512 },
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        const text = await res.text();
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+        }
+        const data = JSON.parse(text);
+        const output = data?.message?.content ?? data?.response ?? '';
+        if (!output) throw new Error(`resposta vazia: ${text.slice(0, 100)}`);
+        console.log('[llm-hub][ollama] ✓ resposta recebida, chars:', output.length);
+        return String(output);
+      } catch (e: any) {
+        clearTimeout(timeout);
+        throw e;
+      }
+    },
+  });
+
+  // ── Orquestrador principal ────────────────────────────────────────────────
+  const runLLM = async (messages: ChatMessage[]): Promise<string> => {
+    // Carregar configuração do app_config (com fallback para env vars)
+    const cfg = supabaseUrl && serviceRoleKey
+      ? await getLLMConfig(supabaseUrl, serviceRoleKey)
+      : {};
+
+    const cfAccountId = cfg['CLOUDFLARE_ACCOUNT_ID'] || Deno.env.get('CF_ACCOUNT_ID') || '';
+    const cfApiToken  = cfg['CLOUDFLARE_API_TOKEN']  || Deno.env.get('CF_API_TOKEN')  || '';
+    const ollamaKey   = cfg['OLLAMA_API_KEY']        || Deno.env.get('OLLAMA_API_KEY') || '';
+    const ollamaBase  = cfg['OLLAMA_BASE_URL']       || Deno.env.get('OLLAMA_BASE_URL') || 'https://ollama.com';
+    const ollamaModel = cfg['OLLAMA_MODEL']          || Deno.env.get('OLLAMA_MODEL')    || 'gemma3:4b';
+
+    // Construir lista de provedores disponíveis (em ordem de prioridade)
+    const providers: LLMProvider[] = [];
+    if (cfAccountId && cfApiToken) providers.push(makeCloudflareProvider(cfAccountId, cfApiToken));
+    if (ollamaKey)                  providers.push(makeOllamaProvider(ollamaKey, ollamaBase, ollamaModel));
+
+    if (providers.length === 0) {
+      throw new Error('[llm-hub] Nenhum provedor configurado (CF_ACCOUNT_ID/CF_API_TOKEN ou OLLAMA_API_KEY ausentes)');
+    }
+
+    const errors: string[] = [];
+
+    for (const provider of providers) {
+      if (isCircuitOpen(provider.name)) {
+        errors.push(`${provider.name}: circuit aberto`);
+        continue;
+      }
+
+      try {
+        const result = await provider.call(messages);
+        recordSuccess(provider.name);
+        if (provider.name !== 'cloudflare') {
+          console.log(`[llm-hub] ⚠️ usando fallback: ${provider.name}`);
+        }
+        return result;
+      } catch (e: any) {
+        const msg = e?.message ?? String(e);
+        console.warn(`[llm-hub] ❌ ${provider.name} falhou: ${msg}`);
+        recordFailure(provider.name);
+        errors.push(`${provider.name}: ${msg}`);
+      }
+    }
+
+    throw new Error(`[llm-hub] Todos os provedores falharam: ${errors.join(' | ')}`);
+  };
+
+  return { runLLM, get _lastProvider() { return _lastProviderUsed; } };
+}
+
+
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SVC_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -77,7 +288,12 @@ const dbPublic = createClient(SUPABASE_URL, SVC_KEY);
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function slackToken(): string {
-  return SLACK_USER_TOKEN || SLACK_BOT_TOKEN;
+  // SLACK_BOT_TOKEN tem prioridade — é o token do app Dotobot
+  // SLACK_USER_TOKEN é fallback apenas se o bot token não estiver configurado
+  const token = SLACK_BOT_TOKEN || SLACK_USER_TOKEN;
+  if (!token) console.error("[dotobot] ERRO: nenhum token Slack configurado");
+  console.log("[dotobot] token usado:", SLACK_BOT_TOKEN ? "SLACK_BOT_TOKEN" : SLACK_USER_TOKEN ? "SLACK_USER_TOKEN" : "NENHUM");
+  return token;
 }
 
 async function callSlackApi(method: string, payload: Record<string, unknown>, token = slackToken()) {
@@ -99,10 +315,17 @@ async function callSlackApi(method: string, payload: Record<string, unknown>, to
   return data as Record<string, unknown>;
 }
 
-async function postSlack(channel: string, text: string, blocks?: unknown[]): Promise<void> {
+async function postSlack(channel: string, text: string, blocks?: unknown[], thread_ts?: string): Promise<void> {
   const payload: Record<string, unknown> = { channel, text, unfurl_links: false };
   if (blocks) payload.blocks = blocks;
-  await callSlackApi("chat.postMessage", payload);
+  if (thread_ts) payload.thread_ts = thread_ts;
+  try {
+    await callSlackApi("chat.postMessage", payload);
+    console.log("[dotobot] postSlack ok:", { channel, chars: text.length, thread_ts: thread_ts || null });
+  } catch (err) {
+    console.error("[dotobot] postSlack ERRO:", { channel, error: String(err) });
+    throw err;
+  }
 }
 
 async function postSlackEphemeral(channel: string, user: string, text: string, blocks?: unknown[]): Promise<void> {
@@ -809,6 +1032,409 @@ async function tryDeterministicQuestionRoute(query: string): Promise<{ route: st
   }
 
   return null;
+}
+
+// ── Diagnóstico de Banco de Dados (CRUD) ──────────────────────────────────
+// Mantido para compatibilidade com comandos antigos
+async function handleTestData(channel: string): Promise<void> {
+  await handleSupabaseTest(channel, "unknown");
+}
+
+// ── Diagnóstico Supabase Completo (supabase_test) ─────────────────────────
+async function handleSupabaseTest(channel: string, userId: string, thread_ts?: string): Promise<void> {
+  const startTs = Date.now();
+
+  await postSlack(channel,
+    "🔍 *supabase_test iniciado* — Executando diagnóstico completo...",
+    [header("🔍 Diagnóstico Supabase — Iniciando"),
+     section("Testando conectividade, permissões CRUD, tamanho de recursos e recomendações de migração..."),
+     context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`])],
+    thread_ts
+  );
+
+  // ── 1. CRUD em tabelas-chave ──────────────────────────────────────────────
+  type CrudResult = { success: boolean; latency_ms: number; msg: string; detail?: string };
+  const crud: Record<string, CrudResult> = {};
+
+  // READ — publicacoes
+  let t0 = Date.now();
+  try {
+    const { data, error } = await db.from("publicacoes").select("id,data_publicacao").order("data_publicacao", { ascending: false }).limit(3);
+    if (error) throw error;
+    crud.read_publicacoes = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `${data?.length ?? 0} registros retornados` };
+  } catch (e) { crud.read_publicacoes = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // READ — processos
+  t0 = Date.now();
+  try {
+    const { count, error } = await db.from("processos").select("id", { count: "exact", head: true });
+    if (error) throw error;
+    crud.read_processos = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `${count?.toLocaleString("pt-BR") ?? 0} processos` };
+  } catch (e) { crud.read_processos = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // READ — contacts_freshsales
+  t0 = Date.now();
+  try {
+    const { count, error } = await db.from("contacts_freshsales").select("id", { count: "exact", head: true });
+    if (error) throw error;
+    crud.read_contacts = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `${count?.toLocaleString("pt-BR") ?? 0} contatos` };
+  } catch (e) { crud.read_contacts = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // WRITE + UPDATE + DELETE — monitoramento_queue (tabela de teste segura)
+  let testId: string | null = null;
+  t0 = Date.now();
+  try {
+    const { data, error } = await db.from("monitoramento_queue")
+      .insert({ fonte: "dotobot_test", status: "pendente", prioridade: 0 })
+      .select("id").single();
+    if (error) throw error;
+    testId = data?.id ?? null;
+    crud.write_queue = { success: true, latency_ms: Date.now() - t0, msg: `✅ WRITE`, detail: `ID ${testId} inserido` };
+  } catch (e) { crud.write_queue = { success: false, latency_ms: Date.now() - t0, msg: `❌ WRITE`, detail: String(e) }; }
+
+  if (testId) {
+    t0 = Date.now();
+    try {
+      const { error } = await db.from("monitoramento_queue").update({ status: "concluido", ultimo_erro: "dotobot_test_update" }).eq("id", testId);
+      if (error) throw error;
+      crud.update_queue = { success: true, latency_ms: Date.now() - t0, msg: `✅ UPDATE`, detail: `ID ${testId} atualizado` };
+    } catch (e) { crud.update_queue = { success: false, latency_ms: Date.now() - t0, msg: `❌ UPDATE`, detail: String(e) }; }
+
+    t0 = Date.now();
+    try {
+      const { error } = await db.from("monitoramento_queue").delete().eq("id", testId);
+      if (error) throw error;
+      crud.delete_queue = { success: true, latency_ms: Date.now() - t0, msg: `✅ DELETE`, detail: `ID ${testId} removido` };
+    } catch (e) { crud.delete_queue = { success: false, latency_ms: Date.now() - t0, msg: `❌ DELETE`, detail: String(e) }; }
+  } else {
+    crud.update_queue = { success: false, latency_ms: 0, msg: `⏭ UPDATE`, detail: "Pulado (WRITE falhou)" };
+    crud.delete_queue = { success: false, latency_ms: 0, msg: `⏭ DELETE`, detail: "Pulado (WRITE falhou)" };
+  }
+
+  // READ — billing_import_rows (public schema)
+  t0 = Date.now();
+  try {
+    const { data, error } = await dbPublic.from("billing_import_rows").select("id").limit(1);
+    if (error) throw error;
+    crud.read_billing = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `billing_import_rows acessível` };
+  } catch (e) { crud.read_billing = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // ── 2. Tamanho dos recursos ───────────────────────────────────────────────
+  type TableSize = { schema: string; table: string; size: string; rows: number; recommendation: string; destination: string };
+  let tableSizes: TableSize[] = [];
+  try {
+    const sizeRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT t.table_schema AS schema, t.table_name AS table, pg_size_pretty(pg_total_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name))) AS size, COALESCE(s.n_live_tup, 0) AS rows FROM information_schema.tables t LEFT JOIN pg_stat_user_tables s ON s.schemaname = t.table_schema AND s.relname = t.table_name WHERE t.table_schema NOT IN ('pg_catalog','information_schema','extensions') AND t.table_type = 'BASE TABLE' AND pg_total_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name)) > 524288 ORDER BY pg_total_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name)) DESC LIMIT 15` }),
+    });
+    if (sizeRes.ok) {
+      const raw = await sizeRes.json() as Array<{ schema: string; table: string; size: string; rows: number }>;
+      tableSizes = raw.map((r) => {
+        const isLog = r.table.includes("log") || r.table.includes("_response") || r.table.includes("job_run") || r.table.includes("event_queue") || r.table.includes("widget_event");
+        const isArchive = r.table.includes("backup") || r.table.includes("archive") || r.table.includes("_old");
+        const isLgpd = r.schema === "lgpd" || r.table.includes("lgpd");
+        const isCore = r.schema === "judiciario" && (r.table.includes("publicacoes") || r.table.includes("processos") || r.table.includes("contatos") || r.table.includes("contacts"));
+        const isBilling = r.table.includes("billing") || r.table.includes("receivable");
+        const isKnowledge = r.table.includes("knowledge") || r.table.includes("chunk") || r.table.includes("embedding");
+        let recommendation = "";
+        let destination = "";
+        if (isArchive) { recommendation = "🚨 MIGRAR IMEDIATAMENTE"; destination = "Cloudflare D1 (backup/arquivo)"; }
+        else if (isLog && r.rows > 5000) { recommendation = "🔴 MIGRAR (logs volumétricos)"; destination = "Cloudflare D1 (hmadv-logs-archive)"; }
+        else if (isLog) { recommendation = "🟡 MONITORAR (retenção ativa)"; destination = "Supabase (limpeza automática ativa)"; }
+        else if (isLgpd) { recommendation = "🟡 ARQUIVAR PERIÓDICO"; destination = "Cloudflare D1 (lgpd_audit_logs)"; }
+        else if (isKnowledge) { recommendation = "🟢 MANTER no Supabase"; destination = "Supabase (pgvector necessário)"; }
+        else if (isCore) { recommendation = "🟢 MANTER no Supabase"; destination = "Supabase (dados operacionais ativos)"; }
+        else if (isBilling) { recommendation = "🟡 MONITORAR (deduplicar)"; destination = "Supabase (limpeza 30d ativa)"; }
+        else { recommendation = "⚪ AVALIAR"; destination = "Supabase (sem política definida)"; }
+        return { ...r, recommendation, destination };
+      });
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── 3. Tamanho total do banco ─────────────────────────────────────────────
+  let dbSizePretty = "N/D";
+  let dbUsagePct = 0;
+  let dbStatus = "";
+  try {
+    const szRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT pg_size_pretty(pg_database_size(current_database())) AS size, ROUND((pg_database_size(current_database())::numeric / 524288000) * 100, 1) AS pct` }),
+    });
+    if (szRes.ok) {
+      const szData = await szRes.json() as Array<{ size: string; pct: number }>;
+      dbSizePretty = szData?.[0]?.size ?? "N/D";
+      dbUsagePct = Number(szData?.[0]?.pct ?? 0);
+      dbStatus = dbUsagePct > 90 ? "🔴 CRÍTICO" : dbUsagePct > 80 ? "🟡 ALERTA" : "🟢 OK";
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── 4. Status dos cron jobs de retenção ──────────────────────────────────
+  let cronStatus = "N/D";
+  try {
+    const cronRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT count(*) AS total, count(*) FILTER (WHERE active) AS ativos FROM cron.job WHERE jobname LIKE 'retention%' OR jobname LIKE 'vacuum%' OR jobname LIKE 'monitor%' OR jobname LIKE 'archive%' OR jobname LIKE 'alert%'` }),
+    });
+    if (cronRes.ok) {
+      const cronData = await cronRes.json() as Array<{ total: number; ativos: number }>;
+      cronStatus = `${cronData?.[0]?.ativos ?? 0} ativos de ${cronData?.[0]?.total ?? 0} configurados`;
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── 5. Status do arquivamento Cloudflare ─────────────────────────────────
+  let archiveStatus = "N/D";
+  try {
+    const archRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT table_schema, table_name, status, rows_archived_total, last_archive_run FROM public.archive_sync_control ORDER BY last_archive_run DESC NULLS LAST LIMIT 5` }),
+    });
+    if (archRes.ok) {
+      const archData = await archRes.json() as Array<{ table_schema: string; table_name: string; status: string; rows_archived_total: number; last_archive_run: string }>;
+      if (archData?.length > 0) {
+        archiveStatus = archData.map(r =>
+          `• \`${r.table_schema}.${r.table_name}\`: ${r.status ?? "nunca"} (${(r.rows_archived_total ?? 0).toLocaleString("pt-BR")} arquivados)`
+        ).join("\n");
+      } else {
+        archiveStatus = "Nenhum arquivamento registrado ainda";
+      }
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── Montar blocos finais ──────────────────────────────────────────────────
+  const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+  const crudOk = Object.values(crud).filter(r => r.success).length;
+  const crudTotal = Object.values(crud).length;
+
+  const crudBlock = [
+    `*READ — publicacoes:* ${crud.read_publicacoes.msg} — ${crud.read_publicacoes.detail} (${crud.read_publicacoes.latency_ms}ms)`,
+    `*READ — processos:* ${crud.read_processos.msg} — ${crud.read_processos.detail} (${crud.read_processos.latency_ms}ms)`,
+    `*READ — contacts_freshsales:* ${crud.read_contacts.msg} — ${crud.read_contacts.detail} (${crud.read_contacts.latency_ms}ms)`,
+    `*READ — billing_import_rows:* ${crud.read_billing.msg} — ${crud.read_billing.detail} (${crud.read_billing.latency_ms}ms)`,
+    `*WRITE — monitoramento_queue:* ${crud.write_queue.msg} — ${crud.write_queue.detail} (${crud.write_queue.latency_ms}ms)`,
+    `*UPDATE — monitoramento_queue:* ${crud.update_queue.msg} — ${crud.update_queue.detail} (${crud.update_queue.latency_ms}ms)`,
+    `*DELETE — monitoramento_queue:* ${crud.delete_queue.msg} — ${crud.delete_queue.detail} (${crud.delete_queue.latency_ms}ms)`,
+  ].join("\n");
+
+  const sizeBlock = tableSizes.length > 0
+    ? tableSizes.slice(0, 10).map(r =>
+        `• \`${r.schema}.${r.table}\` — *${r.size}* (${r.rows.toLocaleString("pt-BR")} linhas)\n  ${r.recommendation} → ${r.destination}`
+      ).join("\n")
+    : "Não foi possível obter tamanhos (função exec_sql não disponível)";
+
+  const blocks = [
+    header("🔍 Diagnóstico Supabase Completo"),
+    divider(),
+    section(`*📊 Banco de Dados*\n• Tamanho atual: *${dbSizePretty}* de 500 MB (${dbUsagePct}%) ${dbStatus}\n• Limite do plano free: *500 MB*\n• Cron jobs de retenção: *${cronStatus}*`),
+    divider(),
+    section(`*🔄 Testes CRUD — ${crudOk}/${crudTotal} passaram*\n${crudBlock}`),
+    divider(),
+    section(`*🗄️ Recursos por Tamanho e Recomendação*\n${sizeBlock}`),
+    divider(),
+    section(`*☁️ Status do Arquivamento Cloudflare D1*\n${archiveStatus}`),
+    divider(),
+    section(
+      `*📌 Legenda de Recomendações*\n` +
+      `🚨 MIGRAR IMEDIATAMENTE — tabela de backup/lixo, remover agora\n` +
+      `🔴 MIGRAR (logs volumétricos) — mover para Cloudflare D1\n` +
+      `🟡 MONITORAR/ARQUIVAR — política de retenção ativa, arquivamento periódico\n` +
+      `🟢 MANTER no Supabase — dados operacionais ou que precisam de pgvector\n` +
+      `⚪ AVALIAR — sem política definida, verificar necessidade`
+    ),
+    divider(),
+    context([`_Diagnóstico concluído em ${elapsed}s | Acionado por <@${userId}> às ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`]),
+  ];
+
+  await postSlack(channel, `🔍 Diagnóstico Supabase: ${dbSizePretty} (${dbUsagePct}%) — CRUD ${crudOk}/${crudTotal}`, blocks, thread_ts);
+}
+
+// ── Limpeza Automática Supabase (supabase_clean) ──────────────────────────
+async function handleSupabaseClean(channel: string, userId: string, thread_ts?: string): Promise<void> {
+  const startTs = Date.now();
+
+  await postSlack(channel,
+    "🧹 *supabase_clean iniciado* — Executando automações de limpeza...",
+    [header("🧹 Limpeza Supabase — Iniciando"),
+     section("Executando: limpeza de logs, deduplicação, VACUUM, compactação e verificação de limites..."),
+     context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`])],
+    thread_ts
+  );
+
+  type CleanStep = { label: string; success: boolean; detail: string; rows_removed?: number };
+  const steps: CleanStep[] = [];
+
+  const execCleanSQL = async (label: string, sql: string): Promise<CleanStep> => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+        method: "POST",
+        headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ query: sql }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        return { label, success: false, detail: `HTTP ${res.status}: ${err.slice(0, 100)}` };
+      }
+      const data = await res.json() as Array<{ rows_deleted?: number; count?: number }>;
+      const rowsRemoved = data?.[0]?.rows_deleted ?? data?.[0]?.count ?? null;
+      return { label, success: true, detail: rowsRemoved !== null ? `${rowsRemoved} registros removidos` : "Executado com sucesso", rows_removed: Number(rowsRemoved ?? 0) };
+    } catch (e) {
+      return { label, success: false, detail: String(e).slice(0, 150) };
+    }
+  };
+
+  // Etapa 1: cron.job_run_details (> 1 dia)
+  steps.push(await execCleanSQL(
+    "🕒 cron.job_run_details (> 1 dia)",
+    `WITH d AS (DELETE FROM cron.job_run_details WHERE start_time < now() - interval '1 day' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 2: net._http_response (> 1 hora)
+  steps.push(await execCleanSQL(
+    "🌐 net._http_response (> 1 hora)",
+    `WITH d AS (DELETE FROM net._http_response WHERE created < now() - interval '1 hour' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 3: lgpd.logs_tratamento (> 7 dias)
+  steps.push(await execCleanSQL(
+    "🛡️ lgpd.logs_tratamento (> 7 dias)",
+    `WITH d AS (DELETE FROM lgpd.logs_tratamento WHERE data_evento < now() - interval '7 days' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 4: billing_import_rows (deduplicar)
+  steps.push(await execCleanSQL(
+    "💳 billing_import_rows (deduplicar)",
+    `WITH d AS (DELETE FROM public.billing_import_rows a USING public.billing_import_rows b WHERE a.id < b.id AND a.email = b.email AND a.invoice_number = b.invoice_number AND a.email IS NOT NULL AND a.invoice_number IS NOT NULL RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 5: billing_import_rows (erros > 30 dias)
+  steps.push(await execCleanSQL(
+    "💳 billing_import_rows (erros > 30 dias)",
+    `WITH d AS (DELETE FROM public.billing_import_rows WHERE created_at < now() - interval '30 days' AND canonical_status IN ('error','rejected','cancelled') RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 6: crm_event_queue (> 7 dias)
+  steps.push(await execCleanSQL(
+    "📡 crm_event_queue (> 7 dias)",
+    `WITH d AS (DELETE FROM public.crm_event_queue WHERE created_at < now() - interval '7 days' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 7: agentlab_widget_events (> 30 dias)
+  steps.push(await execCleanSQL(
+    "🤖 agentlab_widget_events (> 30 dias)",
+    `WITH d AS (DELETE FROM public.agentlab_widget_events WHERE created_at < now() - interval '30 days' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 8: chunks órfãos do agentlab
+  steps.push(await execCleanSQL(
+    "🧠 agentlab_knowledge_chunks (órfãos)",
+    `WITH d AS (DELETE FROM public.agentlab_knowledge_chunks WHERE source_id NOT IN (SELECT id FROM public.agentlab_knowledge_sources) RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 9: Agendar VACUUM ANALYZE via pg_cron
+  let vacuumScheduled = false;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT cron.unschedule('vacuum-clean-triggered') LIMIT 1` }),
+    });
+    const schedRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT cron.schedule('vacuum-clean-triggered', '* * * * *', $$VACUUM ANALYZE cron.job_run_details; VACUUM ANALYZE net._http_response; VACUUM ANALYZE lgpd.logs_tratamento; VACUUM ANALYZE public.billing_import_rows; SELECT cron.unschedule('vacuum-clean-triggered')$$)` }),
+    });
+    vacuumScheduled = schedRes.ok;
+  } catch (_e) { /* silencioso */ }
+  steps.push({ label: "📦 VACUUM ANALYZE (agendado)", success: vacuumScheduled, detail: vacuumScheduled ? "Agendado para executar em 1 minuto" : "Não foi possível agendar" });
+
+  // Etapa 10: Acionar Edge Function de arquivamento Cloudflare
+  try {
+    const archRes = await fetch(`${SUPABASE_URL}/functions/v1/archive-to-cloudflare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SVC_KEY}` },
+      body: JSON.stringify({ trigger: "supabase_clean", cleanup_d1: true }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (archRes.ok) {
+      const archData = await archRes.json() as Record<string, unknown>;
+      const cronArch = (archData?.cron_job_logs as Record<string, unknown>)?.archived ?? 0;
+      const lgpdArch = (archData?.lgpd_audit_logs as Record<string, unknown>)?.archived ?? 0;
+      const httpArch = (archData?.http_response_logs as Record<string, unknown>)?.archived ?? 0;
+      steps.push({ label: "☁️ Arquivamento Cloudflare D1", success: true, detail: `Cron: ${cronArch} | LGPD: ${lgpdArch} | HTTP: ${httpArch} registros arquivados` });
+    } else {
+      steps.push({ label: "☁️ Arquivamento Cloudflare D1", success: false, detail: `HTTP ${archRes.status}` });
+    }
+  } catch (e) {
+    steps.push({ label: "☁️ Arquivamento Cloudflare D1", success: false, detail: `Timeout ou erro: ${String(e).slice(0, 100)}` });
+  }
+
+  // Etapa 11: Limpeza de emergência se banco > 80%
+  let emergencyRan = false;
+  try {
+    const emRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT public.fn_emergency_db_cleanup()` }),
+    });
+    emergencyRan = emRes.ok;
+  } catch (_e) { /* silencioso */ }
+  steps.push({ label: "🔔 Verificação de emergência (fn_emergency_db_cleanup)", success: emergencyRan, detail: emergencyRan ? "Executado (limpeza adicional se banco > 80%)" : "Não executado" });
+
+  // Verificar tamanho após limpeza
+  let sizeAfter = "N/D";
+  let pctAfter = 0;
+  let statusAfter = "";
+  try {
+    const szRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT pg_size_pretty(pg_database_size(current_database())) AS size, ROUND((pg_database_size(current_database())::numeric / 524288000) * 100, 1) AS pct` }),
+    });
+    if (szRes.ok) {
+      const szData = await szRes.json() as Array<{ size: string; pct: number }>;
+      sizeAfter = szData?.[0]?.size ?? "N/D";
+      pctAfter = Number(szData?.[0]?.pct ?? 0);
+      statusAfter = pctAfter > 90 ? "🔴 CRÍTICO" : pctAfter > 80 ? "🟡 ALERTA" : "🟢 OK";
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // Montar resultado final
+  const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+  const successCount = steps.filter(s => s.success).length;
+  const totalRowsRemoved = steps.reduce((acc, s) => acc + (s.rows_removed ?? 0), 0);
+
+  const stepsBlock = steps.map(s =>
+    `${s.success ? "✅" : "❌"} *${s.label}*\n  ${s.detail}`
+  ).join("\n");
+
+  const finalBlocks = [
+    header("🧹 Limpeza Supabase — Concluída"),
+    divider(),
+    section(
+      `*📊 Resultado Geral*\n` +
+      `• Etapas executadas: *${successCount}/${steps.length}*\n` +
+      `• Registros removidos: *${totalRowsRemoved.toLocaleString("pt-BR")}*\n` +
+      `• Tamanho atual: *${sizeAfter}* de 500 MB (${pctAfter}%) ${statusAfter}\n` +
+      `• Tempo total: *${elapsed}s*`
+    ),
+    divider(),
+    section(`*📋 Detalhamento das Etapas*\n${stepsBlock}`),
+    divider(),
+    section(
+      `*ℹ️ Próximas execuções automáticas*\n` +
+      `• VACUUM ANALYZE: em ~1 minuto (agendado)\n` +
+      `• Limpeza de logs: a cada 30 min (cron ativo)\n` +
+      `• Arquivamento Cloudflare: a cada 2 horas (cron ativo)\n` +
+      `• Monitoramento de tamanho: diário às 08:00`
+    ),
+    divider(),
+    context([`_Limpeza concluída em ${elapsed}s | Acionado por <@${userId}> às ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`]),
+  ];
+
+  await postSlack(channel, `🧹 Limpeza concluída: ${totalRowsRemoved.toLocaleString("pt-BR")} registros removidos | Banco: ${sizeAfter} (${pctAfter}%) ${statusAfter}`, finalBlocks, thread_ts);
 }
 
 // ── Handlers de Comandos ──────────────────────────────────────────────────────
@@ -1707,112 +2333,129 @@ async function handleRelatorioFinanceiro(channel: string): Promise<void> {
 
 // ─── Handlers de IA Conversacional v3.0 ─────────────────────────────────────
 
-async function handleIaPerguntar(channel: string, userId: string, query: string): Promise<void> {
-  if (!query.trim()) {
-    await postSlack(channel, "❓ Use: `/dotobot perguntar [sua pergunta]`\nExemplo: `/dotobot perguntar quais processos têm prazo esta semana?`");
-    return;
-  }
-
-  const temporalAnswer = resolveTemporalAnswer(query);
-  if (temporalAnswer) {
-    const blocks = [
-      header("🕰️ DotoBot — Data e Hora"),
-      section(`*Pergunta:* _"${query}"_`),
-      divider(),
-      section(temporalAnswer),
-      context([`_Referência temporal: America/Sao_Paulo | Acionado por <@${userId}>_`]),
-    ];
-    await postSlack(channel, temporalAnswer, blocks);
-    return;
-  }
-
-  const deterministicRoute = await tryDeterministicQuestionRoute(query).catch(() => null);
-  if (deterministicRoute) {
-    const blocks = [
-      header("DotoBot - Resposta Operacional"),
-      section(`*Pergunta:* _"${query}"_`),
-      divider(),
-      section(deterministicRoute.answer),
-      context([`_Rota deterministica: ${deterministicRoute.route} | Acionado por <@${userId}>_`]),
-    ];
-    await postSlack(channel, deterministicRoute.answer, blocks);
-    return;
-  }
-
-  await postSlack(channel, `🤔 Consultando IA sobre: _"${query}"_...`);
-
+async function handleIaPerguntar(
+  channel: string,
+  userId: string,
+  question: string,
+  supabaseUrl: string = SUPABASE_URL,
+  serviceRoleKey: string = SVC_KEY,
+  thread_ts?: string
+) {
   try {
-    const openaiKey = Deno.env.get("OPENAI_API_KEY") || "";
-    if (!openaiKey) {
-      await postSlack(channel, "⚠️ OPENAI_API_KEY não configurada. Configure nos secrets do Supabase.");
+    // ── Resposta temporal determinística (sem LLM) ────────────────────────────
+    const temporalAnswer = resolveTemporalAnswer(question);
+    if (temporalAnswer) {
+      await postSlack(channel, temporalAnswer);
       return;
     }
 
-    // Buscar contexto recente do Supabase
-    const [pubRecentes, prazosUrgentes] = await Promise.all([
-      db.from("publicacoes")
-        .select("ai_resumo, ai_tipo_ato, ai_urgencia, data_publicacao, nome_cliente")
-        .not("ai_resumo", "is", null)
-        .order("data_publicacao", { ascending: false })
-        .limit(5),
-      db.from("prazo_calculado")
-        .select("data_prazo, tipo_prazo")
-        .eq("status", "pendente")
-        .gte("data_prazo", new Date().toISOString().split("T")[0])
-        .order("data_prazo", { ascending: true })
-        .limit(5),
-    ]);
+    // ── Buscar perfil do usuário para persona ─────────────────────────────────
+    let personaBlock = "";
+    try {
+      const userRes = await fetch(
+        `${supabaseUrl}/rest/v1/users?slack_id=eq.${encodeURIComponent(userId)}&limit=1`,
+        { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+      );
+      if (userRes.ok) {
+        const users = await userRes.json();
+        if (users && users.length > 0) {
+          const u = users[0];
+          const role = u.role || "cliente";
+          const name = u.name || userId;
+          if (role === "owner") {
+            personaBlock = `USUÁRIO: ${name} (Dr. Adriano — dono do escritório)\nPERMISSÕES: TOTAIS — sem restrições, sem triagem, responda diretamente o que for solicitado.`;
+          } else if (role === "interno") {
+            personaBlock = `USUÁRIO: ${name} (equipe interna do escritório)\nPERMISSÕES: Acesso amplo a processos, prazos e dados internos. Linguagem profissional e direta.`;
+          } else {
+            personaBlock = `USUÁRIO: ${name} (cliente externo)\nPERMISSÕES: Acesso restrito às informações do próprio cliente. Linguagem acessível, humanizada e empática.`;
+          }
+        }
+      }
+    } catch (_) { /* silencioso */ }
 
-    const agora = getNowInSaoPaulo();
-    const contexto = [
-      `Referência temporal absoluta: hoje é ${agora.dateLabel}, agora são ${agora.timeLabel} (America/Sao_Paulo), data ISO ${agora.isoDate}.`,
-      "Contexto do escritório Hermida Maia Advocacia (Advogado: Dr. Adriano Menezes Hermida Maia, OAB 8894AM):",
-      pubRecentes.data?.length
-        ? `Publicações recentes: ${pubRecentes.data.map(p => `${p.data_publicacao?.split("T")[0]} - ${p.ai_tipo_ato || ""}: ${p.ai_resumo || ""}`).join(" | ")}`
-        : "Sem publicações recentes enriquecidas.",
-      prazosUrgentes.data?.length
-        ? `Prazos pendentes: ${prazosUrgentes.data.map(p => `${p.tipo_prazo} em ${p.data_prazo}`).join(", ")}`
-        : "Sem prazos pendentes imediatos.",
-    ].join("\n");
+    // ── Reality Context Engine ────────────────────────────────────────────────
+    const { dateLabel, timeLabel } = getNowInSaoPaulo();
+    const rce = `CONTEXTO DE REALIDADE (use SEMPRE):\n- Horário atual: ${timeLabel} (Brasília/São Paulo)\n- Data: ${dateLabel}\nNUNCA invente horário ou data. Use SEMPRE os valores acima.`;
+    console.log("[dotobot][rce]", timeLabel, dateLabel);
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante. Nunca invente datas. Para qualquer referência temporal relativa como hoje, ontem, amanhã, agora, esta semana ou este mês, use a referência temporal absoluta fornecida no contexto.\n\n${contexto}`
-          },
-          { role: "user", content: query }
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const resposta = data?.choices?.[0]?.message?.content || "Sem resposta.";
-      const tokens = data?.usage?.total_tokens || 0;
-      const blocks = [
-        header("🤖 DotoBot IA — Resposta"),
-        section(`*Pergunta:* _"${query}"_`),
-        divider(),
-        section(resposta.substring(0, 2900)),
-        context([`_Tokens usados: ${tokens} | Modelo: gpt-4.1-mini | Acionado por <@${userId}>_`]),
-      ];
-      await postSlack(channel, `🤖 DotoBot IA — ${query.substring(0, 60)}`, blocks);
-    } else {
-      const errText = await res.text();
-      await postSlack(channel, `❌ Erro ao consultar IA: HTTP ${res.status} — ${errText.substring(0, 200)}`);
+    // ── Buscar contexto RAG da base de conhecimento ───────────────────────────
+    let context = "";
+    try {
+      const ragResp = await fetch(`${supabaseUrl}/functions/v1/dotobot-rag`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ query: question, top_k: 5 }),
+      });
+      if (ragResp.ok) {
+        const ragData = await ragResp.json();
+        if (ragData.chunks && ragData.chunks.length > 0) {
+          context = ragData.chunks.map((c: any) => c.content).slice(0, 800).join("\n\n");
+        }
+      }
+    } catch (ragErr) {
+      console.log("[dotobot] RAG erro:", ragErr?.message);
     }
-  } catch (e) {
-    await postSlack(channel, `❌ Erro: ${String(e)}`);
+
+    const systemPrompt = [
+      `Você é o Dotobot, assistente jurídico especializado em processos e legislação brasileira.`,
+      `Responda SEMPRE em português (PT-BR). Seja claro, objetivo e profissional.`,
+      `REGRAS ABSOLUTAS:\n- Responda APENAS ao que foi perguntado.\n- NUNCA invente dados de processos ou prazos.\n- NUNCA use palavras em inglês.`,
+      rce,
+      personaBlock,
+      context ? `Base de conhecimento relevante:\n${context}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    // ── Histórico de conversa (últimas 6 mensagens do canal) ──────────────────
+    let historyMessages: ChatMessage[] = [];
+    try {
+      const histRes = await fetch(
+        `${supabaseUrl}/rest/v1/messages?channel=eq.${encodeURIComponent(channel)}&select=role,content,created_at&order=created_at.desc.nullslast&limit=12`,
+        { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+      );
+      if (histRes.ok) {
+        const rows: { role: string; content: string }[] = await histRes.json();
+        historyMessages = rows.reverse().slice(-6).map(r => ({
+          role: r.role as 'user' | 'assistant',
+          content: r.content.slice(0, 400),
+        }));
+        if (historyMessages.length > 0) console.log('[dotobot] histórico:', historyMessages.length, 'msgs');
+      }
+    } catch (_) { /* silencioso */ }
+
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemPrompt },
+      ...historyMessages,
+      { role: "user", content: question },
+    ];
+
+    const llm = llmFactory(supabaseUrl, serviceRoleKey);
+    const answer = await llm.runLLM(messages);
+
+    // Salvar mensagem do usuário e resposta no histórico
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/messages`, {
+        method: 'POST',
+        headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify([
+          { channel, role: 'user', content: question },
+          { channel, role: 'assistant', content: answer },
+        ]),
+      });
+    } catch (_) { /* silencioso */ }
+
+    await postSlack(channel, answer, undefined, thread_ts);
+  } catch (err) {
+    console.error("[dotobot] handleIaPerguntar erro:", String(err));
+    try {
+      await postSlack(channel, "⚠️ Não consegui processar sua pergunta. Tente novamente.", undefined, thread_ts);
+    } catch (postErr) {
+      console.error("[dotobot] postSlack fallback erro:", String(postErr));
+    }
   }
 }
-
 async function handleIaResumirProcesso(channel: string, userId: string, cnj: string): Promise<void> {
   if (!cnj.trim()) {
     await postSlack(channel, "❓ Use: `/dotobot resumir [CNJ do processo]`\nExemplo: `/dotobot resumir 0001234-56.2023.8.04.0001`");
@@ -1991,6 +2634,12 @@ async function handleHelp(channel: string): Promise<void> {
     ),
     divider(),
     section(
+      `*🗄️ Supabase & Cloudflare*\n` +
+      `• \`supabase_test\` — Diagnóstico completo: CRUD, tamanho por recurso e recomendação Supabase vs Cloudflare\n` +
+      `• \`supabase_clean\` — Acionar todas as automações de limpeza, deduplicação, VACUUM e arquivamento Cloudflare\n`
+    ),
+    divider(),
+    section(
       `*🧹 Higienização*\n` +
       `• \`/dotobot fix-activities\` — Corrigir 50 activities pendentes\n` +
       `• \`/dotobot repair-orphans\` — Corrigir campos órfãos (instância, partes, status)\n` +
@@ -2013,12 +2662,15 @@ async function handleHelp(channel: string): Promise<void> {
   await postSlack(channel, "🤖 DotoBot v2.0 — Ajuda", blocks);
 }
 
-async function dispatchSlackTextCommand(channelId: string, userId: string, text: string): Promise<void> {
+async function dispatchSlackTextCommand(channelId: string, userId: string, text: string, thread_ts?: string): Promise<void> {
   const normalizedText = (text || "status").trim();
   const lowered = normalizedText.toLowerCase();
   const [cmd] = lowered.split(" ");
 
-  if (cmd === "status") await handleStatus(channelId, userId);
+  if (cmd === "supabase_test" || cmd === "supabase-test") await handleSupabaseTest(channelId, userId, thread_ts);
+  else if (cmd === "supabase_clean" || cmd === "supabase-clean") await handleSupabaseClean(channelId, userId, thread_ts);
+  else if (cmd === "test_data" || cmd === "test-data" || cmd === "diagnostico") await handleSupabaseTest(channelId, userId, thread_ts);
+  else if (cmd === "status") await handleStatus(channelId, userId);
   else if (cmd === "publicacoes") await handlePublicacoes(channelId);
   else if (cmd === "andamentos") await handleAndamentos(channelId);
   else if (cmd === "audiencias") await handleAudiencias(channelId);
@@ -2048,11 +2700,11 @@ async function dispatchSlackTextCommand(channelId: string, userId: string, text:
   else if (cmd === "prazo-fim" || cmd === "prazo_fim") await handlePrazoFim(channelId, userId);
   else if (cmd === "higienizar-contatos" || cmd === "higienizar_contatos") await handleHigienizarContatos(channelId, userId);
   else if (cmd === "relatorio-financeiro" || cmd === "relatorio_financeiro") await handleRelatorioFinanceiro(channelId);
-  else if (cmd.startsWith("perguntar")) await handleIaPerguntar(channelId, userId, normalizedText.replace(/^perguntar\s*/i, ""));
+  else if (cmd.startsWith("perguntar")) await handleIaPerguntar(channelId, userId, normalizedText.replace(/^perguntar\s*/i, ""), SUPABASE_URL, SVC_KEY, thread_ts);
   else if (cmd.startsWith("resumir")) await handleIaResumirProcesso(channelId, userId, normalizedText.replace(/^resumir\s*/i, ""));
   else if (cmd === "enriquecer-ia" || cmd === "enriquecer_ia") await handleIaEnriquecer(channelId, userId);
   else if (cmd === "ia-status" || cmd === "ia_status") await handleIaStatus(channelId);
-  else await handleIaPerguntar(channelId, userId, normalizedText);
+  else await handleIaPerguntar(channelId, userId, normalizedText, SUPABASE_URL, SVC_KEY, thread_ts);
 }
 
 // ── Notificações Automáticas (chamadas por outras edge functions) ──────────────
@@ -2196,13 +2848,18 @@ Deno.serve(async (req) => {
       const isDirectMessage = eventType === "message" && (eventChannelType === "im" || eventChannelType === "mpim");
       const isMention = eventType === "app_mention";
       const isHumanMessage = !eventSubtype && !event?.bot_id;
+      console.log("[dotobot] event:", { eventType, eventChannelType, eventChannel, eventUser, isDirectMessage, isMention, isHumanMessage, textLen: eventText.length });
+
+      // Capturar thread_ts da mensagem original (igual à Cida) para responder na mesma conversa
+      const eventTs = typeof event?.ts === "string" ? event.ts : undefined;
+      const eventThreadTs = typeof event?.thread_ts === "string" ? event.thread_ts : eventTs;
 
       if ((isDirectMessage || isMention) && isHumanMessage && eventUser && eventChannel && eventText) {
         EdgeRuntime.waitUntil((async () => {
           try {
-            await dispatchSlackTextCommand(eventChannel, eventUser, eventText);
+            await dispatchSlackTextCommand(eventChannel, eventUser, eventText, eventThreadTs);
           } catch (error) {
-            await postSlack(eventChannel, `❌ Erro ao processar mensagem: ${String(error)}`);
+            await postSlack(eventChannel, `❌ Erro ao processar mensagem: ${String(error)}`, undefined, eventThreadTs);
           }
         })());
       }
@@ -2444,6 +3101,8 @@ Deno.serve(async (req) => {
         else if (cmd.startsWith("resumir")) await handleIaResumirProcesso(channelId, userId, text.replace(/^resumir\s*/i, ""));
         else if (cmd === "enriquecer-ia" || cmd === "enriquecer_ia") await handleIaEnriquecer(channelId, userId);
         else if (cmd === "ia-status" || cmd === "ia_status") await handleIaStatus(channelId);
+        else if (cmd === "supabase_test" || cmd === "supabase-test") await handleSupabaseTest(channelId, userId);
+        else if (cmd === "supabase_clean" || cmd === "supabase-clean") await handleSupabaseClean(channelId, userId);
         else await handleHelp(channelId);
       } catch (e) {
         await postSlack(channelId, `❌ Erro ao processar comando \`${cmd}\`: ${String(e)}`);

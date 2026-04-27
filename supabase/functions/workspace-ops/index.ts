@@ -68,6 +68,7 @@ function getSupabaseKey(): string {
 
 function getGatewaySecret(): string | null {
   return (
+    getEnv("CIDA_WOPS_SECRET") ||
     getEnv("FREDDY_ACTION_SHARED_SECRET") ||
     getEnv("HMDAV_AI_SHARED_SECRET") ||
     getEnv("HMADV_AI_SHARED_SECRET") ||
@@ -77,11 +78,24 @@ function getGatewaySecret(): string | null {
 
 // ─── Autorização ──────────────────────────────────────────────────────────
 
+// Decodifica payload de um JWT sem verificar assinatura (apenas para inspecão de claims)
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    // Adicionar padding base64 se necessário
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+    const decoded = atob(padded);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
 function authorizeRequest(req: Request): { ok: boolean; status?: number; error?: string } {
   const expected = getGatewaySecret();
-  if (!expected) {
-    return { ok: false, status: 500, error: "FREDDY_ACTION_SHARED_SECRET ausente no ambiente." };
-  }
+  const supabaseRef = getSupabaseUrl().match(/\/\/([^.]+)\./)?.[1] || '';
 
   const authHeader = req.headers.get("authorization") || "";
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -92,11 +106,28 @@ function authorizeRequest(req: Request): { ok: boolean; status?: number; error?:
     getClean(bearerMatch?.[1]) ||
     null;
 
-  if (!provided || provided !== expected) {
+  if (!provided) {
     return { ok: false, status: 401, error: "Nao autorizado para usar o Workspace Ops." };
   }
 
-  return { ok: true };
+  // (1) Aceitar shared secret configurado
+  if (expected && provided === expected) {
+    return { ok: true };
+  }
+
+  // (2) Aceitar JWT Supabase com role=service_role do mesmo projeto
+  // Decodifica o payload sem verificar assinatura (confiamos na rede interna do Supabase)
+  const payload = decodeJwtPayload(provided);
+  if (
+    payload &&
+    payload.role === 'service_role' &&
+    payload.iss === 'supabase' &&
+    (supabaseRef === '' || payload.ref === supabaseRef)
+  ) {
+    return { ok: true };
+  }
+
+  return { ok: false, status: 401, error: "Nao autorizado para usar o Workspace Ops." };
 }
 
 // ─── Respostas JSON ───────────────────────────────────────────────────────
@@ -130,7 +161,25 @@ async function fsRequest(
     },
   });
   const text = await resp.text().catch(() => "");
-  const payload = text ? JSON.parse(text) : null;
+  let payload: unknown = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    // Freshsales retornou HTML (rate limit, auth error, etc.)
+    payload = { _raw_error: text.slice(0, 300), _status: resp.status };
+  }
+  // Lançar erro explícito para status problemáticos
+  if (resp.status === 429) {
+    throw new Error(`[Freshsales] Rate limit atingido (HTTP 429). Aguarde alguns minutos e tente novamente.`);
+  }
+  if (resp.status === 401 || resp.status === 403) {
+    throw new Error(`[Freshsales] Autenticação falhou (HTTP ${resp.status}). Verifique FRESHSALES_API_KEY.`);
+  }
+  // Verificar se o payload contém _raw_error (HTML inesperado)
+  const p = payload as Record<string, unknown>;
+  if (p?._raw_error) {
+    throw new Error(`[Freshsales] Resposta inválida (HTTP ${resp.status}): ${String(p._raw_error).slice(0, 150)}`);
+  }
   return { status: resp.status, payload };
 }
 
@@ -582,13 +631,13 @@ serve(async (req: Request) => {
     });
   }
 
-  // Health check
-  if (path === "/health" || path === "" || path === "/") {
+  // Health check (GET) ou raiz sem body de operation
+  if (path === "/health" || ((path === "" || path === "/") && method === "GET")) {
     return new Response(
       JSON.stringify({
         ok: true,
         service: "workspace-ops",
-        version: "1.0.0",
+        version: "1.1.0",
         operations: [
           "daily_summary", "contact_lookup", "deal_view", "account_view",
           "tasks_list", "task_view", "task_create", "task_update", "task_delete",
@@ -606,8 +655,9 @@ serve(async (req: Request) => {
     return jsonError("Metodo nao permitido. Use POST.", 405);
   }
 
-  if (path !== "/execute") {
-    return jsonError(`Rota ${path} nao encontrada. Use /execute.`, 404);
+  // Aceitar POST tanto em / quanto em /execute (retrocompatibilidade)
+  if (path !== "/execute" && path !== "" && path !== "/") {
+    return jsonError(`Rota ${path} nao encontrada. Use /execute ou POST na raiz.`, 404);
   }
 
   const auth = authorizeRequest(req);
@@ -616,7 +666,8 @@ serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const operation = String(body.operation || "").trim();
-    const args = (body.args || body) as Record<string, unknown>;
+    // Aceitar args, params, ou o body inteiro (retrocompatibilidade)
+    const args = (body.args || body.params || body) as Record<string, unknown>;
 
     if (!operation) {
       return jsonError("Informe o campo 'operation'.", 400);

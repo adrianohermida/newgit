@@ -99,6 +99,10 @@ export default function ClientStep({
                 {submitting ? "Enviando..." : "Agendar Consulta"}
               </button>
             </div>
+            {/* Aviso reposicionado para logo abaixo do botão */}
+            <div className="mt-4 text-center text-xs text-[#C5A059] opacity-70">
+              Preencha telefone, data e horário para concluir o agendamento
+            </div>
           </div>
         </div>
       </div>

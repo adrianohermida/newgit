@@ -6,6 +6,15 @@ export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
+    // Validar variáveis de ambiente obrigatórias
+    if (!env.FRESHDESK_DOMAIN || !env.FRESHDESK_BASIC_TOKEN) {
+      console.error('[freshdesk-ticket] Variáveis de ambiente ausentes');
+      return new Response(JSON.stringify({ ok: false, error: 'Serviço indisponível. Tente novamente em instantes.' }), {
+        status: 503,
+        headers: JSON_HEADERS,
+      });
+    }
+
     const payload = await request.json();
     const blocked = await validatePublicMutationRequest(request, env, payload, {
       honeypotFields: ['website', 'company_url'],
@@ -50,9 +59,10 @@ export async function onRequestPost(context) {
 
     const body = await res.json().catch(async () => ({ raw: await res.text().catch(() => '') }));
     if (!res.ok) {
+      console.error('[freshdesk-ticket] Erro ao criar ticket:', res.status, body);
       return new Response(JSON.stringify({
         ok: false,
-        error: 'Erro interno ao registrar solicitacao.',
+        error: 'Erro ao registrar solicitação. Tente novamente em instantes.',
         detail: body,
       }), {
         status: 500,
@@ -65,7 +75,8 @@ export async function onRequestPost(context) {
       headers: JSON_HEADERS,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ ok: false, error: error.message || 'Erro ao processar ticket.' }), {
+    console.error('[freshdesk-ticket] Exceção:', error.message);
+    return new Response(JSON.stringify({ ok: false, error: 'Erro ao processar solicitação. Tente novamente em instantes.' }), {
       status: 500,
       headers: JSON_HEADERS,
     });

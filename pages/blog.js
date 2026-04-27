@@ -7,6 +7,10 @@ import { getPublishedBlogPosts } from "../lib/blog/posts";
 export default function Blog({ articles }) {
   const safeArticles = Array.isArray(articles) ? articles : [];
 
+  if (!Array.isArray(articles)) {
+    console.error("[blog] 'articles' prop is not an array:", articles);
+  }
+
   return (
     <Layout>
       <Head>

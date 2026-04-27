@@ -77,7 +77,7 @@ async function criarTaskFreshsales(
       const taskData = data as Record<string, Record<string, unknown>>;
       return String(taskData.task?.id ?? "") || null;
     }
-    console.warn("criarTaskFreshsales: status", status);
+    console.warn("criarTaskFreshsales: status", status, "data:", JSON.stringify(data).substring(0, 500));
     return null;
   } catch (e) {
     console.error("criarTaskFreshsales error:", e);
@@ -636,16 +636,36 @@ Deno.serve(async (req) => {
       // Buscar publicações sem prazo calculado
       // Usar offset para paginação quando batch_offset é fornecido
       const batchOffset = body.batch_offset || 0;
+      // Priorizar publicações mais recentes sem prazo calculado
+      // Busca a data mais recente disponível no banco e prioriza os últimos 45 dias a partir dela
+      const { data: maxDateRow } = await supabase
+        .schema("judiciario")
+        .from("publicacoes")
+        .select("data_publicacao")
+        .not("data_publicacao", "is", null)
+        .not("conteudo", "is", null)
+        .not("processo_id", "is", null)
+        .order("data_publicacao", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const maxDate = maxDateRow?.data_publicacao ? new Date(maxDateRow.data_publicacao) : new Date();
+      const dataLimite = new Date(maxDate);
+      dataLimite.setDate(maxDate.getDate() - 45);
+      const dataLimiteStr = dataLimite.toISOString();
       const { data: publicacoes, error: fetchError } = await supabase
         .schema("judiciario")
         .from("publicacoes")
         .select(`
           id, numero_processo_api, data_publicacao,
           conteudo, cidade_comarca_descricao, vara_descricao, processo_id,
+          ai_resumo, ai_tipo_ato, ai_urgencia,
           processos:processo_id ( formato )
         `)
         .not("data_publicacao", "is", null)
         .not("conteudo", "is", null)
+        .not("processo_id", "is", null)
+        .gte("data_publicacao", dataLimiteStr)
+        .order("data_publicacao", { ascending: false })
         .range(batchOffset, batchOffset + batchSize - 1);
 
       if (fetchError || !publicacoes || publicacoes.length === 0) {
@@ -860,7 +880,7 @@ Deno.serve(async (req) => {
           // Criar tasks no Freshsales para cada prazo inserido
           for (const prazo of prazosInseridos2) {
             try {
-              // Buscar o freshsales_account_id do processo
+              // Buscar o account_id_freshsales do processo
               const meta = prazo.metadata as Record<string, unknown>;
               let accountId: string | null = null;
               
@@ -868,10 +888,10 @@ Deno.serve(async (req) => {
                 const { data: proc } = await supabase
                   .schema("judiciario")
                   .from("processos")
-                  .select("freshsales_account_id")
+                  .select("account_id_freshsales")
                   .eq("id", prazo.processo_id)
                   .single();
-                accountId = proc?.freshsales_account_id ? String(proc.freshsales_account_id) : null;
+                accountId = proc?.account_id_freshsales ? String(proc.account_id_freshsales) : null;
               }
 
               // Construir descrição completa da task com memória extensiva e score de confiabilidade
@@ -887,6 +907,11 @@ Deno.serve(async (req) => {
               const prazoDiasNum = Number(meta?.prazo_dias || 5);
               const tipoContagemStr = String(meta?.tipo_contagem || "dias_uteis") === "dias_uteis" ? "dias úteis" : "dias corridos";
 
+              // Dados de IA da publicação (se disponíveis)
+              const pubOriginal = publicacoesSemPrazo.find(p => p.id === prazo.publicacao_id);
+              const aiResumo = pubOriginal ? String((pubOriginal as Record<string,unknown>).ai_resumo || "") : "";
+              const aiTipoAto = pubOriginal ? String((pubOriginal as Record<string,unknown>).ai_tipo_ato || "") : "";
+              const aiUrgencia = pubOriginal ? String((pubOriginal as Record<string,unknown>).ai_urgencia || "") : "";
               // Cabeçalho de auditoria
               const linhasDescricao: string[] = [
                 `===================================================`,
@@ -906,6 +931,9 @@ Deno.serve(async (req) => {
                 `▶️  INÍCIO DA CONTAGEM: ${formatDateBR(prazo.data_inicio_contagem || prazo.data_base || prazo.data_vencimento)}`,
                 `🛑 VENCIMENTO: ${formatDateBR(prazo.data_vencimento)}`,
                 ``,
+                aiTipoAto ? `🏷️  TIPO DE ATO: ${aiTipoAto}` : "",
+                aiUrgencia ? `🚨 URGÊNCIA (IA): ${aiUrgencia.toUpperCase()}` : "",
+                aiResumo ? `📋 RESUMO IA: ${aiResumo}` : "",
                 `---------------------------------------------------`,
                 prazo.observacoes_ia || "",
                 `---------------------------------------------------`,
@@ -915,7 +943,7 @@ Deno.serve(async (req) => {
                 `   Estado: AM | Munícipio: Manaus | Tribunal: ${tribunal || "TJ-AM"}`,
               ];
 
-              const descricao = linhasDescricao.filter(l => l !== undefined && l !== null).join("\n").slice(0, 65000);
+              const descricao = linhasDescricao.filter(l => l !== undefined && l !== null && l !== "").join("\n").slice(0, 65000);
 
               const taskId = await criarTaskFreshsales(
                 prazo.titulo,
@@ -930,6 +958,14 @@ Deno.serve(async (req) => {
                   .from("prazo_calculado")
                   .update({ freshsales_task_id: taskId })
                   .eq("id", prazo.id);
+                // Marcar publicação como lida e registrar task_id
+                if (prazo.publicacao_id) {
+                  await supabase
+                    .schema("judiciario")
+                    .from("publicacoes")
+                    .update({ lido: true, freshsales_task_id: taskId })
+                    .eq("id", prazo.publicacao_id);
+                }
               }
             } catch (e) {
               console.warn("Erro ao criar task FS para prazo", prazo.id, e);
@@ -1078,10 +1114,10 @@ Deno.serve(async (req) => {
             const { data: proc } = await supabase
               .schema("judiciario")
               .from("processos")
-              .select("freshsales_account_id")
+              .select("account_id_freshsales")
               .eq("id", prazo.processo_id)
               .single();
-            accountId = proc?.freshsales_account_id ? String(proc.freshsales_account_id) : null;
+            accountId = proc?.account_id_freshsales ? String(proc.account_id_freshsales) : null;
           }
           const numeroProcesso = String(meta?.numero_processo || "");
           const tribunal = String(meta?.tribunal || "");
@@ -1133,6 +1169,14 @@ Deno.serve(async (req) => {
               .from("prazo_calculado")
               .update({ freshsales_task_id: taskId })
               .eq("id", prazo.id);
+            // Marcar publicação como lida e registrar task_id
+            if (prazo.publicacao_id) {
+              await supabase
+                .schema("judiciario")
+                .from("publicacoes")
+                .update({ lido: true, freshsales_task_id: taskId })
+                .eq("id", prazo.publicacao_id);
+            }
             criadas++;
           } else {
             erros++;

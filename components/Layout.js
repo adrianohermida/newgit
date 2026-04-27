@@ -224,38 +224,6 @@ export default function Layout({ children, forceDarkMode = false, hideThemeContr
           </nav>
 
           <div className="flex items-center gap-4">
-            {!hideThemeControls ? <div className={`hidden items-center gap-1 rounded-[14px] border px-1 py-1 md:flex ${resolvedLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-              {[
-                { key: "light", label: "Claro" },
-                { key: "system", label: "Sistema" },
-                { key: "dark", label: "Escuro" },
-              ].map((option) => {
-                const active = preference === option.key;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setThemePreference(option.key)}
-                    className={`rounded-[10px] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
-                      active
-                        ? "bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E]"
-                        : resolvedLightTheme
-                          ? "text-[#60706A] hover:bg-[rgba(213,222,233,0.76)] hover:text-[#22312F]"
-                          : "text-[#9BAEA8] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#F5E6C5]"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div> : null}
-            {!hideThemeControls ? <button
-              type="button"
-              onClick={toggleTheme}
-              className={`hidden rounded-[14px] border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] md:inline-flex ${resolvedLightTheme ? "border-[#D4DEE8] text-[#22312F]" : "border-[#22342F] text-[#D8DEDA]"}`}
-            >
-              Alternar
-            </button> : null}
             <Link href="/agendamento" legacyBehavior>
               <a
                 className="hidden md:inline-flex items-center gap-2 border border-[#C5A059]/50 text-[#C5A059] px-6 py-2.5 text-xs font-semibold tracking-[0.12em] uppercase hover:bg-[#C5A059] hover:text-[#050706] transition-all duration-300"

@@ -36,14 +36,23 @@ async function cacheFirst(request, cacheName) {
 }
 
 async function networkFirst(request, cacheName, fallbackToOffline = false) {
+  const url = new URL(request.url);
+  const timeoutMs = 8000; // 8 segundo timeout
+  
   try {
-    const response = await fetch(request);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    const response = await fetch(request, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
     if (response.ok) {
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone()).catch(() => null);
     }
     return response;
   } catch (error) {
+    // Tentar servir do cache
     const cached = await caches.match(request);
     if (cached) {
       return cached;
@@ -56,7 +65,7 @@ async function networkFirst(request, cacheName, fallbackToOffline = false) {
       }
     }
 
-    const url = new URL(request.url);
+    // Responder com erro apropriado
     if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/_next/data/')) {
       return Response.error();
     }

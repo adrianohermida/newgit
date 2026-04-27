@@ -1,10 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { checkRateLimit, safeBatchSize, createPublicClient } from '../_shared/rate-limit.ts';
 /**
  * billing-deals-sync  v1
  *
  * Sincroniza registros de billing_receivables como Deals no Freshsales.
  * Associa faturas a contatos existentes e processos (via CNJ).
- * Respeita o limite de 1000 req/h do Freshsales com rate limiting interno.
+ * Respeita o limite global de 990 req/h via módulo compartilhado de rate limit.
  *
  * Actions:
  *   sync_batch  (default) — sincroniza N receivables sem freshsales_deal_id
@@ -23,21 +24,17 @@ const FS_API_KEY    = Deno.env.get('FRESHSALES_API_KEY') ?? '';
 const BATCH_SIZE    = Number(Deno.env.get('BILLING_BATCH_SIZE') ?? '15');
 const FS_BASE       = `https://${FS_DOMAIN_RAW.replace(/^https?:\/\//, '')}/crm/sales/api`;
 
-const db = createClient(SUPABASE_URL, SVC_KEY);
+// Usar createPublicClient para todas as operações (schema public)
+const db = createPublicClient();
 
 const log = (n: 'info'|'warn'|'error', m: string, e: Record<string,unknown>={}) =>
   console[n](JSON.stringify({ ts: new Date().toISOString(), fn: 'billing-deals-sync', msg: m, ...e }));
 
-// ─── Rate limiting simples ────────────────────────────────────────────────────
-let fsCallsThisHour = 0;
-const FS_RATE_LIMIT = 900; // margem de segurança abaixo de 1000/h
+// ─── Contador local de chamadas (para log) ────────────────────────────────────
+let fsCallsThisRun = 0;
 
 async function fsRequest(path: string, method = 'GET', body?: unknown) {
-  if (fsCallsThisHour >= FS_RATE_LIMIT) {
-    throw new Error('Rate limit do Freshsales atingido — aguardar próxima hora');
-  }
-  fsCallsThisHour++;
-
+  fsCallsThisRun++;
   const resp = await fetch(`${FS_BASE}${path}`, {
     method,
     headers: {
@@ -64,45 +61,77 @@ function formatarValor(valor: number | null): string {
 function determinarStageDeal(receivable: Record<string, unknown>): string {
   const status = receivable.status as string;
   const diasVencidos = receivable.days_overdue as number ?? 0;
-  if (status === 'paid') return 'Pago';
+  if (status === 'pago' || status === 'paid') return 'Pago';
   if (diasVencidos > 90) return 'Inadimplente';
   if (diasVencidos > 30) return 'Em Atraso';
-  if (status === 'pending') return 'Aguardando Pagamento';
+  if (status === 'pending' || status === 'pendente') return 'Aguardando Pagamento';
   return 'Em Aberto';
 }
 
-function nomeDeal(receivable: Record<string, unknown>): string {
+function nomeDeal(receivable: Record<string, unknown>, nomeContato = ''): string {
   const tipo = receivable.receivable_type as string;
   const numero = receivable.invoice_number as string;
-  const desc = receivable.description as string;
   const tipoLabel: Record<string, string> = {
     assinatura: 'Assinatura',
     despesa: 'Despesa',
     fatura_avulsa: 'Fatura',
+    fatura: 'Fatura',
     consulta: 'Consulta',
+    reembolso: 'Reembolso',
   };
-  return `${tipoLabel[tipo] ?? tipo} ${numero ?? ''} — ${(desc ?? '').slice(0, 60)}`.trim();
+  const tipoStr = tipoLabel[tipo] ?? tipo;
+  const sufixo = nomeContato ? ` — ${nomeContato.slice(0, 40)}` : '';
+  return `${tipoStr} ${numero ?? ''}${sufixo}`.trim();
 }
 
-// ─── Buscar ou criar contato no Freshsales ────────────────────────────────────
-async function resolverContatoFS(contactId: string | null): Promise<number | null> {
-  if (!contactId) return null;
+// ─── Buscar contato e account vinculada no Freshsales ────────────────────────
+async function resolverContatoFS(contactId: string | null): Promise<{
+  fsContactId: number | null;
+  fsAccountId: number | null;
+  nomeContato: string;
+}> {
+  if (!contactId) return { fsContactId: null, fsAccountId: null, nomeContato: 'Cliente' };
 
-  // Verificar em freshsales_contacts
+  // Verificar em freshsales_contacts (coluna correta: freshsales_contact_id)
   const { data: fc } = await db
     .from('freshsales_contacts')
-    .select('fs_contact_id')
-    .eq('supabase_contact_id', contactId)
+    .select('freshsales_contact_id, name')
+    .eq('id', contactId)
     .single();
 
-  if (fc?.fs_contact_id) return Number(fc.fs_contact_id);
-  return null;
+  if (!fc?.freshsales_contact_id) {
+    return { fsContactId: null, fsAccountId: null, nomeContato: 'Cliente' };
+  }
+
+  const fsContactId = Number(fc.freshsales_contact_id);
+  const nomeContato = (fc.name as string) ?? 'Cliente';
+
+  // Buscar a account vinculada ao contato via API do Freshsales
+  let fsAccountId: number | null = null;
+  try {
+    const contactData = await fsRequest(`/contacts/${fsContactId}?include=sales_accounts`) as Record<string, unknown>;
+    const contact = contactData?.contact as Record<string, unknown>;
+    const accounts = contact?.sales_accounts as Array<Record<string, unknown>>;
+    if (accounts?.length > 0) {
+      fsAccountId = Number(accounts[0].id);
+    }
+  } catch (e) {
+    log('warn', 'Erro ao buscar account do contato', { fsContactId, error: String(e) });
+  }
+
+  return { fsContactId, fsAccountId, nomeContato };
 }
 
 // ─── Criar Deal no Freshsales ─────────────────────────────────────────────────
 async function criarDealFS(receivable: Record<string, unknown>): Promise<number | null> {
-  const nome = nomeDeal(receivable);
-  const valor = (receivable.balance_due_corrected ?? receivable.balance_due ?? receivable.amount_original ?? 0) as number;
+  const { fsContactId, fsAccountId, nomeContato } = await resolverContatoFS(
+    receivable.contact_id as string | null
+  );
+
+  const nome = nomeDeal(receivable, nomeContato);
+  const valor = Number(
+    receivable.balance_due_corrected ?? receivable.balance_due ?? receivable.amount_original ?? 0
+  );
   const stage = determinarStageDeal(receivable);
   const vencimento = receivable.due_date as string;
 
@@ -113,16 +142,20 @@ async function criarDealFS(receivable: Record<string, unknown>): Promise<number 
     .eq('receivable_type', receivable.receivable_type)
     .single();
 
-  const contactId = await resolverContatoFS(receivable.contact_id as string);
-
   const dealPayload: Record<string, unknown> = {
     deal: {
       name: nome,
       amount: valor,
       close_date: vencimento,
       deal_stage: { label: stage },
-      ...(contactId ? { contacts_added_list: [{ id: contactId }] } : {}),
-      ...(produto?.fs_product_id ? { deal_product: { id: produto.fs_product_id, quantity: 1, price: valor } } : {}),
+      // Vincular ao contato (obrigatório para associar ao cliente)
+      ...(fsContactId ? { contacts_added_list: [{ id: fsContactId }] } : {}),
+      // Vincular à account (obrigatório no Freshsales para criar deal)
+      ...(fsAccountId ? { sales_account: { id: fsAccountId } } : {}),
+      // Produto
+      ...(produto?.fs_product_id ? {
+        deal_product: { id: produto.fs_product_id, quantity: 1, price: valor }
+      } : {}),
       custom_field: {
         cf_numero_fatura: receivable.invoice_number,
         cf_tipo_cobranca: receivable.receivable_type,
@@ -136,7 +169,11 @@ async function criarDealFS(receivable: Record<string, unknown>): Promise<number 
 
   try {
     const resp = await fsRequest('/deals', 'POST', dealPayload) as Record<string, unknown>;
-    return (resp?.deal as Record<string, unknown>)?.id as number ?? null;
+    const dealId = (resp?.deal as Record<string, unknown>)?.id as number ?? null;
+    if (!dealId) {
+      log('warn', 'Deal criado mas sem ID na resposta', { nome, resp: JSON.stringify(resp).slice(0, 200) });
+    }
+    return dealId;
   } catch (e) {
     log('warn', 'Erro ao criar deal', { invoice: receivable.invoice_number, error: String(e) });
     return null;
@@ -168,7 +205,7 @@ async function processarReceivable(rec: Record<string, unknown>): Promise<boolea
   // Registrar no freshsales_deals_registry
   await db.from('freshsales_deals_registry').upsert({
     fs_deal_id: dealId,
-    nome: nomeDeal(rec),
+    nome: nomeDeal(rec, ''),  // nome sem contato para o registry
     valor: rec.balance_due_corrected ?? rec.amount_original,
     status: determinarStageDeal(rec),
     receivable_id: rec.id,
@@ -201,17 +238,26 @@ Deno.serve(async (req: Request) => {
     return Response.json({ id, sincronizado: ok });
   }
 
-  // sync_batch: processar receivables sem deal
+  // sync_batch: verificar rate limit global antes de processar
+  // Cada receivable gera ~2 chamadas ao FS (POST deal + GET contact)
+  // Cada receivable gera ~3 chamadas ao FS (GET contact+accounts + POST deal)
+  const rl = await checkRateLimit(db, 'billing-deals-sync', BATCH_SIZE * 3);
+  if (!rl.ok) {
+    log('warn', 'Rate limit global atingido', { slots_avail: rl.slots_avail });
+    return Response.json({ ok: false, motivo: 'rate_limit_global', slots_avail: rl.slots_avail }, { status: 429 });
+  }
+  const safeBatch = safeBatchSize(rl.slots_avail, 3, BATCH_SIZE);
+
   const { data: receivables } = await db
     .from('billing_receivables')
     .select('*')
     .is('freshsales_deal_id', null)
     .not('status', 'eq', 'cancelled')
     .order('due_date', { ascending: true })
-    .limit(BATCH_SIZE);
+    .limit(safeBatch);
 
   if (!receivables?.length) {
-    return Response.json({ message: 'Todos os receivables já têm deal no Freshsales', processados: 0 });
+    return Response.json({ ok: true, message: 'Todos os receivables já têm deal no Freshsales', processados: 0 });
   }
 
   let sincronizados = 0;
@@ -227,13 +273,14 @@ Deno.serve(async (req: Request) => {
     processados: receivables.length,
     sincronizados,
     erros,
-    fs_calls: fsCallsThisHour,
+    fs_calls: fsCallsThisRun,
   });
 
   return Response.json({
+    ok: true,
     processados: receivables.length,
     deals_criados: sincronizados,
     erros,
-    fs_calls_usados: fsCallsThisHour,
+    fs_calls_usados: fsCallsThisRun,
   });
 });
