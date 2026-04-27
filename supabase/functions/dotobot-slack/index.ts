@@ -54,44 +54,14 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-// ═══ LLM Hub inline (fonte: _shared/llm-hub.ts) ═══
-/**
- * llm-hub.ts — Hub de LLM compartilhado para Cida e Dotobot
- *
- * Ordem de prioridade dos provedores:
- *   1. Cloudflare Workers AI  — primário, sem custo por token
- *   2. Ollama Cloud           — fallback, modelos open-source hospedados
- *   3. OpenAI                 — fallback premium, ativado quando há créditos
- *
- * Configuração (lida do app_config do banco, com fallback para Deno.env):
- *   CLOUDFLARE_ACCOUNT_ID     — ID da conta Cloudflare
- *   CLOUDFLARE_API_TOKEN      — Token de API Cloudflare
- *   CLOUDFLARE_WORKERS_AI_MODEL — Modelo a usar (padrão: @cf/meta/llama-3.1-8b-instruct)
- *   OLLAMA_API_KEY            — Chave da API Ollama Cloud
- *   OLLAMA_BASE_URL           — URL base do Ollama Cloud
- *   OLLAMA_MODEL              — Modelo Ollama (padrão: gemma3:4b)
- *   OPENAI_API_KEY            — Chave OpenAI (opcional, fallback de último recurso)
- *   OPENAI_BASE_URL           — URL base OpenAI-compatible (padrão: https://api.openai.com/v1)
- *   OPENAI_MODEL              — Modelo OpenAI (padrão: gpt-4.1-mini)
- *
- * Funcionalidades:
- *   - Circuit breaker por provedor (pausa após 3 falhas consecutivas, retoma em 60s)
- *   - Cache de configuração em memória (evita query ao banco a cada chamada)
- *   - Logs detalhados por provedor para diagnóstico
- *   - Interface ChatMessage compatível com OpenAI
- */
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-interface LLMCallResult {
-  content: string;
-  provider: string;
-}
+// ─── LLM Hub (injetado da cida-slack) ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// LLM HUB — Roteamento inteligente entre provedores de IA
+// Ordem: Cloudflare Workers AI (primário) → Ollama Cloud (fallback)
+// Circuit breaker por provedor: pausa automaticamente provedores com falhas
+// consecutivas para evitar latência desnecessária.
+// ═══════════════════════════════════════════════════════════════════════════
 
 interface LLMProvider {
   name: string;
@@ -103,11 +73,10 @@ interface CircuitState {
   openUntil: number; // timestamp ms — 0 = fechado (disponível)
 }
 
-// ─── Circuit Breaker ──────────────────────────────────────────────────────────
-
+// Estado do circuit breaker (em memória — reseta a cada cold start da Edge Function)
 const _circuitState: Record<string, CircuitState> = {};
-const CIRCUIT_THRESHOLD  = 3;       // falhas consecutivas para abrir o circuito
-const CIRCUIT_TIMEOUT_MS = 60_000;  // 60s de pausa após abertura
+const CIRCUIT_THRESHOLD  = 3;      // falhas consecutivas para abrir o circuito
+const CIRCUIT_TIMEOUT_MS = 60_000; // 60s de pausa após abertura
 
 function isCircuitOpen(name: string): boolean {
   const s = _circuitState[name];
@@ -117,6 +86,7 @@ function isCircuitOpen(name: string): boolean {
     return true;
   }
   if (s.openUntil > 0 && Date.now() >= s.openUntil) {
+    // Half-open: deixar uma tentativa passar
     s.openUntil = 0;
     console.log(`[llm-hub] circuit HALF-OPEN para ${name} — tentando recuperar`);
   }
@@ -124,13 +94,12 @@ function isCircuitOpen(name: string): boolean {
 }
 
 let _lastProviderUsed = 'unknown';
-
-function recordSuccess(name: string): void {
+function recordSuccess(name: string) {
   _circuitState[name] = { failures: 0, openUntil: 0 };
   _lastProviderUsed = name;
 }
 
-function recordFailure(name: string): void {
+function recordFailure(name: string) {
   const s = _circuitState[name] ?? { failures: 0, openUntil: 0 };
   s.failures += 1;
   if (s.failures >= CIRCUIT_THRESHOLD) {
@@ -140,100 +109,79 @@ function recordFailure(name: string): void {
   _circuitState[name] = s;
 }
 
-// ─── Cache de Configuração ────────────────────────────────────────────────────
+// Cache de configuração do app_config (evita query a cada chamada)
+let _llmConfigCache: Record<string, string> | null = null;
 
-let _configCache: Record<string, string> | null = null;
-
-const CONFIG_KEYS = [
-  'CLOUDFLARE_ACCOUNT_ID',
-  'CLOUDFLARE_API_TOKEN',
-  'CLOUDFLARE_WORKERS_AI_MODEL',
-  'OLLAMA_API_KEY',
-  'OLLAMA_BASE_URL',
-  'OLLAMA_MODEL',
-  'OPENAI_API_KEY',
-  'OPENAI_BASE_URL',
-  'OPENAI_MODEL',
-];
-
-async function loadConfig(supabaseUrl: string, serviceRoleKey: string): Promise<Record<string, string>> {
-  if (_configCache) return _configCache;
+async function getLLMConfig(supabaseUrl: string, serviceRoleKey: string): Promise<Record<string, string>> {
+  if (_llmConfigCache) return _llmConfigCache;
   try {
+    const keys = ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'OLLAMA_API_KEY', 'OLLAMA_BASE_URL', 'OLLAMA_MODEL'];
     const res = await fetch(
-      `${supabaseUrl}/rest/v1/app_config?key=in.(${CONFIG_KEYS.join(',')})&select=key,value`,
+      `${supabaseUrl}/rest/v1/app_config?key=in.(${keys.join(',')})&select=key,value`,
       { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
     );
     if (res.ok) {
       const rows: { key: string; value: string }[] = await res.json();
       const m: Record<string, string> = {};
-      for (const r of rows) if (r.value) m[r.key] = r.value;
-      _configCache = m;
-      console.log(`[llm-hub] config carregada do banco: ${Object.keys(m).join(', ')}`);
+      for (const r of rows) m[r.key] = r.value;
+      _llmConfigCache = m;
       return m;
     }
-    console.warn('[llm-hub] falha ao carregar app_config, usando apenas Deno.env');
   } catch (e: any) {
-    console.error('[llm-hub] loadConfig erro:', e?.message);
+    console.error('[llm-hub] getLLMConfig error:', e?.message);
   }
-  _configCache = {};
-  return _configCache;
+  return {};
 }
 
-function cfg(config: Record<string, string>, key: string, envFallback?: string): string {
-  return config[key] || Deno.env.get(key) || Deno.env.get(envFallback ?? '') || '';
-}
-
-// ─── Provedores ───────────────────────────────────────────────────────────────
-
-function makeCloudflareProvider(accountId: string, apiToken: string, model: string): LLMProvider {
-  return {
+function llmFactory(supabaseUrl?: string, serviceRoleKey?: string) {
+  // ── Provedor 1: Cloudflare Workers AI ────────────────────────────────────
+  const makeCloudflareProvider = (cfAccountId: string, cfApiToken: string): LLMProvider => ({
     name: 'cloudflare',
     call: async (messages: ChatMessage[]) => {
-      const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model}`;
-      console.log(`[llm-hub][cloudflare] chamando ${model}, msgs: ${messages.length}`);
+      const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cfAccountId)}/ai/run/@cf/meta/llama-3.1-8b-instruct`;
+      console.log('[llm-hub][cloudflare] chamando Cloudflare Workers AI, msgs:', messages.length);
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15_000);
+      const timeout = setTimeout(() => controller.abort(), 12_000); // 12s timeout
 
       try {
         const res = await fetch(url, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+          headers: { Authorization: `Bearer ${cfApiToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             repetition_penalty: 1.3,
-            max_tokens: 800,
+            max_tokens: 512,
           }),
           signal: controller.signal,
         });
         clearTimeout(timeout);
 
         const text = await res.text();
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
-
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+        }
         const data = JSON.parse(text);
         const output = data?.result?.response ?? data?.result?.output ?? data?.response ?? '';
         if (!output) throw new Error(`resposta vazia: ${text.slice(0, 100)}`);
-
-        console.log(`[llm-hub][cloudflare] ✓ ${output.length} chars`);
+        console.log('[llm-hub][cloudflare] ✓ resposta recebida, chars:', output.length);
         return String(output);
       } catch (e: any) {
         clearTimeout(timeout);
         throw e;
       }
     },
-  };
-}
+  });
 
-function makeOllamaProvider(apiKey: string, baseUrl: string, model: string): LLMProvider {
-  return {
+  // ── Provedor 2: Ollama Cloud ──────────────────────────────────────────────
+  const makeOllamaProvider = (apiKey: string, baseUrl: string, model: string): LLMProvider => ({
     name: 'ollama',
     call: async (messages: ChatMessage[]) => {
       const url = `${baseUrl.replace(/\/$/, '')}/api/chat`;
-      console.log(`[llm-hub][ollama] chamando ${model}, msgs: ${messages.length}`);
+      console.log(`[llm-hub][ollama] chamando Ollama Cloud, modelo: ${model}, msgs: ${messages.length}`);
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25_000);
+      const timeout = setTimeout(() => controller.abort(), 20_000); // 20s timeout
 
       try {
         const res = await fetch(url, {
@@ -243,100 +191,48 @@ function makeOllamaProvider(apiKey: string, baseUrl: string, model: string): LLM
             model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             stream: false,
-            options: { temperature: 0.7, num_predict: 800 },
+            options: { temperature: 0.7, num_predict: 512 },
           }),
           signal: controller.signal,
         });
         clearTimeout(timeout);
 
         const text = await res.text();
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
-
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+        }
         const data = JSON.parse(text);
         const output = data?.message?.content ?? data?.response ?? '';
         if (!output) throw new Error(`resposta vazia: ${text.slice(0, 100)}`);
-
-        console.log(`[llm-hub][ollama] ✓ ${output.length} chars`);
+        console.log('[llm-hub][ollama] ✓ resposta recebida, chars:', output.length);
         return String(output);
       } catch (e: any) {
         clearTimeout(timeout);
         throw e;
       }
     },
-  };
-}
+  });
 
-function makeOpenAIProvider(apiKey: string, baseUrl: string, model: string): LLMProvider {
-  return {
-    name: 'openai',
-    call: async (messages: ChatMessage[]) => {
-      const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
-      console.log(`[llm-hub][openai] chamando ${model}, msgs: ${messages.length}`);
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30_000);
-
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            messages: messages.map((m) => ({ role: m.role, content: m.content })),
-            temperature: 0.3,
-            max_tokens: 800,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-
-        const text = await res.text();
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
-
-        const data = JSON.parse(text);
-        const output = data?.choices?.[0]?.message?.content ?? '';
-        if (!output) throw new Error(`resposta vazia: ${text.slice(0, 100)}`);
-
-        console.log(`[llm-hub][openai] ✓ ${output.length} chars`);
-        return String(output);
-      } catch (e: any) {
-        clearTimeout(timeout);
-        throw e;
-      }
-    },
-  };
-}
-
-// ─── Hub Principal ────────────────────────────────────────────────────────────
-
-function createLLMHub(supabaseUrl?: string, serviceRoleKey?: string) {
-  const runLLM = async (messages: ChatMessage[]): Promise<LLMCallResult> => {
-    // Carregar configuração do app_config com fallback para Deno.env
-    const config = supabaseUrl && serviceRoleKey
-      ? await loadConfig(supabaseUrl, serviceRoleKey)
+  // ── Orquestrador principal ────────────────────────────────────────────────
+  const runLLM = async (messages: ChatMessage[]): Promise<string> => {
+    // Carregar configuração do app_config (com fallback para env vars)
+    const cfg = supabaseUrl && serviceRoleKey
+      ? await getLLMConfig(supabaseUrl, serviceRoleKey)
       : {};
 
-    // Resolver credenciais de cada provedor
-    const cfAccountId = cfg(config, 'CLOUDFLARE_ACCOUNT_ID', 'CF_ACCOUNT_ID');
-    const cfApiToken  = cfg(config, 'CLOUDFLARE_API_TOKEN', 'CF_API_TOKEN');
-    const cfModel     = cfg(config, 'CLOUDFLARE_WORKERS_AI_MODEL') || '@cf/meta/llama-3.1-8b-instruct';
+    const cfAccountId = cfg['CLOUDFLARE_ACCOUNT_ID'] || Deno.env.get('CF_ACCOUNT_ID') || '';
+    const cfApiToken  = cfg['CLOUDFLARE_API_TOKEN']  || Deno.env.get('CF_API_TOKEN')  || '';
+    const ollamaKey   = cfg['OLLAMA_API_KEY']        || Deno.env.get('OLLAMA_API_KEY') || '';
+    const ollamaBase  = cfg['OLLAMA_BASE_URL']       || Deno.env.get('OLLAMA_BASE_URL') || 'https://ollama.com';
+    const ollamaModel = cfg['OLLAMA_MODEL']          || Deno.env.get('OLLAMA_MODEL')    || 'gemma3:4b';
 
-    const ollamaKey   = cfg(config, 'OLLAMA_API_KEY');
-    const ollamaBase  = cfg(config, 'OLLAMA_BASE_URL') || 'https://ollama.com';
-    const ollamaModel = cfg(config, 'OLLAMA_MODEL') || 'gemma3:4b';
-
-    const openaiKey   = cfg(config, 'OPENAI_API_KEY');
-    const openaiBase  = cfg(config, 'OPENAI_BASE_URL') || 'https://api.openai.com/v1';
-    const openaiModel = cfg(config, 'OPENAI_MODEL') || 'gpt-4.1-mini';
-
-    // Construir lista de provedores disponíveis em ordem de prioridade
+    // Construir lista de provedores disponíveis (em ordem de prioridade)
     const providers: LLMProvider[] = [];
-    if (cfAccountId && cfApiToken)  providers.push(makeCloudflareProvider(cfAccountId, cfApiToken, cfModel));
-    if (ollamaKey)                   providers.push(makeOllamaProvider(ollamaKey, ollamaBase, ollamaModel));
-    if (openaiKey)                   providers.push(makeOpenAIProvider(openaiKey, openaiBase, openaiModel));
+    if (cfAccountId && cfApiToken) providers.push(makeCloudflareProvider(cfAccountId, cfApiToken));
+    if (ollamaKey)                  providers.push(makeOllamaProvider(ollamaKey, ollamaBase, ollamaModel));
 
     if (providers.length === 0) {
-      throw new Error('[llm-hub] Nenhum provedor configurado. Configure CLOUDFLARE_ACCOUNT_ID+CLOUDFLARE_API_TOKEN, OLLAMA_API_KEY ou OPENAI_API_KEY no app_config ou nos secrets do Supabase.');
+      throw new Error('[llm-hub] Nenhum provedor configurado (CF_ACCOUNT_ID/CF_API_TOKEN ou OLLAMA_API_KEY ausentes)');
     }
 
     const errors: string[] = [];
@@ -348,12 +244,12 @@ function createLLMHub(supabaseUrl?: string, serviceRoleKey?: string) {
       }
 
       try {
-        const content = await provider.call(messages);
+        const result = await provider.call(messages);
         recordSuccess(provider.name);
         if (provider.name !== 'cloudflare') {
           console.log(`[llm-hub] ⚠️ usando fallback: ${provider.name}`);
         }
-        return { content, provider: provider.name };
+        return result;
       } catch (e: any) {
         const msg = e?.message ?? String(e);
         console.warn(`[llm-hub] ❌ ${provider.name} falhou: ${msg}`);
@@ -365,25 +261,8 @@ function createLLMHub(supabaseUrl?: string, serviceRoleKey?: string) {
     throw new Error(`[llm-hub] Todos os provedores falharam: ${errors.join(' | ')}`);
   };
 
-  return {
-    runLLM,
-    get lastProvider(): string { return _lastProviderUsed; },
-  };
+  return { runLLM, get _lastProvider() { return _lastProviderUsed; } };
 }
-
-// ─── Label amigável para exibição ─────────────────────────────────────────────
-
-function providerLabel(name: string): string {
-  switch (name) {
-    case 'cloudflare': return '☁️ Cloudflare AI';
-    case 'ollama':     return '🦙 Ollama Cloud';
-    case 'openai':     return '🤖 OpenAI';
-    default:           return name;
-  }
-}
-
-type LLMHub = ReturnType<typeof createLLMHub>;
-// ═══ Fim LLM Hub ═══
 
 
 
@@ -2039,71 +1918,52 @@ async function handleRelatorioFinanceiro(channel: string): Promise<void> {
 
 // ─── Handlers de IA Conversacional v3.0 ─────────────────────────────────────
 
-async function handleIaPerguntar(channel: string, userText: string, userId: string) {
-  const SUPABASE_URL_LOCAL = Deno.env.get("SUPABASE_URL") || "";
-  const SVC_KEY_LOCAL = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-  // Buscar histórico de conversa
-  let history: { role: string; content: string }[] = [];
+async function handleIaPerguntar(
+  channel: string,
+  userId: string,
+  question: string,
+  supabaseUrl: string,
+  serviceRoleKey: string
+) {
   try {
-    const histRes = await fetch(
-      `${SUPABASE_URL_LOCAL}/rest/v1/dotobot_memory?channel_id=eq.${encodeURIComponent(channel)}&order=created_at.desc&limit=10`,
-      { headers: { apikey: SVC_KEY_LOCAL, Authorization: `Bearer ${SVC_KEY_LOCAL}` } }
-    );
-    if (histRes.ok) {
-      const rows = await histRes.json() as any[];
-      history = rows.reverse().map((r: any) => ({ role: r.role, content: r.content }));
+    // Buscar contexto RAG da base de conhecimento
+    let context = "";
+    try {
+      const ragResp = await fetch(`${supabaseUrl}/functions/v1/dotobot-rag`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ query: question, top_k: 5 }),
+      });
+      if (ragResp.ok) {
+        const ragData = await ragResp.json();
+        if (ragData.chunks && ragData.chunks.length > 0) {
+          context = ragData.chunks.map((c: any) => c.content).join("\n\n");
+        }
+      }
+    } catch (ragErr) {
+      console.log("[dotobot] RAG erro:", ragErr?.message);
     }
-  } catch (e) {
-    console.error("[dotobot-ia] erro ao buscar histórico:", e);
+
+    const systemPrompt = `Você é o Dotobot, assistente jurídico especializado em processos e legislação brasileira.
+Responda de forma clara, objetiva e profissional.
+${context ? `\n\nBase de conhecimento relevante:\n${context}` : ""}`;
+
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: question },
+    ];
+
+    const llm = llmFactory(supabaseUrl, serviceRoleKey);
+    const answer = await llm.runLLM(messages);
+
+    await postSlack(channel, answer);
+  } catch (err) {
+    console.error("[dotobot] handleIaPerguntar erro:", err);
+    await postSlack(channel, "⚠️ Não consegui processar sua pergunta. Tente novamente.");
   }
-
-  const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: `Você é o Dotobot, assistente jurídico e operacional do escritório Hermida Maia.
-Responda de forma direta, profissional e objetiva em português (PT-BR).
-Você tem acesso a dados de processos, publicações, audiências e contatos do Freshsales.
-Quando não souber algo, diga claramente e sugira como obter a informação.`,
-    },
-    ...history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
-    { role: "user", content: userText },
-  ];
-
-  const hub = createLLMHub(SUPABASE_URL_LOCAL, SVC_KEY_LOCAL);
-  let responseText = "";
-  let providerUsed = "desconhecido";
-
-  try {
-    const result = await hub.runLLM(messages);
-    responseText = result.content;
-    providerUsed = result.provider;
-  } catch (e: any) {
-    console.error("[dotobot-ia] LLM Hub falhou:", e?.message);
-    responseText = "⚠️ Não consegui processar sua pergunta no momento. Tente novamente em instantes.";
-  }
-
-  // Salvar no histórico
-  try {
-    await fetch(`${SUPABASE_URL_LOCAL}/rest/v1/dotobot_memory`, {
-      method: "POST",
-      headers: {
-        apikey: SVC_KEY_LOCAL,
-        Authorization: `Bearer ${SVC_KEY_LOCAL}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify([
-        { channel_id: channel, role: "user", content: userText, user_id: userId },
-        { channel_id: channel, role: "assistant", content: responseText, user_id: "dotobot" },
-      ]),
-    });
-  } catch (e) {
-    console.error("[dotobot-ia] erro ao salvar histórico:", e);
-  }
-
-  const label = llmProviderLabel(providerUsed);
-  await postSlack(channel, `${responseText}\n\n_via ${label}_`);
 }
 
 async function handleIaResumirProcesso(channel: string, userId: string, cnj: string): Promise<void> {
