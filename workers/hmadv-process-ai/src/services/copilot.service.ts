@@ -6,7 +6,7 @@ export function getCopilotRoomStub(env: Env, pathname: string) {
   if (!roomName) {
     throw new Error('conversation_id_required');
   }
-  return env.COPILOT_CONVERSATIONS_DO.getByName(roomName);
+  return env.COPILOT_CONVERSATIONS_DO_V2.getByName(roomName);
 }
 
 export async function handleCopilotRoomRequest(req: Request, env: Env, pathname: string) {
