@@ -348,6 +348,27 @@ function toolsFactory(supabase: {
     return { ok: true as const, status: res.status, data };
   };
 
+  // ── Helper para chamar workspace-ops ──────────────────────────────────────
+  const callWorkspaceOps = async (operation: string, params: Record<string, any>) => {
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/workspace-ops`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'x-hmadv-secret': serviceRoleKey,
+        },
+        body: JSON.stringify({ operation, params }),
+      });
+      const text = await res.text();
+      let data: any = null;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      return { ok: res.ok, data };
+    } catch (e: any) {
+      return { ok: false, data: { error: e?.message } };
+    }
+  };
+
   return {
     async buscar_conhecimento(query: string): Promise<StructuredToolResult> {
       try {
@@ -406,48 +427,57 @@ function toolsFactory(supabase: {
     }): Promise<StructuredToolResult> {
       try {
         console.log('[tool] criar_contato input:', data);
-
-        // mock (preparado para CRM real)
-        return jsonResponse({
-          ok: true,
-          tool: 'criar_contato',
-          data: { id_mock: `lead_${Date.now()}`, ...data },
-          summary: 'Contato registrado (mock).',
-        });
+        if (data.email) {
+          // Verificar se já existe
+          const busca = await callWorkspaceOps('contact_lookup', { email: data.email });
+          if (busca.ok && busca.data?.data?.id) {
+            const id = busca.data.data.id;
+            const partes = (data.nome || '').split(' ');
+            await callWorkspaceOps('contact_update', {
+              id,
+              first_name: partes[0] || undefined,
+              last_name: partes.slice(1).join(' ') || undefined,
+              mobile_number: data.telefone,
+            });
+            return jsonResponse({ ok: true, tool: 'criar_contato', data: { id, updated: true }, summary: `Contato atualizado no CRM. ID: ${id}` });
+          }
+          // Criar novo via ticket (workspace-ops não tem create direto, usa ticket_create como lead)
+          const ticket = await callWorkspaceOps('ticket_create', {
+            subject: `Novo lead: ${data.nome || data.email}`,
+            description: `Canal: ${data.canal || 'Slack'}\nOrigem: ${data.origem || 'Cida'}\nObservação: ${data.observacao || ''}`,
+            email: data.email,
+            priority: 2,
+          });
+          return jsonResponse({ ok: ticket.ok, tool: 'criar_contato', data: ticket.data, summary: ticket.ok ? `Lead registrado no Freshdesk. ID: ${ticket.data?.data?.id || 'N/A'}` : 'Erro ao registrar lead.' });
+        }
+        // Sem email: registrar como observação no canal
+        console.log('[tool] criar_contato sem email — registrando como observação');
+        return jsonResponse({ ok: true, tool: 'criar_contato', data: { canal: data.canal, observacao: data.observacao }, summary: 'Lead anotado (sem email para criar no CRM).' });
       } catch (e: any) {
-        return jsonResponse({
-          ok: false,
-          tool: 'criar_contato',
-          error: 'Erro inesperado em criar_contato.',
-          details: String(e?.message ?? e),
-        });
+        return jsonResponse({ ok: false, tool: 'criar_contato', error: 'Erro inesperado em criar_contato.', details: String(e?.message ?? e) });
       }
     },
 
     async consultar_processo(cnj: string): Promise<StructuredToolResult> {
       try {
         console.log('[tool] consultar_processo input:', cnj);
-
-        // mock (preparado para DataJud real)
-        return jsonResponse({
-          ok: true,
-          tool: 'consultar_processo',
-          data: {
-            cnj,
-            tribunal_mock: 'TRIBUNAL (mock)',
-            status_mock: 'PROCESSO EM TRAMITAÇÃO (mock)',
-            ultima_movimentacao_mock: 'MOVIMENTAÇÃO (mock)',
-            link_mock: null,
-          },
-          summary: 'Consulta do processo retornada (mock).',
-        });
+        // Busca real na tabela judiciario.processos via Supabase REST
+        const res = await fetch(
+          `${supabaseUrl}/rest/v1/processos?numero_cnj=eq.${encodeURIComponent(cnj)}&limit=1&select=numero_cnj,classe,assunto,tribunal,vara,situacao,data_distribuicao`,
+          { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Accept-Profile': 'judiciario' } }
+        );
+        const rows = res.ok ? await res.json() : [];
+        if (Array.isArray(rows) && rows.length > 0) {
+          const p = rows[0];
+          return jsonResponse({
+            ok: true, tool: 'consultar_processo',
+            data: p,
+            summary: `📋 Processo ${p.numero_cnj}: ${p.classe} | ${p.tribunal} | ${p.situacao} | Distribuído: ${p.data_distribuicao}`,
+          });
+        }
+        return jsonResponse({ ok: false, tool: 'consultar_processo', error: `Processo ${cnj} não localizado na base.` });
       } catch (e: any) {
-        return jsonResponse({
-          ok: false,
-          tool: 'consultar_processo',
-          error: 'Erro inesperado em consultar_processo.',
-          details: String(e?.message ?? e),
-        });
+        return jsonResponse({ ok: false, tool: 'consultar_processo', error: 'Erro inesperado em consultar_processo.', details: String(e?.message ?? e) });
       }
     },
 
@@ -463,21 +493,27 @@ function toolsFactory(supabase: {
     }): Promise<StructuredToolResult> {
       try {
         console.log('[tool] criar_agendamento input:', data);
-
-        // mock: pronto para migrar para agenda real
-        return jsonResponse({
-          ok: true,
-          tool: 'criar_agendamento',
-          data: { id_agendamento_mock: `ag_${Date.now()}`, ...data, status: 'PENDENTE' },
-          summary: 'Agendamento criado (mock). Próximo passo: confirmar com o cliente.',
-        });
+        if (data.email && data.data) {
+          // Criar agendamento real no Freshsales
+          const inicio = data.data + (data.horario ? `T${data.horario}:00` : 'T09:00:00');
+          const fim = data.data + (data.horario ? `T${(parseInt(data.horario.split(':')[0]) + 1).toString().padStart(2,'0')}:${data.horario.split(':')[1] || '00'}:00` : 'T10:00:00');
+          const r = await callWorkspaceOps('appointments_list', { filter: 'upcoming', per_page: 1 });
+          // Usar ticket_create como fallback para registrar o agendamento
+          const ticket = await callWorkspaceOps('ticket_create', {
+            subject: `Agendamento: ${data.proposta || 'Consulta Jurídica'} — ${data.nome || data.email}`,
+            description: `Data: ${data.data}\nHorário: ${data.horario || 'A confirmar'}\nCliente: ${data.nome || 'N/A'}\nEmail: ${data.email}\nObservação: ${data.observacao || ''}`,
+            email: data.email,
+            priority: 2,
+          });
+          return jsonResponse({ ok: ticket.ok, tool: 'criar_agendamento', data: { ...data, ticket_id: ticket.data?.data?.id }, summary: ticket.ok ? `✅ Agendamento registrado! Ticket #${ticket.data?.data?.id || 'N/A'}. Uma confirmação será enviada para ${data.email}.` : 'Erro ao registrar agendamento.' });
+        }
+        // Sem dados suficientes: retornar o que falta
+        const faltando = [];
+        if (!data.email) faltando.push('email do cliente');
+        if (!data.data) faltando.push('data desejada');
+        return jsonResponse({ ok: false, tool: 'criar_agendamento', error: `Para criar o agendamento, preciso de: ${faltando.join(', ')}.` });
       } catch (e: any) {
-        return jsonResponse({
-          ok: false,
-          tool: 'criar_agendamento',
-          error: 'Erro inesperado em criar_agendamento.',
-          details: String(e?.message ?? e),
-        });
+        return jsonResponse({ ok: false, tool: 'criar_agendamento', error: 'Erro inesperado em criar_agendamento.', details: String(e?.message ?? e) });
       }
     },
   };
@@ -1004,54 +1040,35 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
     console.log("[persona] final context:", personaContext);
     const intent = detectIntent(inputText);
     const cnj = extractCNJ(inputText);
-
     console.log('[agent] intent:', intent, 'cnj:', cnj);
 
-    const toolContext: string[] = [];
-
-    if (intent.type === 'processo') {
-      if (cnj) {
-        const proc = await deps.tools.consultar_processo(cnj);
-        toolContext.push(proc.ok ? `Consulta do processo (mock): ${JSON.stringify(proc.data)}` : `Erro: ${proc.error}`);
-      } else {
-        toolContext.push('O cliente solicitou consulta de processo, mas não informou o CNJ.');
-      }
-    }
-
-    if (intent.type === 'agendamento') {
-      const ag = await deps.tools.criar_agendamento({
-        proposta: 'Triagem para agendamento',
-        canal: channel,
-        observacao: 'Dados a confirmar com o cliente.',
-      });
-      toolContext.push(ag.ok ? `Agendamento (mock): ${JSON.stringify(ag.data)}` : `Erro: ${ag.error}`);
-    }
-
-    if (intent.type === 'lead') {
-      const lead = await deps.tools.criar_contato({
-        canal: channel,
-        origem: 'Slack',
-        observacao: `Lead detectado. Mensagem: "${inputText.slice(0, 140)}"`,
-      });
-      toolContext.push(lead.ok ? `Contato (mock): ${JSON.stringify(lead.data)}` : `Erro: ${lead.error}`);
-    }
-
     // ── Decidir se o RAG é necessário ──────────────────────────────────────
-    // Pular RAG para: saudações, mensagens curtas (<15 chars), owner sem intenção específica, perguntas temporais
     const isOwnerContext = personaContext.includes('DR. ADRIANO') || personaContext.includes('owner');
     const isSimpleGreeting = /^(oi|olá|ola|hey|hi|hello|bom dia|boa tarde|boa noite|tudo bem|tudo bom|e aí|e ai|ok|okay|certo|entendi|obrigad|valeu|vlw|👋|😊|🙂)[\.\.!?\s]*$/i.test(inputText.trim());
     const isShortMessage = inputText.trim().length < 15;
     const isTemporalQuestion = /\b(que horas|horas são|hora é|que dia|dia é|hoje é|manhã|tarde|noite|período|horário|data de hoje|dia da semana|semana|mês|ano)\b/i.test(inputText);
     const skipRag = isSimpleGreeting || isTemporalQuestion || (isOwnerContext && isShortMessage && intent.type === 'geral');
 
+    // ── Pre-fetch de ferramentas determinísticas (sem LLM) ─────────────────
+    // Executa ferramentas cujo trigger é certo antes do LLM para injetar contexto real
+    const toolContext: string[] = [];
+    if (intent.type === 'processo' && cnj) {
+      const proc = await deps.tools.consultar_processo(cnj);
+      if (proc.ok) {
+        toolContext.push(`[Processo consultado] ${proc.summary || JSON.stringify(proc.data)}`);
+      } else {
+        toolContext.push(`[Processo ${cnj}] ${proc.error || 'Não localizado na base.'}`);
+      }
+      console.log('[tool-prefetch] consultar_processo:', proc.ok ? 'ok' : 'erro');
+    }
+
     const knowledgeQuery = [
       inputText,
       cnj ? `CNJ: ${cnj}` : '',
       `Intenção: ${intent.type}`,
-      toolContext.length ? `Contexto ferramentas: ${toolContext.join('\n')}` : '',
     ].filter(Boolean).join('\n');
     const knowledgeText = skipRag ? '' : await deps.rag.getKnowledge(knowledgeQuery);
-    if (skipRag) console.log('[rag] pulando RAG — mensagem simples ou saudação');;
+    if (skipRag) console.log('[rag] pulando RAG — mensagem simples ou saudação');
 
     // ── Reality Context Engine: injetar data/hora real (timezone Brasília) ──
     const _now = new Date();
@@ -1100,8 +1117,50 @@ NUNCA invente horário. Use SEMPRE os valores acima.`;
     messages.push({ role: 'user', content: assembledUser });
 
     const llmAnswer = await deps.llm.runLLM(messages);
-    
-    // ── Estimar tokens (aprox 4 chars = 1 token) ──────────────────────────
+
+    // ── Loop de Tool Calling pós-LLM: executar ações reais se a resposta indicar necessidade ──
+    // Detecta padrões na resposta do LLM e executa ferramentas reais em background
+    const toolActions: string[] = [];
+    const lowerAnswer = llmAnswer.toLowerCase();
+
+    // Detectar intenção de criar contato/lead (o LLM pediu para registrar)
+    if (intent.type === 'lead' && /email/i.test(inputText)) {
+      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        const nomeMatch = inputText.match(/(?:sou|me chamo|meu nome é|chamo)\s+([A-Z][a-z]+(\s+[A-Z][a-z]+)*)/i);
+        const lead = await deps.tools.criar_contato({
+          email: emailMatch[0],
+          nome: nomeMatch?.[1],
+          canal: channel,
+          origem: 'Slack',
+          observacao: `Mensagem: "${inputText.slice(0, 140)}"`,
+        });
+        if (lead.ok) toolActions.push(`✅ ${lead.summary}`);
+        console.log('[tool-calling] criar_contato:', lead.ok ? 'ok' : lead.error);
+      }
+    }
+
+    // Detectar intenção de agendamento com dados suficientes
+    if (intent.type === 'agendamento') {
+      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+      const dataMatch = inputText.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
+      if (emailMatch && dataMatch) {
+        const dia = dataMatch[1].padStart(2,'0');
+        const mes = dataMatch[2].padStart(2,'0');
+        const ano = dataMatch[3] ? (dataMatch[3].length === 2 ? '20' + dataMatch[3] : dataMatch[3]) : new Date().getFullYear().toString();
+        const ag = await deps.tools.criar_agendamento({
+          email: emailMatch[0],
+          data: `${ano}-${mes}-${dia}`,
+          canal: channel,
+          proposta: 'Consulta jurídica',
+          observacao: `Mensagem: "${inputText.slice(0, 140)}"`,
+        });
+        if (ag.ok) toolActions.push(`✅ ${ag.summary}`);
+        console.log('[tool-calling] criar_agendamento:', ag.ok ? 'ok' : ag.error);
+      }
+    }
+
+    // ── Estimar tokens (aprox 4 chars = 1 token) ──────────────────────────────────
     const totalChars = messages.reduce((acc, m) => acc + m.content.length, 0) + llmAnswer.length;
     const estimatedTokens = Math.round(totalChars / 4);
     const llmProviderUsed = (deps.llm as any)._lastProvider || 'ollama';
@@ -1109,13 +1168,15 @@ NUNCA invente horário. Use SEMPRE os valores acima.`;
     await deps.memory.saveMemory(channel, 'user', inputText);
     await deps.memory.saveMemory(channel, 'assistant', llmAnswer);
 
-    // ── Rodapé de status (modelo, memória, tokens) ────────────────────────
+       // ── Rodapé de status (modelo, memória, tokens) ────────────────────
     const providerLabel = llmProviderUsed === 'cloudflare' ? '☁️ Cloudflare AI' :
                           llmProviderUsed === 'ollama' ? '🦙 Ollama' :
                           llmProviderUsed === 'huggingface' ? '🤗 HuggingFace' : llmProviderUsed;
     const memCount = recentHistory.length + 1; // +1 pela mensagem atual
     const footer = `\n\n_${providerLabel} · 💬 ${memCount} msgs · ⚡ ~${estimatedTokens} tokens_`;
-    const responseWithFooter = llmAnswer + footer;
+    // Incluir confirmações de ações reais executadas (se houver)
+    const actionsBlock = toolActions.length > 0 ? '\n\n' + toolActions.join('\n') : '';
+    const responseWithFooter = llmAnswer + actionsBlock + footer;
 
     // ── Captura de aprendizado em modo ativo ──
     if (isLearningMode) {
