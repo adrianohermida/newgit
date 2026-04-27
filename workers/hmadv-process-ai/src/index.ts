@@ -17,7 +17,7 @@ type RoomSnapshot = {
   updatedAt: string | null;
 };
 
-class CopilotConversationRoomV2 extends DurableObject {
+export class CopilotConversationRoomV2 extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
   }
