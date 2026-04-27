@@ -54,6 +54,10 @@ const JOB_FUNCTION_MAP: Record<string, { fn: string; payload: (pendentes: number
     fn: "datajud-worker",
     payload: (_, bs) => ({ action: "run", batch_size: bs }),
   },
+  "billing:sync_deals": {
+    fn: "billing-deals-sync",
+    payload: (_, bs) => ({ action: "sync_batch", batch_size: bs }),
+  },
   "advise:drain_publicacoes": {
     fn: "advise-drain-by-date",
     payload: (_, bs) => ({ action: "drain", batch_size: bs }),
@@ -153,14 +157,14 @@ async function actionRun(
     ? jobs.filter((j: { entidade: string; acao: string }) => `${j.entidade}:${j.acao}` === forceJob)
     : jobs;
 
-  // 3. Executar cada job
-  for (const job of jobsToRun) {
+  // 3. Executar jobs em PARALELO (Promise.all) para maximizar throughput
+  // Jobs independentes rodam simultaneamente — cada um tem seu próprio rate limit slot
+  const jobPromises = jobsToRun.map(async (job: Record<string, unknown>) => {
     const jobKey = `${job.entidade}:${job.acao}`;
     const fnConfig = JOB_FUNCTION_MAP[jobKey];
 
     if (!fnConfig) {
-      results.push({ job: jobKey, status: "skip", reason: "sem mapeamento de função" });
-      continue;
+      return { job: jobKey, status: "skip", reason: "sem mapeamento de função" };
     }
 
     // Marcar como running
@@ -170,7 +174,7 @@ async function actionRun(
       p_pendentes: job.pendentes,
     });
 
-    // Invocar a Edge Function
+    // Invocar a Edge Function em paralelo com outros jobs
     const payload = fnConfig.payload(job.pendentes, job.batch_size);
     const result = await invokeFunction(fnConfig.fn, payload);
 
@@ -193,7 +197,7 @@ async function actionRun(
       },
     });
 
-    results.push({
+    return {
       job: jobKey,
       fn: fnConfig.fn,
       status: result.ok ? "ok" : "error",
@@ -201,10 +205,13 @@ async function actionRun(
       processados,
       erros,
       error: result.error ?? null,
-    });
-  }
+    };
+  });
+  // Aguardar todos os jobs terminarem em paralelo
+  const parallelResults = await Promise.all(jobPromises);
+  results.push(...parallelResults);
 
-  // 4. Notificar Slack se algum job completou o ciclo diário
+    // 4. Notificar Slack se algum job completou o ciclo diário
   const ciclosCompletos = results.filter((r) => r.status === "ok" && r.pendentes === 0);
   if (ciclosCompletos.length > 0) {
     const msg = ciclosCompletos

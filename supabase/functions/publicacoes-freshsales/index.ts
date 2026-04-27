@@ -693,7 +693,7 @@ Deno.serve(async (req:Request) => {
     let result:unknown;
     switch (action) {
       case 'sync': {
-        const raw   = url.searchParams.get('batch')??String(body.batch??25);
+        const raw   = url.searchParams.get('batch_size')??url.searchParams.get('batch')??String(body.batch_size??body.batch??25);
         const batch = Math.min(Math.max(Number(raw)||25,1),100);
         // Rate limit: ~3 chamadas FS por publicação (GET account + POST activity + PATCH)
         const rl = await checkRateLimit(dbPublic, 'publicacoes-freshsales', batch * 3);

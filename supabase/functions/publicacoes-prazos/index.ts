@@ -860,7 +860,7 @@ Deno.serve(async (req) => {
           // Criar tasks no Freshsales para cada prazo inserido
           for (const prazo of prazosInseridos2) {
             try {
-              // Buscar o freshsales_account_id do processo
+              // Buscar o account_id_freshsales do processo
               const meta = prazo.metadata as Record<string, unknown>;
               let accountId: string | null = null;
               
@@ -868,10 +868,10 @@ Deno.serve(async (req) => {
                 const { data: proc } = await supabase
                   .schema("judiciario")
                   .from("processos")
-                  .select("freshsales_account_id")
+                  .select("account_id_freshsales")
                   .eq("id", prazo.processo_id)
                   .single();
-                accountId = proc?.freshsales_account_id ? String(proc.freshsales_account_id) : null;
+                accountId = proc?.account_id_freshsales ? String(proc.account_id_freshsales) : null;
               }
 
               // Construir descrição completa da task com memória extensiva e score de confiabilidade
@@ -1078,10 +1078,10 @@ Deno.serve(async (req) => {
             const { data: proc } = await supabase
               .schema("judiciario")
               .from("processos")
-              .select("freshsales_account_id")
+              .select("account_id_freshsales")
               .eq("id", prazo.processo_id)
               .single();
-            accountId = proc?.freshsales_account_id ? String(proc.freshsales_account_id) : null;
+            accountId = proc?.account_id_freshsales ? String(proc.account_id_freshsales) : null;
           }
           const numeroProcesso = String(meta?.numero_processo || "");
           const tribunal = String(meta?.tribunal || "");
