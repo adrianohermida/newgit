@@ -32,7 +32,7 @@ binding = "CLOUDFLARE_KV_NAMESPACE"
 id = "1e0740f44693445cbc798c0fe6e45a98"
 
 [[durable_objects.bindings]]
-name = "COPILOT_CONVERSATIONS_DO"
+name = "COPILOT_CONVERSATIONS_DO_V2"
 class_name = "CopilotConversationRoom"
 
 [[migrations]]

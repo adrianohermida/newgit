@@ -53,7 +53,7 @@ type KvNamespaceBinding = {
 export interface Env {
   AI: AiBinding;
   VECTORIZE: VectorizeBinding;
-  COPILOT_CONVERSATIONS_DO: DurableObjectNamespace<CopilotConversationRoom>;
+  COPILOT_CONVERSATIONS_DO_V2: DurableObjectNamespace<CopilotConversationRoom>;
   ANALYTICS_ENGINE?: AnalyticsEngineBinding;
   CLOUDFLARE_KV_NAMESPACE?: KvNamespaceBinding;
   hmadv_process_ai: D1Database;
