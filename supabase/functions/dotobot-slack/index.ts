@@ -315,12 +315,13 @@ async function callSlackApi(method: string, payload: Record<string, unknown>, to
   return data as Record<string, unknown>;
 }
 
-async function postSlack(channel: string, text: string, blocks?: unknown[]): Promise<void> {
+async function postSlack(channel: string, text: string, blocks?: unknown[], thread_ts?: string): Promise<void> {
   const payload: Record<string, unknown> = { channel, text, unfurl_links: false };
   if (blocks) payload.blocks = blocks;
+  if (thread_ts) payload.thread_ts = thread_ts;
   try {
     await callSlackApi("chat.postMessage", payload);
-    console.log("[dotobot] postSlack ok:", { channel, chars: text.length });
+    console.log("[dotobot] postSlack ok:", { channel, chars: text.length, thread_ts: thread_ts || null });
   } catch (err) {
     console.error("[dotobot] postSlack ERRO:", { channel, error: String(err) });
     throw err;
@@ -1934,7 +1935,8 @@ async function handleIaPerguntar(
   userId: string,
   question: string,
   supabaseUrl: string = SUPABASE_URL,
-  serviceRoleKey: string = SVC_KEY
+  serviceRoleKey: string = SVC_KEY,
+  thread_ts?: string
 ) {
   try {
     // ── Resposta temporal determinística (sem LLM) ────────────────────────────
@@ -2011,11 +2013,11 @@ async function handleIaPerguntar(
     const llm = llmFactory(supabaseUrl, serviceRoleKey);
     const answer = await llm.runLLM(messages);
 
-    await postSlack(channel, answer);
+    await postSlack(channel, answer, undefined, thread_ts);
   } catch (err) {
     console.error("[dotobot] handleIaPerguntar erro:", String(err));
     try {
-      await postSlack(channel, "⚠️ Não consegui processar sua pergunta. Tente novamente.");
+      await postSlack(channel, "⚠️ Não consegui processar sua pergunta. Tente novamente.", undefined, thread_ts);
     } catch (postErr) {
       console.error("[dotobot] postSlack fallback erro:", String(postErr));
     }
@@ -2221,7 +2223,7 @@ async function handleHelp(channel: string): Promise<void> {
   await postSlack(channel, "🤖 DotoBot v2.0 — Ajuda", blocks);
 }
 
-async function dispatchSlackTextCommand(channelId: string, userId: string, text: string): Promise<void> {
+async function dispatchSlackTextCommand(channelId: string, userId: string, text: string, thread_ts?: string): Promise<void> {
   const normalizedText = (text || "status").trim();
   const lowered = normalizedText.toLowerCase();
   const [cmd] = lowered.split(" ");
@@ -2256,11 +2258,11 @@ async function dispatchSlackTextCommand(channelId: string, userId: string, text:
   else if (cmd === "prazo-fim" || cmd === "prazo_fim") await handlePrazoFim(channelId, userId);
   else if (cmd === "higienizar-contatos" || cmd === "higienizar_contatos") await handleHigienizarContatos(channelId, userId);
   else if (cmd === "relatorio-financeiro" || cmd === "relatorio_financeiro") await handleRelatorioFinanceiro(channelId);
-  else if (cmd.startsWith("perguntar")) await handleIaPerguntar(channelId, userId, normalizedText.replace(/^perguntar\s*/i, ""));
+  else if (cmd.startsWith("perguntar")) await handleIaPerguntar(channelId, userId, normalizedText.replace(/^perguntar\s*/i, ""), SUPABASE_URL, SVC_KEY, thread_ts);
   else if (cmd.startsWith("resumir")) await handleIaResumirProcesso(channelId, userId, normalizedText.replace(/^resumir\s*/i, ""));
   else if (cmd === "enriquecer-ia" || cmd === "enriquecer_ia") await handleIaEnriquecer(channelId, userId);
   else if (cmd === "ia-status" || cmd === "ia_status") await handleIaStatus(channelId);
-  else await handleIaPerguntar(channelId, userId, normalizedText);
+  else await handleIaPerguntar(channelId, userId, normalizedText, SUPABASE_URL, SVC_KEY, thread_ts);
 }
 
 // ── Notificações Automáticas (chamadas por outras edge functions) ──────────────
@@ -2406,23 +2408,16 @@ Deno.serve(async (req) => {
       const isHumanMessage = !eventSubtype && !event?.bot_id;
       console.log("[dotobot] event:", { eventType, eventChannelType, eventChannel, eventUser, isDirectMessage, isMention, isHumanMessage, textLen: eventText.length });
 
+      // Capturar thread_ts da mensagem original (igual à Cida) para responder na mesma conversa
+      const eventTs = typeof event?.ts === "string" ? event.ts : undefined;
+      const eventThreadTs = typeof event?.thread_ts === "string" ? event.thread_ts : eventTs;
+
       if ((isDirectMessage || isMention) && isHumanMessage && eventUser && eventChannel && eventText) {
         EdgeRuntime.waitUntil((async () => {
           try {
-            // Para DMs: usar conversations.open para garantir que a resposta aparece
-            // na conversa ativa do usuário (não apenas no histórico do bot)
-            let replyChannel = eventChannel;
-            if (isDirectMessage) {
-              try {
-                replyChannel = await openSlackDm(eventUser);
-                console.log("[dotobot] replyChannel:", { eventChannel, replyChannel, same: replyChannel === eventChannel });
-              } catch (dmErr) {
-                console.error("[dotobot] openSlackDm falhou, usando eventChannel:", String(dmErr));
-              }
-            }
-            await dispatchSlackTextCommand(replyChannel, eventUser, eventText);
+            await dispatchSlackTextCommand(eventChannel, eventUser, eventText, eventThreadTs);
           } catch (error) {
-            await postSlack(eventChannel, `❌ Erro ao processar mensagem: ${String(error)}`);
+            await postSlack(eventChannel, `❌ Erro ao processar mensagem: ${String(error)}`, undefined, eventThreadTs);
           }
         })());
       }
