@@ -19,6 +19,7 @@ export default function SetupIntegracaoPage() {
   </OptionalAdminAccess>;
 }
 
-export async function getServerSideProps() {
-  return { props: {} };
-}
+// Removido getServerSideProps para permitir export estático
+// export async function getServerSideProps() {
+//   return { props: {} };
+// }
