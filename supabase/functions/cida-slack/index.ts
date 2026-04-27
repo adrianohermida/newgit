@@ -946,120 +946,280 @@ function orchestratorFactory(deps: {
 
     if (lowerInput === 'test_tools') {
       console.log('[diagnostico] Iniciando teste de tools (test_tools)');
-      
-      const relatorio = [];
-      relatorio.push('🔍 *Modo de Diagnóstico da Cida (test_tools)*');
-      relatorio.push('Iniciando verificação de todos os módulos de integração...\n');
 
-      // 1. Teste de RAG / Base de Conhecimento (Supabase pgvector)
-      try {
+      // Helper para chamar workspace-ops diretamente neste contexto
+      const callWops = async (operation: string, params: Record<string, any> = {}) => {
         const t0 = Date.now();
-        const resRag = await deps.tools.buscar_conhecimento('teste de sistema');
-        const ms = Date.now() - t0;
+        try {
+          const res = await fetch(`${deps.supabaseUrl}/functions/v1/workspace-ops`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${deps.serviceRoleKey}`,
+              'x-hmadv-secret': deps.serviceRoleKey,
+            },
+            body: JSON.stringify({ operation, params }),
+          });
+          const ms = Date.now() - t0;
+          const text = await res.text();
+          let data: any = null;
+          try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 200) }; }
+          return { ok: res.ok, status: res.status, ms, data };
+        } catch(e: any) {
+          return { ok: false, status: 0, ms: Date.now() - t0, data: { error: e.message } };
+        }
+      };
+
+      // Helper para query Supabase REST diretamente
+      const callSupa = async (path: string) => {
+        const t0 = Date.now();
+        try {
+          const res = await fetch(`${deps.supabaseUrl}/rest/v1/${path}`, {
+            headers: { 'apikey': deps.serviceRoleKey, 'Authorization': `Bearer ${deps.serviceRoleKey}` },
+          });
+          const ms = Date.now() - t0;
+          const text = await res.text();
+          let data: any = null;
+          try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 200) }; }
+          return { ok: res.ok, status: res.status, ms, data };
+        } catch(e: any) {
+          return { ok: false, status: 0, ms: Date.now() - t0, data: { error: e.message } };
+        }
+      };
+
+      // Formatar campos de um objeto como lista de campos
+      const fmtFields = (obj: any, fields: string[]): string => {
+        if (!obj || typeof obj !== 'object') return '_sem dados_';
+        return fields.map(f => `  • *${f}:* ${obj[f] ?? '_vazio_'}`).join('\n');
+      };
+
+      // Pegar amostra aleatória de um array
+      const randomSample = (arr: any[]) => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
+
+      const relatorio: string[] = [];
+      relatorio.push('🔍 *Diagnóstico Completo de Integrações — Cida (test_tools)*');
+      relatorio.push(`_Executado em: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}_\n`);
+      relatorio.push('---');
+
+      // ═══════════════════════════════════════════════
+      // MÓDULO 1: Base de Conhecimento (RAG / pgvector)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*📚 Módulo 1 — Base de Conhecimento (RAG / Supabase pgvector)*');
+      try {
+        const resRag = await deps.tools.buscar_conhecimento('contrato de honorários advocatícios');
         if (resRag.ok) {
-          relatorio.push(`✅ *Base de Conhecimento (RAG)* — OK (${ms}ms)`);
-          relatorio.push(`> _Retorno amostral:_ ${String(resRag.summary || '').slice(0, 100)}...`);
+          const items = Array.isArray(resRag.data) ? resRag.data : [];
+          relatorio.push(`✅ OK (${items.length} resultado(s) retornado(s))`);
+          if (items.length > 0) {
+            const sample = items[0];
+            relatorio.push(`> *Campos lidos:* ${Object.keys(sample).join(', ')}`);
+            relatorio.push(`> *Amostra:* ${(sample.content || sample.texto || sample.chunk || JSON.stringify(sample)).slice(0, 180)}...`);
+          } else {
+            relatorio.push('> _Nenhum chunk retornado — base pode estar vazia ou embedding falhou_');
+          }
         } else {
-          relatorio.push(`❌ *Base de Conhecimento (RAG)* — FALHA (${ms}ms)`);
+          relatorio.push(`❌ FALHA`);
           relatorio.push(`> _Erro:_ ${resRag.error}`);
-          if (resRag.details) relatorio.push(`> _Detalhes:_ ${JSON.stringify(resRag.details).slice(0, 150)}`);
+          if (resRag.details) relatorio.push(`> _Detalhes:_ ${JSON.stringify(resRag.details).slice(0, 200)}`);
         }
-      } catch(e: any) {
-        relatorio.push(`❌ *Base de Conhecimento (RAG)* — EXCEÇÃO: ${e.message}`);
-      }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
 
-      // 2. Teste de Consulta de Contato (Supabase contacts_freshsales)
+      // ═══════════════════════════════════════════════
+      // MÓDULO 2: Contatos (Supabase contacts_freshsales)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*👤 Módulo 2 — Contatos (Supabase → contacts_freshsales)*');
       try {
-        const t0 = Date.now();
-        // Usando um email genérico para ver se a tabela responde, mesmo que não ache
-        const resContato = await deps.tools.consultar_contato('adrianohermida@hotmail.com');
-        const ms = Date.now() - t0;
-        if (resContato.ok) {
-          relatorio.push(`\n✅ *Consulta de Contatos (Supabase)* — OK (${ms}ms)`);
-          relatorio.push(`> _Retorno amostral:_ ${resContato.summary}`);
+        // Buscar qualquer contato real (sem filtro de email)
+        const resC = await callSupa('contacts_freshsales?select=fs_id,first_name,last_name,display_name,email,mobile,phone,cf_tipo,cf_cpf,tag_list,lifecycle_stage_id,owner_id,synced_at&limit=3&order=synced_at.desc.nullslast');
+        if (resC.ok && Array.isArray(resC.data) && resC.data.length > 0) {
+          const total = resC.data.length;
+          const sample = randomSample(resC.data);
+          relatorio.push(`✅ OK — ${total} contato(s) retornado(s) (${resC.ms}ms)`);
+          relatorio.push(`> *Campos disponíveis:* fs_id, first_name, last_name, display_name, email, mobile, phone, cf_tipo, cf_cpf, tag_list, lifecycle_stage_id, owner_id, synced_at`);
+          relatorio.push(`> *Amostra aleatória:*`);
+          relatorio.push(fmtFields(sample, ['display_name', 'email', 'mobile', 'cf_tipo', 'cf_cpf', 'tag_list', 'lifecycle_stage_id', 'synced_at']));
+        } else if (resC.ok) {
+          relatorio.push(`⚠️ OK mas tabela vazia — sincronização (fs-contacts-sync) pode não ter rodado (${resC.ms}ms)`);
         } else {
-          // Se não achar o contato, mas a API respondeu, a integração em si está OK
-          if (resContato.error && resContato.error.includes('não encontrado')) {
-            relatorio.push(`\n⚠️ *Consulta de Contatos (Supabase)* — OK, mas contato teste não encontrado (${ms}ms)`);
-          } else {
-            relatorio.push(`\n❌ *Consulta de Contatos (Supabase)* — FALHA (${ms}ms)`);
-            relatorio.push(`> _Erro:_ ${resContato.error}`);
+          relatorio.push(`❌ FALHA HTTP ${resC.status} (${resC.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ Permissão na tabela contacts_freshsales ou SUPABASE_SERVICE_ROLE_KEY inválida`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resC.data).slice(0, 200)}`);
+        }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
+
+      // ═══════════════════════════════════════════════
+      // MÓDULO 3: Processos (Supabase judiciario.processos)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*⚖️ Módulo 3 — Processos Judiciais (Supabase → judiciario.processos)*');
+      try {
+        const resP = await callSupa('processos?select=numero_cnj,classe,assunto,tribunal,vara,situacao,data_distribuicao,partes,advogados,ultima_movimentacao&limit=3&order=data_distribuicao.desc.nullslast');
+        if (resP.ok && Array.isArray(resP.data) && resP.data.length > 0) {
+          const sample = randomSample(resP.data);
+          relatorio.push(`✅ OK — ${resP.data.length} processo(s) retornado(s) (${resP.ms}ms)`);
+          relatorio.push(`> *Campos disponíveis:* numero_cnj, classe, assunto, tribunal, vara, situacao, data_distribuicao, partes, advogados, ultima_movimentacao`);
+          relatorio.push(`> *Amostra aleatória:*`);
+          relatorio.push(fmtFields(sample, ['numero_cnj', 'classe', 'assunto', 'tribunal', 'situacao', 'data_distribuicao']));
+        } else if (resP.ok) {
+          relatorio.push(`⚠️ OK mas tabela vazia — nenhum processo cadastrado (${resP.ms}ms)`);
+          relatorio.push(`> _Schema esperado:_ judiciario.processos (verifique Accept-Profile: judiciario no header)`);
+        } else {
+          relatorio.push(`❌ FALHA HTTP ${resP.status} (${resP.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ Schema judiciario não encontrado ou sem permissão de leitura`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resP.data).slice(0, 200)}`);
+        }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
+
+      // ═══════════════════════════════════════════════
+      // MÓDULO 4: Publicações (Supabase)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*📰 Módulo 4 — Publicações (Supabase → publicacoes)*');
+      try {
+        const resPub = await callSupa('publicacoes?select=*&limit=3&order=data_publicacao.desc.nullslast');
+        if (resPub.ok && Array.isArray(resPub.data) && resPub.data.length > 0) {
+          const sample = randomSample(resPub.data);
+          const campos = Object.keys(sample);
+          relatorio.push(`✅ OK — ${resPub.data.length} publicação(s) retornada(s) (${resPub.ms}ms)`);
+          relatorio.push(`> *Campos disponíveis:* ${campos.join(', ')}`);
+          relatorio.push(`> *Amostra aleatória:*`);
+          const keyFields = campos.filter(f => ['id','numero_processo','tribunal','data_publicacao','tipo','conteudo','status'].includes(f));
+          relatorio.push(fmtFields(sample, keyFields.length ? keyFields : campos.slice(0, 6)));
+        } else if (resPub.ok) {
+          relatorio.push(`⚠️ OK mas tabela vazia (${resPub.ms}ms)`);
+          relatorio.push(`> _Tabela publicacoes existe mas não tem registros_`);
+        } else {
+          relatorio.push(`❌ FALHA HTTP ${resPub.status} (${resPub.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ Tabela publicacoes não encontrada no schema public`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resPub.data).slice(0, 200)}`);
+        }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
+
+      // ═══════════════════════════════════════════════
+      // MÓDULO 5: Tarefas / Tasks (Freshsales via workspace-ops)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*✅ Módulo 5 — Tarefas / Tasks (Freshsales → workspace-ops: tasks_list)*');
+      try {
+        const resT = await callWops('tasks_list', { limit: 5 });
+        if (resT.ok && Array.isArray(resT.data?.data)) {
+          const tasks = resT.data.data as any[];
+          const sample = randomSample(tasks);
+          relatorio.push(`✅ OK — ${tasks.length} tarefa(s) retornada(s) (${resT.ms}ms)`);
+          if (sample) {
+            relatorio.push(`> *Campos disponíveis:* ${Object.keys(sample).join(', ')}`);
+            relatorio.push(`> *Amostra aleatória:*`);
+            relatorio.push(fmtFields(sample, ['id', 'title', 'description', 'due_date', 'status', 'owner_id', 'targetable_type', 'targetable_id']));
           }
-        }
-      } catch(e: any) {
-        relatorio.push(`\n❌ *Consulta de Contatos (Supabase)* — EXCEÇÃO: ${e.message}`);
-      }
-
-      // 3. Teste de Consulta de Processo (Supabase judiciario.processos)
-      try {
-        const t0 = Date.now();
-        const resProcesso = await deps.tools.consultar_processo('0000000-00.0000.0.00.0000');
-        const ms = Date.now() - t0;
-        if (resProcesso.ok) {
-          relatorio.push(`\n✅ *Consulta de Processos (Supabase)* — OK (${ms}ms)`);
+        } else if (resT.ok) {
+          relatorio.push(`⚠️ OK mas nenhuma tarefa retornada (${resT.ms}ms)`);
+          relatorio.push(`> _Resposta bruta:_ ${JSON.stringify(resT.data).slice(0, 150)}`);
         } else {
-          if (resProcesso.error && resProcesso.error.includes('não localizado')) {
-            relatorio.push(`\n⚠️ *Consulta de Processos (Supabase)* — OK, mas processo teste não encontrado (${ms}ms)`);
-          } else {
-            relatorio.push(`\n❌ *Consulta de Processos (Supabase)* — FALHA (${ms}ms)`);
-            relatorio.push(`> _Erro:_ ${resProcesso.error}`);
+          relatorio.push(`❌ FALHA HTTP ${resT.status} (${resT.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida ou endpoint /tasks indisponível`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resT.data).slice(0, 200)}`);
+        }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
+
+      // ═══════════════════════════════════════════════
+      // MÓDULO 6: Faturas / Deals (Freshsales via workspace-ops)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*💰 Módulo 6 — Faturas / Deals (Freshsales → workspace-ops: daily_summary)*');
+      try {
+        const resD = await callWops('daily_summary');
+        if (resD.ok && Array.isArray(resD.data?.data?.deals)) {
+          const deals = resD.data.data.deals as any[];
+          const sample = randomSample(deals);
+          relatorio.push(`✅ OK — ${deals.length} deal(s) retornado(s) (${resD.ms}ms)`);
+          if (sample) {
+            relatorio.push(`> *Campos disponíveis:* ${Object.keys(sample).join(', ')}`);
+            relatorio.push(`> *Amostra aleatória:*`);
+            relatorio.push(fmtFields(sample, ['id', 'name', 'amount', 'stage_name', 'expected_close_date', 'owner_id', 'deal_stage_id']));
           }
-        }
-      } catch(e: any) {
-        relatorio.push(`\n❌ *Consulta de Processos (Supabase)* — EXCEÇÃO: ${e.message}`);
-      }
-
-      // 4. Teste de Integração Freshdesk (workspace-ops ticket_create)
-      try {
-        const t0 = Date.now();
-        const resTicket = await deps.tools.criar_contato({
-          email: 'teste.diagnostico@hermidamaia.adv.br',
-          nome: 'Teste Diagnóstico Cida',
-          canal: 'Slack',
-          origem: 'Diagnóstico',
-          observacao: 'Teste automático de integração via test_tools'
-        });
-        const ms = Date.now() - t0;
-        if (resTicket.ok) {
-          relatorio.push(`\n✅ *Integração Freshdesk (workspace-ops)* — OK (${ms}ms)`);
-          relatorio.push(`> _Retorno amostral:_ ${resTicket.summary}`);
+        } else if (resD.ok) {
+          relatorio.push(`⚠️ OK mas nenhum deal retornado (${resD.ms}ms)`);
+          relatorio.push(`> _Resposta bruta:_ ${JSON.stringify(resD.data).slice(0, 150)}`);
         } else {
-          relatorio.push(`\n❌ *Integração Freshdesk (workspace-ops)* — FALHA (${ms}ms)`);
-          relatorio.push(`> _Erro:_ ${resTicket.error}`);
-          if (resTicket.details) relatorio.push(`> _Onde quebrou:_ ${JSON.stringify(resTicket.details).slice(0, 150)}`);
+          relatorio.push(`❌ FALHA HTTP ${resD.status} (${resD.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida ou endpoint /deals indisponível`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resD.data).slice(0, 200)}`);
         }
-      } catch(e: any) {
-        relatorio.push(`\n❌ *Integração Freshdesk (workspace-ops)* — EXCEÇÃO: ${e.message}`);
-      }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
 
-      // 5. Teste de Integração Freshsales (workspace-ops contact_lookup direto)
+      // ═══════════════════════════════════════════════
+      // MÓDULO 7: Audiências / Appointments (Freshsales via workspace-ops)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*📅 Módulo 7 — Audiências / Appointments (Freshsales → workspace-ops: appointments_list)*');
       try {
-        const t0 = Date.now();
-        const resFs = await fetch(`${deps.supabaseUrl}/functions/v1/workspace-ops`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${deps.serviceRoleKey}`,
-            'x-hmadv-secret': deps.serviceRoleKey,
-          },
-          body: JSON.stringify({ operation: 'contact_lookup', params: { email: 'adrianohermida@hotmail.com' } }),
-        });
-        const ms = Date.now() - t0;
-        const fsData = resFs.ok ? await resFs.json() : await resFs.text();
-        if (resFs.ok) {
-          relatorio.push(`\n✅ *Integração Freshsales API (workspace-ops)* — OK (${ms}ms)`);
-          relatorio.push(`> _Retorno amostral:_ ${JSON.stringify(fsData).slice(0, 100)}...`);
+        const resA = await callWops('appointments_list', { limit: 5 });
+        if (resA.ok && Array.isArray(resA.data?.data)) {
+          const appts = resA.data.data as any[];
+          const sample = randomSample(appts);
+          relatorio.push(`✅ OK — ${appts.length} agendamento(s) retornado(s) (${resA.ms}ms)`);
+          if (sample) {
+            relatorio.push(`> *Campos disponíveis:* ${Object.keys(sample).join(', ')}`);
+            relatorio.push(`> *Amostra aleatória:*`);
+            relatorio.push(fmtFields(sample, ['id', 'title', 'from_date', 'end_date', 'location', 'description', 'outcome', 'targetable_type', 'targetable_id']));
+          }
+        } else if (resA.ok) {
+          relatorio.push(`⚠️ OK mas nenhum agendamento retornado (${resA.ms}ms)`);
+          relatorio.push(`> _Resposta bruta:_ ${JSON.stringify(resA.data).slice(0, 150)}`);
         } else {
-          relatorio.push(`\n❌ *Integração Freshsales API (workspace-ops)* — FALHA HTTP ${resFs.status} (${ms}ms)`);
-          relatorio.push(`> _Onde quebrou:_ Verifica credenciais do Freshsales no workspace-ops ou token de acesso.`);
-          relatorio.push(`> _Detalhes:_ ${String(fsData).slice(0, 150)}`);
+          relatorio.push(`❌ FALHA HTTP ${resA.status} (${resA.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida ou endpoint /appointments indisponível`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resA.data).slice(0, 200)}`);
         }
-      } catch(e: any) {
-        relatorio.push(`\n❌ *Integração Freshsales API (workspace-ops)* — EXCEÇÃO: ${e.message}`);
-      }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
 
-      relatorio.push('\n🏁 *Fim do diagnóstico.* Se houver falhas em "workspace-ops", verifique os secrets do Supabase (FRESHSALES_API_KEY, FRESHDESK_API_KEY). Se houver falhas no Supabase, verifique as permissões das tabelas ou se a sincronização está rodando.');
-      
+      // ═══════════════════════════════════════════════
+      // MÓDULO 8: Fila Freshdesk (tickets abertos)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*🎫 Módulo 8 — Fila Freshdesk (workspace-ops: freshdesk_queue)*');
+      try {
+        const resFq = await callWops('freshdesk_queue', { limit: 5 });
+        if (resFq.ok && Array.isArray(resFq.data?.data)) {
+          const tickets = resFq.data.data as any[];
+          const sample = randomSample(tickets);
+          relatorio.push(`✅ OK — ${tickets.length} ticket(s) na fila (${resFq.ms}ms)`);
+          if (sample) {
+            relatorio.push(`> *Campos disponíveis:* ${Object.keys(sample).join(', ')}`);
+            relatorio.push(`> *Amostra aleatória:*`);
+            relatorio.push(fmtFields(sample, ['id', 'subject', 'status', 'priority', 'requester_id', 'email', 'created_at', 'updated_at']));
+          }
+        } else if (resFq.ok) {
+          relatorio.push(`⚠️ OK mas fila vazia (${resFq.ms}ms)`);
+        } else {
+          relatorio.push(`❌ FALHA HTTP ${resFq.status} (${resFq.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ FRESHDESK_API_KEY inválida ou domínio Freshdesk incorreto`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resFq.data).slice(0, 200)}`);
+        }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
+
+      // ═══════════════════════════════════════════════
+      // MÓDULO 9: Histórico de Conversa (Supabase messages)
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n*💬 Módulo 9 — Histórico de Conversa (Supabase → messages)*');
+      try {
+        const resMem = await callSupa(`messages?select=id,channel,role,content,created_at&limit=3&order=created_at.desc.nullslast`);
+        if (resMem.ok && Array.isArray(resMem.data) && resMem.data.length > 0) {
+          const sample = randomSample(resMem.data);
+          relatorio.push(`✅ OK — ${resMem.data.length} mensagem(ns) retornada(s) (${resMem.ms}ms)`);
+          relatorio.push(`> *Campos disponíveis:* id, channel, role, content, created_at`);
+          relatorio.push(`> *Amostra:* canal=${sample.channel} | role=${sample.role} | preview=${String(sample.content || '').slice(0, 80)}...`);
+        } else if (resMem.ok) {
+          relatorio.push(`⚠️ OK mas tabela vazia (${resMem.ms}ms)`);
+        } else {
+          relatorio.push(`❌ FALHA HTTP ${resMem.status} (${resMem.ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ Tabela messages sem permissão ou não existe`);
+          relatorio.push(`> _Detalhes:_ ${JSON.stringify(resMem.data).slice(0, 200)}`);
+        }
+      } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
+
+      // ═══════════════════════════════════════════════
+      // RESUMO FINAL
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n---');
+      relatorio.push('🏁 *Fim do diagnóstico.*');
+      relatorio.push('_Legenda: ✅ OK | ⚠️ OK sem dados | ❌ Falha_');
+      relatorio.push('_Para corrigir falhas: verifique os secrets FRESHSALES_API_KEY, FRESHDESK_API_KEY, SUPABASE_SERVICE_ROLE_KEY no painel Supabase → Edge Functions → Secrets._');
+
       return { response: relatorio.join('\n') };
     }
 
