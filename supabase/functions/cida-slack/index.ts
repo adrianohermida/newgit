@@ -1052,17 +1052,40 @@ function orchestratorFactory(deps: {
           console.error("Error creating user:", e);
         }
         
-        personaContext = `Você está falando com ${realName} (Email: ${email || 'N/A'}).
-Tipo: ${type}
-Este é um novo contato. Trate-o de acordo com seu tipo.`;
+        // Novo usuário: tentar identificar no Freshsales pelo email do Slack
+        let freshsalesContext = '';
+        if (email && type === 'cliente') {
+          try {
+            const fsLookup = await fetch(`${supabaseUrl}/functions/v1/workspace-ops`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}`, 'x-hmadv-secret': supabaseKey },
+              body: JSON.stringify({ operation: 'contact_lookup', params: { email } }),
+            });
+            const fsData = fsLookup.ok ? await fsLookup.json() : null;
+            if (fsData?.data?.id) {
+              const c = fsData.data;
+              freshsalesContext = `\nCRM Freshsales: Contato encontrado — ID: ${c.id}, Tel: ${c.mobile_number || c.work_number || 'N/A'}`;
+              console.log('[persona] freshsales lookup ok:', c.id);
+            }
+          } catch(e) { console.log('[persona] freshsales lookup error:', e); }
+        }
+        if (type === 'owner') {
+          personaContext = `USUÁRIO: ${realName} (Dr. Adriano — dono do escritório Hermida Maia)\nPERMISSÕES: TOTAIS — sem restrições, sem triagem, sem perguntas desnecessárias. Responda diretamente o que for solicitado, com máxima objetividade.\nLINGUAGEM: Direta, concisa, profissional. Tuteia permitido.`;
+        } else {
+          personaContext = `USUÁRIO: ${realName} (cliente externo — Email: ${email || 'N/A'})${freshsalesContext}\nPERMISSÕES: Acesso restrito às informações do próprio cliente. Não forneça dados de outros clientes.\nLINGUAGEM: Acessível, humanizada, empática. Explique termos jurídicos quando necessário.\nEste é um novo contato — registrado automaticamente.`;
+        }
       }
       
       // personaContext já inclui as permissões corretas por role (owner/interno/cliente)
     }
 
     console.log("[persona] final context:", personaContext);
-    const intent = detectIntent(inputText);
-    const cnj = extractCNJ(inputText);
+    // ── Normalizar texto: remover formatação mrkdwn do Slack (<mailto:x|x> → x) ──
+    const normalizedInput = inputText
+      .replace(/<mailto:[^|>]+\|([^>]+)>/g, '$1')  // <mailto:email|email> → email
+      .replace(/<([^|>]+)>/g, '$1');                 // <url> → url
+    const intent = detectIntent(normalizedInput);
+    const cnj = extractCNJ(normalizedInput);
     console.log('[agent] intent:', intent, 'cnj:', cnj);
 
     // ── Decidir se o RAG é necessário ──────────────────────────────────────
@@ -1070,7 +1093,10 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
     const isSimpleGreeting = /^(oi|olá|ola|hey|hi|hello|bom dia|boa tarde|boa noite|tudo bem|tudo bom|e aí|e ai|ok|okay|certo|entendi|obrigad|valeu|vlw|👋|😊|🙂)[\.\.!?\s]*$/i.test(inputText.trim());
     const isShortMessage = inputText.trim().length < 15;
     const isTemporalQuestion = /\b(que horas|horas são|hora é|que dia|dia é|hoje é|manhã|tarde|noite|período|horário|data de hoje|dia da semana|semana|mês|ano)\b/i.test(inputText);
-    const skipRag = isSimpleGreeting || isTemporalQuestion || (isOwnerContext && isShortMessage && intent.type === 'geral');
+    const skipRag = isSimpleGreeting || isTemporalQuestion
+      || intent.type === 'buscar_contato'   // busca de contato não precisa de RAG
+      || intent.type === 'processo'          // processo já tem pre-fetch real
+      || (isOwnerContext && isShortMessage && intent.type === 'geral');
 
     // ── Pre-fetch de ferramentas determinísticas (sem LLM) ─────────────────
     // Executa ferramentas cujo trigger é certo antes do LLM para injetar contexto real
@@ -1087,7 +1113,7 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
 
     // Pre-fetch de contato: buscar dados reais ANTES do LLM para injetar na resposta
     if (intent.type === 'buscar_contato') {
-      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+      const emailMatch = normalizedInput.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
       if (emailMatch) {
         const contato = await deps.tools.consultar_contato(emailMatch[0]);
         if (contato.ok) {
@@ -1097,14 +1123,19 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
         }
         console.log('[tool-prefetch] consultar_contato:', contato.ok ? 'ok' : contato.error);
       } else {
-        // Sem email na mensagem — avisar o LLM
-        toolContext.push('[Busca de contato] Nenhum email encontrado na mensagem. Solicite o email ao usuário.');
+        // Sem email na mensagem — tentar busca por nome se houver
+        const nomeMatch = normalizedInput.match(/(?:contato|cliente|pessoa)\s+(?:de\s+)?([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)/i);
+        if (nomeMatch) {
+          toolContext.push(`[Busca de contato] Nenhum email na mensagem. Nome detectado: "${nomeMatch[1]}". Informe o email para buscar no CRM.`);
+        } else {
+          toolContext.push('[Busca de contato] Nenhum email encontrado na mensagem. Solicite o email ao usuário.');
+        }
         console.log('[tool-prefetch] consultar_contato: sem email na mensagem');
       }
     }
 
     const knowledgeQuery = [
-      inputText,
+      normalizedInput,
       cnj ? `CNJ: ${cnj}` : '',
       `Intenção: ${intent.type}`,
     ].filter(Boolean).join('\n');
@@ -1149,7 +1180,7 @@ NUNCA invente horário. Use SEMPRE os valores acima.`;
     const ragCompressed = knowledgeText ? knowledgeText.slice(0, 800) : '';
 
     const assembledUser = [
-      inputText,
+      normalizedInput,
       cnj ? `[CNJ: ${cnj}]` : '',
       ragCompressed ? `[Base de conhecimento]\n${ragCompressed}` : '',
       toolContext.length ? `[Contexto]\n${toolContext.join('\n')}` : '',
@@ -1166,7 +1197,7 @@ NUNCA invente horário. Use SEMPRE os valores acima.`;
 
     // Detectar intenção de BUSCAR contato (pre-fetch antes do LLM já foi feito, mas confirmar aqui)
     if (intent.type === 'buscar_contato') {
-      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+      const emailMatch = normalizedInput.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
       if (emailMatch && !toolContext.some(t => t.includes('Contato encontrado'))) {
         const contato = await deps.tools.consultar_contato(emailMatch[0]);
         if (contato.ok) toolActions.push(`✅ ${contato.summary}`);
@@ -1176,8 +1207,8 @@ NUNCA invente horário. Use SEMPRE os valores acima.`;
     }
 
     // Detectar intenção de criar contato/lead (o LLM pediu para registrar)
-    if (intent.type === 'lead' && /email/i.test(inputText)) {
-      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+    if (intent.type === 'lead' && /email/i.test(normalizedInput)) {
+      const emailMatch = normalizedInput.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
       if (emailMatch) {
         const nomeMatch = inputText.match(/(?:sou|me chamo|meu nome é|chamo)\s+([A-Z][a-z]+(\s+[A-Z][a-z]+)*)/i);
         const lead = await deps.tools.criar_contato({
@@ -1194,8 +1225,8 @@ NUNCA invente horário. Use SEMPRE os valores acima.`;
 
     // Detectar intenção de agendamento com dados suficientes
     if (intent.type === 'agendamento') {
-      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-      const dataMatch = inputText.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
+      const emailMatch = normalizedInput.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+      const dataMatch = normalizedInput.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
       if (emailMatch && dataMatch) {
         const dia = dataMatch[1].padStart(2,'0');
         const mes = dataMatch[2].padStart(2,'0');
