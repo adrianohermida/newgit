@@ -417,6 +417,25 @@ function toolsFactory(supabase: {
       }
     },
 
+    async consultar_contato(email: string): Promise<StructuredToolResult> {
+      try {
+        console.log('[tool] consultar_contato input:', email);
+        const busca = await callWorkspaceOps('contact_lookup', { email });
+        if (busca.ok && busca.data?.data?.id) {
+          const c = busca.data.data;
+          return jsonResponse({
+            ok: true, tool: 'consultar_contato',
+            data: c,
+            summary: `📋 Contato encontrado: ${c.first_name || ''} ${c.last_name || ''} | Email: ${c.email || email} | Tel: ${c.mobile_number || c.work_number || 'N/A'} | ID: ${c.id}`,
+          });
+        }
+        // Tentar busca por nome se não encontrou por email
+        return jsonResponse({ ok: false, tool: 'consultar_contato', error: `Contato com email ${email} não encontrado no CRM.` });
+      } catch (e: any) {
+        return jsonResponse({ ok: false, tool: 'consultar_contato', error: 'Erro inesperado em consultar_contato.', details: String(e?.message ?? e) });
+      }
+    },
+
     async criar_contato(data: {
       nome?: string;
       telefone?: string;
@@ -634,6 +653,7 @@ type Intent =
   | { type: 'processo' }
   | { type: 'agendamento' }
   | { type: 'lead' }
+  | { type: 'buscar_contato' }
   | { type: 'geral' };
 
 function extractCNJ(text: string): string | null {
@@ -663,7 +683,10 @@ function detectIntent(text: string): Intent {
   if (cnjPresent) return { type: 'processo' };
   if (/(processo|andamento|petição|decisão|sentença|audi[eê]ncia|movimenta)/i.test(t)) return { type: 'processo' };
   if (/(agendar|agendamento|hor[aá]rio|consulta|reuni[aã]o|marcar)/i.test(t)) return { type: 'agendamento' };
-  if (/(telefone|whats|e-?mail|contato|ligar|mandar mensagem)/i.test(t)) return { type: 'lead' };
+  // Buscar/abrir/ver detalhes de contato — deve chamar workspace-ops, não criar
+  if (/(abr[ae]|ver|mostrar|detalhes|buscar|procurar|encontrar|pesquisar).*(contato|cliente|lead|pessoa)/i.test(t)) return { type: 'buscar_contato' };
+  if (/(contato|cliente|lead|pessoa).*(abr[ae]|ver|mostrar|detalhes|buscar|procurar|encontrar|pesquisar)/i.test(t)) return { type: 'buscar_contato' };
+  if (/(telefone|whats|e-?mail|ligar|mandar mensagem)/i.test(t)) return { type: 'lead' };
   return { type: 'geral' };
 }
 
@@ -1062,6 +1085,24 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
       console.log('[tool-prefetch] consultar_processo:', proc.ok ? 'ok' : 'erro');
     }
 
+    // Pre-fetch de contato: buscar dados reais ANTES do LLM para injetar na resposta
+    if (intent.type === 'buscar_contato') {
+      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        const contato = await deps.tools.consultar_contato(emailMatch[0]);
+        if (contato.ok) {
+          toolContext.push(`[Contato encontrado] ${contato.summary}\n${JSON.stringify(contato.data, null, 2).slice(0, 600)}`);
+        } else {
+          toolContext.push(`[Busca de contato] ${contato.error}`);
+        }
+        console.log('[tool-prefetch] consultar_contato:', contato.ok ? 'ok' : contato.error);
+      } else {
+        // Sem email na mensagem — avisar o LLM
+        toolContext.push('[Busca de contato] Nenhum email encontrado na mensagem. Solicite o email ao usuário.');
+        console.log('[tool-prefetch] consultar_contato: sem email na mensagem');
+      }
+    }
+
     const knowledgeQuery = [
       inputText,
       cnj ? `CNJ: ${cnj}` : '',
@@ -1122,6 +1163,17 @@ NUNCA invente horário. Use SEMPRE os valores acima.`;
     // Detecta padrões na resposta do LLM e executa ferramentas reais em background
     const toolActions: string[] = [];
     const lowerAnswer = llmAnswer.toLowerCase();
+
+    // Detectar intenção de BUSCAR contato (pre-fetch antes do LLM já foi feito, mas confirmar aqui)
+    if (intent.type === 'buscar_contato') {
+      const emailMatch = inputText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch && !toolContext.some(t => t.includes('Contato encontrado'))) {
+        const contato = await deps.tools.consultar_contato(emailMatch[0]);
+        if (contato.ok) toolActions.push(`✅ ${contato.summary}`);
+        else toolActions.push(`⚠️ ${contato.error}`);
+        console.log('[tool-calling] consultar_contato:', contato.ok ? 'ok' : contato.error);
+      }
+    }
 
     // Detectar intenção de criar contato/lead (o LLM pediu para registrar)
     if (intent.type === 'lead' && /email/i.test(inputText)) {
