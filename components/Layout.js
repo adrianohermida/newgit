@@ -89,7 +89,7 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
   );
 }
 
-export default function Layout({ children, forceDarkMode = false, hideThemeControls = false }) {
+export default function Layout({ children, forceDarkMode = true, hideThemeControls = true }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const router = useRouter();

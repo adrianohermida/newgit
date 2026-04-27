@@ -10,7 +10,7 @@ export default function Contato() {
     name: '',
     email: '',
     phone: '',
-    subject: 'RevisÃ£o de DÃ­vidas',
+    subject: 'Revisão de Dívidas',
     message: '',
     website: ''
   });
@@ -49,7 +49,7 @@ export default function Contato() {
       if (data.ok) {
         setFeedback('Mensagem enviada com sucesso! Em breve entraremos em contato.');
         startedAtRef.current = Date.now();
-        setForm({ name: '', email: '', phone: '', subject: 'RevisÃ£o de DÃ­vidas', message: '', website: '' });
+        setForm({ name: '', email: '', phone: '', subject: 'Revisão de Dívidas', message: '', website: '' });
       } else {
         setFeedback('Erro ao enviar mensagem: ' + (data.error || 'Tente novamente.'));
       }
@@ -62,11 +62,11 @@ export default function Contato() {
   return (
     <Layout>
       <Head>
-        <title>Contato | Advogado Especialista em Direito BancÃ¡rio, Superendividamento e Juros Abusivos | Hermida Maia</title>
-        <meta name="description" content="Fale com um advogado especialista em superendividamento, revisÃ£o bancÃ¡ria, contratos, defesa contra juros abusivos, emprÃ©stimo consignado e direito bancÃ¡rio. Atendimento nacional." />
-        <meta name="keywords" content="advogado, contato, superendividamento, revisÃ£o bancÃ¡ria, contratos, juros abusivo, emprÃ©stimo consignado, cartÃ£o de crÃ©dito, defesa do consumidor, direito bancÃ¡rio" />
+        <title>Contato | Advogado Especialista em Direito Bancário, Superendividamento e Juros Abusivos | Hermida Maia</title>
+        <meta name="description" content="Fale com um advogado especialista em superendividamento, revisão bancária, contratos, defesa contra juros abusivos, empréstimo consignado e direito bancário. Atendimento nacional." />
+        <meta name="keywords" content="advogado, contato, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, defesa do consumidor, direito bancário" />
       </Head>
-      <section className="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:px-12">
+      <section className="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:px-12 mt-24">
         <div className={`rounded-2xl p-8 shadow-xl shadow-[#C5A059]/5 border ${isLightTheme ? "bg-[#FFFFFF] border-[#D4DEE8]" : "bg-[#181a1b] border-[#2D2E2E]"}`} id="form">
           <h2 className={`mb-6 text-2xl font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}>Envie uma Mensagem</h2>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -104,7 +104,7 @@ export default function Contato() {
               <input name="website" value={form.website} onChange={handleChange} tabIndex={-1} autoComplete="off" />
             </div>
             <button className="w-full rounded-lg bg-[#C5A059] py-4 font-bold text-[#050706] transition-transform hover:scale-[1.02]" type="submit" disabled={loading}>
-              {loading ? 'Enviando...' : 'Enviar Mensagem com SeguranÃ§a'}
+              {loading ? 'Enviando...' : 'Enviar Mensagem com Segurança'}
             </button>
             {feedback && <div className="mt-4 text-center text-[#C5A059]">{feedback}</div>}
           </form>
@@ -120,8 +120,7 @@ export default function Contato() {
                 <span className="material-symbols-outlined">location_on</span>
               </div>
               <div>
-                <p className={`font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}>EndereÃ§o</p>
-                <p className="text-[#C5A059]">Av. Dolores Alcaraz Caldas, 90, 8Âº Andar â€“ Praia de Belas, CEP 90110-180 - Porto Alegre/ RS</p>
+                <p className={`font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}}`}>Endereço</p>                <p className="text-[#C5A059]">Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS</p>
               </div>
             </div>
             <div className="flex items-start gap-4">
