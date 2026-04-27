@@ -1035,91 +1035,406 @@ async function tryDeterministicQuestionRoute(query: string): Promise<{ route: st
 }
 
 // ── Diagnóstico de Banco de Dados (CRUD) ──────────────────────────────────
+// Mantido para compatibilidade com comandos antigos
 async function handleTestData(channel: string): Promise<void> {
-  const blocks = [
-    header("🔍 Diagnóstico Completo de Banco de Dados (CRUD)"),
-    section("Iniciando testes de conectividade e permissões no Supabase...")
-  ];
-  
-  await postSlack(channel, "Diagnóstico CRUD iniciado", blocks);
-  
-  const results = {
-    read: { success: false, msg: "" },
-    write: { success: false, msg: "", id: "" },
-    update: { success: false, msg: "" },
-    delete: { success: false, msg: "" }
-  };
-  
+  await handleSupabaseTest(channel, "unknown");
+}
+
+// ── Diagnóstico Supabase Completo (supabase_test) ─────────────────────────
+async function handleSupabaseTest(channel: string, userId: string, thread_ts?: string): Promise<void> {
+  const startTs = Date.now();
+
+  await postSlack(channel,
+    "🔍 *supabase_test iniciado* — Executando diagnóstico completo...",
+    [header("🔍 Diagnóstico Supabase — Iniciando"),
+     section("Testando conectividade, permissões CRUD, tamanho de recursos e recomendações de migração..."),
+     context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`])],
+    thread_ts
+  );
+
+  // ── 1. CRUD em tabelas-chave ──────────────────────────────────────────────
+  type CrudResult = { success: boolean; latency_ms: number; msg: string; detail?: string };
+  const crud: Record<string, CrudResult> = {};
+
+  // READ — publicacoes
+  let t0 = Date.now();
   try {
-    // 1. READ: Buscar um registro qualquer
-    const { data: readData, error: readErr } = await db.from("publicacoes").select("id").limit(1);
-    if (readErr) throw new Error(`READ error: ${readErr.message}`);
-    results.read = { success: true, msg: `✅ Sucesso (encontrado ${readData?.length || 0} registros)` };
-    
-    // 2. WRITE: Inserir um registro na fila de monitoramento
-    const testPayload = {
-      tipo: "diagnostico_dotobot",
-      status: "concluido",
-      payload: { teste: "crud_operations", ts: Date.now() }
-    };
-    
-    const { data: writeData, error: writeErr } = await db.from("monitoramento_queue")
-      .insert(testPayload)
-      .select("id")
-      .single();
-      
-    if (writeErr) throw new Error(`WRITE error: ${writeErr.message}`);
-    results.write = { success: true, msg: `✅ Sucesso (ID: ${writeData.id})`, id: writeData.id };
-    
-    // 3. UPDATE: Atualizar o registro inserido
-    if (writeData?.id) {
-      const { error: updateErr } = await db.from("monitoramento_queue")
-        .update({ status: "erro", erro: "teste_update_dotobot" })
-        .eq("id", writeData.id);
-        
-      if (updateErr) throw new Error(`UPDATE error: ${updateErr.message}`);
-      results.update = { success: true, msg: `✅ Sucesso (ID atualizado: ${writeData.id})` };
-      
-      // 4. DELETE: Remover o registro de teste
-      const { error: deleteErr } = await db.from("monitoramento_queue")
-        .delete()
-        .eq("id", writeData.id);
-        
-      if (deleteErr) throw new Error(`DELETE error: ${deleteErr.message}`);
-      results.delete = { success: true, msg: `✅ Sucesso (ID removido: ${writeData.id})` };
-    }
-  } catch (e) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    if (!results.read.success) results.read.msg = `❌ Falha: ${errMsg}`;
-    else if (!results.write.success) results.write.msg = `❌ Falha: ${errMsg}`;
-    else if (!results.update.success) results.update.msg = `❌ Falha: ${errMsg}`;
-    else if (!results.delete.success) results.delete.msg = `❌ Falha: ${errMsg}`;
+    const { data, error } = await db.from("publicacoes").select("id,data_publicacao").order("data_publicacao", { ascending: false }).limit(3);
+    if (error) throw error;
+    crud.read_publicacoes = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `${data?.length ?? 0} registros retornados` };
+  } catch (e) { crud.read_publicacoes = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // READ — processos
+  t0 = Date.now();
+  try {
+    const { count, error } = await db.from("processos").select("id", { count: "exact", head: true });
+    if (error) throw error;
+    crud.read_processos = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `${count?.toLocaleString("pt-BR") ?? 0} processos` };
+  } catch (e) { crud.read_processos = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // READ — contacts_freshsales
+  t0 = Date.now();
+  try {
+    const { count, error } = await db.from("contacts_freshsales").select("id", { count: "exact", head: true });
+    if (error) throw error;
+    crud.read_contacts = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `${count?.toLocaleString("pt-BR") ?? 0} contatos` };
+  } catch (e) { crud.read_contacts = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // WRITE + UPDATE + DELETE — monitoramento_queue (tabela de teste segura)
+  let testId: string | null = null;
+  t0 = Date.now();
+  try {
+    const { data, error } = await db.from("monitoramento_queue")
+      .insert({ fonte: "dotobot_test", status: "pendente", prioridade: 0 })
+      .select("id").single();
+    if (error) throw error;
+    testId = data?.id ?? null;
+    crud.write_queue = { success: true, latency_ms: Date.now() - t0, msg: `✅ WRITE`, detail: `ID ${testId} inserido` };
+  } catch (e) { crud.write_queue = { success: false, latency_ms: Date.now() - t0, msg: `❌ WRITE`, detail: String(e) }; }
+
+  if (testId) {
+    t0 = Date.now();
+    try {
+      const { error } = await db.from("monitoramento_queue").update({ status: "concluido", ultimo_erro: "dotobot_test_update" }).eq("id", testId);
+      if (error) throw error;
+      crud.update_queue = { success: true, latency_ms: Date.now() - t0, msg: `✅ UPDATE`, detail: `ID ${testId} atualizado` };
+    } catch (e) { crud.update_queue = { success: false, latency_ms: Date.now() - t0, msg: `❌ UPDATE`, detail: String(e) }; }
+
+    t0 = Date.now();
+    try {
+      const { error } = await db.from("monitoramento_queue").delete().eq("id", testId);
+      if (error) throw error;
+      crud.delete_queue = { success: true, latency_ms: Date.now() - t0, msg: `✅ DELETE`, detail: `ID ${testId} removido` };
+    } catch (e) { crud.delete_queue = { success: false, latency_ms: Date.now() - t0, msg: `❌ DELETE`, detail: String(e) }; }
+  } else {
+    crud.update_queue = { success: false, latency_ms: 0, msg: `⏭ UPDATE`, detail: "Pulado (WRITE falhou)" };
+    crud.delete_queue = { success: false, latency_ms: 0, msg: `⏭ DELETE`, detail: "Pulado (WRITE falhou)" };
   }
-  
-  const finalBlocks = [
-    header("🔍 Diagnóstico Completo de Banco de Dados (CRUD)"),
+
+  // READ — billing_import_rows (public schema)
+  t0 = Date.now();
+  try {
+    const { data, error } = await dbPublic.from("billing_import_rows").select("id").limit(1);
+    if (error) throw error;
+    crud.read_billing = { success: true, latency_ms: Date.now() - t0, msg: `✅ READ`, detail: `billing_import_rows acessível` };
+  } catch (e) { crud.read_billing = { success: false, latency_ms: Date.now() - t0, msg: `❌ READ`, detail: String(e) }; }
+
+  // ── 2. Tamanho dos recursos ───────────────────────────────────────────────
+  type TableSize = { schema: string; table: string; size: string; rows: number; recommendation: string; destination: string };
+  let tableSizes: TableSize[] = [];
+  try {
+    const sizeRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT t.table_schema AS schema, t.table_name AS table, pg_size_pretty(pg_total_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name))) AS size, COALESCE(s.n_live_tup, 0) AS rows FROM information_schema.tables t LEFT JOIN pg_stat_user_tables s ON s.schemaname = t.table_schema AND s.relname = t.table_name WHERE t.table_schema NOT IN ('pg_catalog','information_schema','extensions') AND t.table_type = 'BASE TABLE' AND pg_total_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name)) > 524288 ORDER BY pg_total_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name)) DESC LIMIT 15` }),
+    });
+    if (sizeRes.ok) {
+      const raw = await sizeRes.json() as Array<{ schema: string; table: string; size: string; rows: number }>;
+      tableSizes = raw.map((r) => {
+        const isLog = r.table.includes("log") || r.table.includes("_response") || r.table.includes("job_run") || r.table.includes("event_queue") || r.table.includes("widget_event");
+        const isArchive = r.table.includes("backup") || r.table.includes("archive") || r.table.includes("_old");
+        const isLgpd = r.schema === "lgpd" || r.table.includes("lgpd");
+        const isCore = r.schema === "judiciario" && (r.table.includes("publicacoes") || r.table.includes("processos") || r.table.includes("contatos") || r.table.includes("contacts"));
+        const isBilling = r.table.includes("billing") || r.table.includes("receivable");
+        const isKnowledge = r.table.includes("knowledge") || r.table.includes("chunk") || r.table.includes("embedding");
+        let recommendation = "";
+        let destination = "";
+        if (isArchive) { recommendation = "🚨 MIGRAR IMEDIATAMENTE"; destination = "Cloudflare D1 (backup/arquivo)"; }
+        else if (isLog && r.rows > 5000) { recommendation = "🔴 MIGRAR (logs volumétricos)"; destination = "Cloudflare D1 (hmadv-logs-archive)"; }
+        else if (isLog) { recommendation = "🟡 MONITORAR (retenção ativa)"; destination = "Supabase (limpeza automática ativa)"; }
+        else if (isLgpd) { recommendation = "🟡 ARQUIVAR PERIÓDICO"; destination = "Cloudflare D1 (lgpd_audit_logs)"; }
+        else if (isKnowledge) { recommendation = "🟢 MANTER no Supabase"; destination = "Supabase (pgvector necessário)"; }
+        else if (isCore) { recommendation = "🟢 MANTER no Supabase"; destination = "Supabase (dados operacionais ativos)"; }
+        else if (isBilling) { recommendation = "🟡 MONITORAR (deduplicar)"; destination = "Supabase (limpeza 30d ativa)"; }
+        else { recommendation = "⚪ AVALIAR"; destination = "Supabase (sem política definida)"; }
+        return { ...r, recommendation, destination };
+      });
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── 3. Tamanho total do banco ─────────────────────────────────────────────
+  let dbSizePretty = "N/D";
+  let dbUsagePct = 0;
+  let dbStatus = "";
+  try {
+    const szRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT pg_size_pretty(pg_database_size(current_database())) AS size, ROUND((pg_database_size(current_database())::numeric / 524288000) * 100, 1) AS pct` }),
+    });
+    if (szRes.ok) {
+      const szData = await szRes.json() as Array<{ size: string; pct: number }>;
+      dbSizePretty = szData?.[0]?.size ?? "N/D";
+      dbUsagePct = Number(szData?.[0]?.pct ?? 0);
+      dbStatus = dbUsagePct > 90 ? "🔴 CRÍTICO" : dbUsagePct > 80 ? "🟡 ALERTA" : "🟢 OK";
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── 4. Status dos cron jobs de retenção ──────────────────────────────────
+  let cronStatus = "N/D";
+  try {
+    const cronRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT count(*) AS total, count(*) FILTER (WHERE active) AS ativos FROM cron.job WHERE jobname LIKE 'retention%' OR jobname LIKE 'vacuum%' OR jobname LIKE 'monitor%' OR jobname LIKE 'archive%' OR jobname LIKE 'alert%'` }),
+    });
+    if (cronRes.ok) {
+      const cronData = await cronRes.json() as Array<{ total: number; ativos: number }>;
+      cronStatus = `${cronData?.[0]?.ativos ?? 0} ativos de ${cronData?.[0]?.total ?? 0} configurados`;
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── 5. Status do arquivamento Cloudflare ─────────────────────────────────
+  let archiveStatus = "N/D";
+  try {
+    const archRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT table_schema, table_name, status, rows_archived_total, last_archive_run FROM public.archive_sync_control ORDER BY last_archive_run DESC NULLS LAST LIMIT 5` }),
+    });
+    if (archRes.ok) {
+      const archData = await archRes.json() as Array<{ table_schema: string; table_name: string; status: string; rows_archived_total: number; last_archive_run: string }>;
+      if (archData?.length > 0) {
+        archiveStatus = archData.map(r =>
+          `• \`${r.table_schema}.${r.table_name}\`: ${r.status ?? "nunca"} (${(r.rows_archived_total ?? 0).toLocaleString("pt-BR")} arquivados)`
+        ).join("\n");
+      } else {
+        archiveStatus = "Nenhum arquivamento registrado ainda";
+      }
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // ── Montar blocos finais ──────────────────────────────────────────────────
+  const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+  const crudOk = Object.values(crud).filter(r => r.success).length;
+  const crudTotal = Object.values(crud).length;
+
+  const crudBlock = [
+    `*READ — publicacoes:* ${crud.read_publicacoes.msg} — ${crud.read_publicacoes.detail} (${crud.read_publicacoes.latency_ms}ms)`,
+    `*READ — processos:* ${crud.read_processos.msg} — ${crud.read_processos.detail} (${crud.read_processos.latency_ms}ms)`,
+    `*READ — contacts_freshsales:* ${crud.read_contacts.msg} — ${crud.read_contacts.detail} (${crud.read_contacts.latency_ms}ms)`,
+    `*READ — billing_import_rows:* ${crud.read_billing.msg} — ${crud.read_billing.detail} (${crud.read_billing.latency_ms}ms)`,
+    `*WRITE — monitoramento_queue:* ${crud.write_queue.msg} — ${crud.write_queue.detail} (${crud.write_queue.latency_ms}ms)`,
+    `*UPDATE — monitoramento_queue:* ${crud.update_queue.msg} — ${crud.update_queue.detail} (${crud.update_queue.latency_ms}ms)`,
+    `*DELETE — monitoramento_queue:* ${crud.delete_queue.msg} — ${crud.delete_queue.detail} (${crud.delete_queue.latency_ms}ms)`,
+  ].join("\n");
+
+  const sizeBlock = tableSizes.length > 0
+    ? tableSizes.slice(0, 10).map(r =>
+        `• \`${r.schema}.${r.table}\` — *${r.size}* (${r.rows.toLocaleString("pt-BR")} linhas)\n  ${r.recommendation} → ${r.destination}`
+      ).join("\n")
+    : "Não foi possível obter tamanhos (função exec_sql não disponível)";
+
+  const blocks = [
+    header("🔍 Diagnóstico Supabase Completo"),
+    divider(),
+    section(`*📊 Banco de Dados*\n• Tamanho atual: *${dbSizePretty}* de 500 MB (${dbUsagePct}%) ${dbStatus}\n• Limite do plano free: *500 MB*\n• Cron jobs de retenção: *${cronStatus}*`),
+    divider(),
+    section(`*🔄 Testes CRUD — ${crudOk}/${crudTotal} passaram*\n${crudBlock}`),
+    divider(),
+    section(`*🗄️ Recursos por Tamanho e Recomendação*\n${sizeBlock}`),
+    divider(),
+    section(`*☁️ Status do Arquivamento Cloudflare D1*\n${archiveStatus}`),
     divider(),
     section(
-      `*1. READ (Leitura)*
-${results.read.msg}
-
-` +
-      `*2. WRITE (Gravação)*
-${results.write.msg}
-
-` +
-      `*3. UPDATE (Atualização)*
-${results.update.msg}
-
-` +
-      `*4. DELETE (Exclusão)*
-${results.delete.msg}`
+      `*📌 Legenda de Recomendações*\n` +
+      `🚨 MIGRAR IMEDIATAMENTE — tabela de backup/lixo, remover agora\n` +
+      `🔴 MIGRAR (logs volumétricos) — mover para Cloudflare D1\n` +
+      `🟡 MONITORAR/ARQUIVAR — política de retenção ativa, arquivamento periódico\n` +
+      `🟢 MANTER no Supabase — dados operacionais ou que precisam de pgvector\n` +
+      `⚪ AVALIAR — sem política definida, verificar necessidade`
     ),
     divider(),
-    context([`_Diagnóstico executado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`])
+    context([`_Diagnóstico concluído em ${elapsed}s | Acionado por <@${userId}> às ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`]),
   ];
-  
-  await postSlack(channel, "Resultado do Diagnóstico CRUD", finalBlocks);
+
+  await postSlack(channel, `🔍 Diagnóstico Supabase: ${dbSizePretty} (${dbUsagePct}%) — CRUD ${crudOk}/${crudTotal}`, blocks, thread_ts);
+}
+
+// ── Limpeza Automática Supabase (supabase_clean) ──────────────────────────
+async function handleSupabaseClean(channel: string, userId: string, thread_ts?: string): Promise<void> {
+  const startTs = Date.now();
+
+  await postSlack(channel,
+    "🧹 *supabase_clean iniciado* — Executando automações de limpeza...",
+    [header("🧹 Limpeza Supabase — Iniciando"),
+     section("Executando: limpeza de logs, deduplicação, VACUUM, compactação e verificação de limites..."),
+     context([`_Acionado por <@${userId}> em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`])],
+    thread_ts
+  );
+
+  type CleanStep = { label: string; success: boolean; detail: string; rows_removed?: number };
+  const steps: CleanStep[] = [];
+
+  const execCleanSQL = async (label: string, sql: string): Promise<CleanStep> => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+        method: "POST",
+        headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ query: sql }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        return { label, success: false, detail: `HTTP ${res.status}: ${err.slice(0, 100)}` };
+      }
+      const data = await res.json() as Array<{ rows_deleted?: number; count?: number }>;
+      const rowsRemoved = data?.[0]?.rows_deleted ?? data?.[0]?.count ?? null;
+      return { label, success: true, detail: rowsRemoved !== null ? `${rowsRemoved} registros removidos` : "Executado com sucesso", rows_removed: Number(rowsRemoved ?? 0) };
+    } catch (e) {
+      return { label, success: false, detail: String(e).slice(0, 150) };
+    }
+  };
+
+  // Etapa 1: cron.job_run_details (> 1 dia)
+  steps.push(await execCleanSQL(
+    "🕒 cron.job_run_details (> 1 dia)",
+    `WITH d AS (DELETE FROM cron.job_run_details WHERE start_time < now() - interval '1 day' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 2: net._http_response (> 1 hora)
+  steps.push(await execCleanSQL(
+    "🌐 net._http_response (> 1 hora)",
+    `WITH d AS (DELETE FROM net._http_response WHERE created < now() - interval '1 hour' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 3: lgpd.logs_tratamento (> 7 dias)
+  steps.push(await execCleanSQL(
+    "🛡️ lgpd.logs_tratamento (> 7 dias)",
+    `WITH d AS (DELETE FROM lgpd.logs_tratamento WHERE data_evento < now() - interval '7 days' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 4: billing_import_rows (deduplicar)
+  steps.push(await execCleanSQL(
+    "💳 billing_import_rows (deduplicar)",
+    `WITH d AS (DELETE FROM public.billing_import_rows a USING public.billing_import_rows b WHERE a.id < b.id AND a.email = b.email AND a.invoice_number = b.invoice_number AND a.email IS NOT NULL AND a.invoice_number IS NOT NULL RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 5: billing_import_rows (erros > 30 dias)
+  steps.push(await execCleanSQL(
+    "💳 billing_import_rows (erros > 30 dias)",
+    `WITH d AS (DELETE FROM public.billing_import_rows WHERE created_at < now() - interval '30 days' AND canonical_status IN ('error','rejected','cancelled') RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 6: crm_event_queue (> 7 dias)
+  steps.push(await execCleanSQL(
+    "📡 crm_event_queue (> 7 dias)",
+    `WITH d AS (DELETE FROM public.crm_event_queue WHERE created_at < now() - interval '7 days' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 7: agentlab_widget_events (> 30 dias)
+  steps.push(await execCleanSQL(
+    "🤖 agentlab_widget_events (> 30 dias)",
+    `WITH d AS (DELETE FROM public.agentlab_widget_events WHERE created_at < now() - interval '30 days' RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 8: chunks órfãos do agentlab
+  steps.push(await execCleanSQL(
+    "🧠 agentlab_knowledge_chunks (órfãos)",
+    `WITH d AS (DELETE FROM public.agentlab_knowledge_chunks WHERE source_id NOT IN (SELECT id FROM public.agentlab_knowledge_sources) RETURNING 1) SELECT count(*) AS rows_deleted FROM d`
+  ));
+
+  // Etapa 9: Agendar VACUUM ANALYZE via pg_cron
+  let vacuumScheduled = false;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT cron.unschedule('vacuum-clean-triggered') LIMIT 1` }),
+    });
+    const schedRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT cron.schedule('vacuum-clean-triggered', '* * * * *', $$VACUUM ANALYZE cron.job_run_details; VACUUM ANALYZE net._http_response; VACUUM ANALYZE lgpd.logs_tratamento; VACUUM ANALYZE public.billing_import_rows; SELECT cron.unschedule('vacuum-clean-triggered')$$)` }),
+    });
+    vacuumScheduled = schedRes.ok;
+  } catch (_e) { /* silencioso */ }
+  steps.push({ label: "📦 VACUUM ANALYZE (agendado)", success: vacuumScheduled, detail: vacuumScheduled ? "Agendado para executar em 1 minuto" : "Não foi possível agendar" });
+
+  // Etapa 10: Acionar Edge Function de arquivamento Cloudflare
+  try {
+    const archRes = await fetch(`${SUPABASE_URL}/functions/v1/archive-to-cloudflare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SVC_KEY}` },
+      body: JSON.stringify({ trigger: "supabase_clean", cleanup_d1: true }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (archRes.ok) {
+      const archData = await archRes.json() as Record<string, unknown>;
+      const cronArch = (archData?.cron_job_logs as Record<string, unknown>)?.archived ?? 0;
+      const lgpdArch = (archData?.lgpd_audit_logs as Record<string, unknown>)?.archived ?? 0;
+      const httpArch = (archData?.http_response_logs as Record<string, unknown>)?.archived ?? 0;
+      steps.push({ label: "☁️ Arquivamento Cloudflare D1", success: true, detail: `Cron: ${cronArch} | LGPD: ${lgpdArch} | HTTP: ${httpArch} registros arquivados` });
+    } else {
+      steps.push({ label: "☁️ Arquivamento Cloudflare D1", success: false, detail: `HTTP ${archRes.status}` });
+    }
+  } catch (e) {
+    steps.push({ label: "☁️ Arquivamento Cloudflare D1", success: false, detail: `Timeout ou erro: ${String(e).slice(0, 100)}` });
+  }
+
+  // Etapa 11: Limpeza de emergência se banco > 80%
+  let emergencyRan = false;
+  try {
+    const emRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT public.fn_emergency_db_cleanup()` }),
+    });
+    emergencyRan = emRes.ok;
+  } catch (_e) { /* silencioso */ }
+  steps.push({ label: "🔔 Verificação de emergência (fn_emergency_db_cleanup)", success: emergencyRan, detail: emergencyRan ? "Executado (limpeza adicional se banco > 80%)" : "Não executado" });
+
+  // Verificar tamanho após limpeza
+  let sizeAfter = "N/D";
+  let pctAfter = 0;
+  let statusAfter = "";
+  try {
+    const szRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: { apikey: SVC_KEY, Authorization: `Bearer ${SVC_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: `SELECT pg_size_pretty(pg_database_size(current_database())) AS size, ROUND((pg_database_size(current_database())::numeric / 524288000) * 100, 1) AS pct` }),
+    });
+    if (szRes.ok) {
+      const szData = await szRes.json() as Array<{ size: string; pct: number }>;
+      sizeAfter = szData?.[0]?.size ?? "N/D";
+      pctAfter = Number(szData?.[0]?.pct ?? 0);
+      statusAfter = pctAfter > 90 ? "🔴 CRÍTICO" : pctAfter > 80 ? "🟡 ALERTA" : "🟢 OK";
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // Montar resultado final
+  const elapsed = ((Date.now() - startTs) / 1000).toFixed(1);
+  const successCount = steps.filter(s => s.success).length;
+  const totalRowsRemoved = steps.reduce((acc, s) => acc + (s.rows_removed ?? 0), 0);
+
+  const stepsBlock = steps.map(s =>
+    `${s.success ? "✅" : "❌"} *${s.label}*\n  ${s.detail}`
+  ).join("\n");
+
+  const finalBlocks = [
+    header("🧹 Limpeza Supabase — Concluída"),
+    divider(),
+    section(
+      `*📊 Resultado Geral*\n` +
+      `• Etapas executadas: *${successCount}/${steps.length}*\n` +
+      `• Registros removidos: *${totalRowsRemoved.toLocaleString("pt-BR")}*\n` +
+      `• Tamanho atual: *${sizeAfter}* de 500 MB (${pctAfter}%) ${statusAfter}\n` +
+      `• Tempo total: *${elapsed}s*`
+    ),
+    divider(),
+    section(`*📋 Detalhamento das Etapas*\n${stepsBlock}`),
+    divider(),
+    section(
+      `*ℹ️ Próximas execuções automáticas*\n` +
+      `• VACUUM ANALYZE: em ~1 minuto (agendado)\n` +
+      `• Limpeza de logs: a cada 30 min (cron ativo)\n` +
+      `• Arquivamento Cloudflare: a cada 2 horas (cron ativo)\n` +
+      `• Monitoramento de tamanho: diário às 08:00`
+    ),
+    divider(),
+    context([`_Limpeza concluída em ${elapsed}s | Acionado por <@${userId}> às ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`]),
+  ];
+
+  await postSlack(channel, `🧹 Limpeza concluída: ${totalRowsRemoved.toLocaleString("pt-BR")} registros removidos | Banco: ${sizeAfter} (${pctAfter}%) ${statusAfter}`, finalBlocks, thread_ts);
 }
 
 // ── Handlers de Comandos ──────────────────────────────────────────────────────
@@ -2319,6 +2634,12 @@ async function handleHelp(channel: string): Promise<void> {
     ),
     divider(),
     section(
+      `*🗄️ Supabase & Cloudflare*\n` +
+      `• \`supabase_test\` — Diagnóstico completo: CRUD, tamanho por recurso e recomendação Supabase vs Cloudflare\n` +
+      `• \`supabase_clean\` — Acionar todas as automações de limpeza, deduplicação, VACUUM e arquivamento Cloudflare\n`
+    ),
+    divider(),
+    section(
       `*🧹 Higienização*\n` +
       `• \`/dotobot fix-activities\` — Corrigir 50 activities pendentes\n` +
       `• \`/dotobot repair-orphans\` — Corrigir campos órfãos (instância, partes, status)\n` +
@@ -2346,7 +2667,9 @@ async function dispatchSlackTextCommand(channelId: string, userId: string, text:
   const lowered = normalizedText.toLowerCase();
   const [cmd] = lowered.split(" ");
 
-  if (cmd === "test_data" || cmd === "test-data" || cmd === "diagnostico") await handleTestData(channelId);
+  if (cmd === "supabase_test" || cmd === "supabase-test") await handleSupabaseTest(channelId, userId, thread_ts);
+  else if (cmd === "supabase_clean" || cmd === "supabase-clean") await handleSupabaseClean(channelId, userId, thread_ts);
+  else if (cmd === "test_data" || cmd === "test-data" || cmd === "diagnostico") await handleSupabaseTest(channelId, userId, thread_ts);
   else if (cmd === "status") await handleStatus(channelId, userId);
   else if (cmd === "publicacoes") await handlePublicacoes(channelId);
   else if (cmd === "andamentos") await handleAndamentos(channelId);
@@ -2778,6 +3101,8 @@ Deno.serve(async (req) => {
         else if (cmd.startsWith("resumir")) await handleIaResumirProcesso(channelId, userId, text.replace(/^resumir\s*/i, ""));
         else if (cmd === "enriquecer-ia" || cmd === "enriquecer_ia") await handleIaEnriquecer(channelId, userId);
         else if (cmd === "ia-status" || cmd === "ia_status") await handleIaStatus(channelId);
+        else if (cmd === "supabase_test" || cmd === "supabase-test") await handleSupabaseTest(channelId, userId);
+        else if (cmd === "supabase_clean" || cmd === "supabase-clean") await handleSupabaseClean(channelId, userId);
         else await handleHelp(channelId);
       } catch (e) {
         await postSlack(channelId, `❌ Erro ao processar comando \`${cmd}\`: ${String(e)}`);
