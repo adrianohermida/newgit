@@ -6,7 +6,7 @@
     "dev": "next dev --webpack",
     "dev:pages": "npm run build:pages && npx wrangler pages dev out --project-name=newgit-pages",
     "build:core": "node scripts/guard-next-build-lock.cjs",
-    "build": "set AUTO_DEPLOY_WRANGLER=1&& npm run build:core && node scripts/normalize-pages-export-assets.js",
+    "build": "set AUTO_DEPLOY_WRANGLER=1&& npm run build:core && node scripts/normalize-pages-export-assets.js && node scripts/copy-manual-to-public.js",
     "build:pages": "node scripts/build-pages-static.cjs",
     "diagnose:pages-assets": "node scripts/diagnose-pages-export-assets.cjs",
     "deploy:pages": "npm run build:pages && node scripts/guard-pages-static-deploy.cjs && npx wrangler pages deploy out --project-name=newgit-pages",
