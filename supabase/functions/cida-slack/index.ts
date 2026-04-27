@@ -427,16 +427,40 @@ function toolsFactory(supabase: {
     async consultar_contato(email: string): Promise<StructuredToolResult> {
       try {
         console.log('[tool] consultar_contato input:', email);
-        const busca = await callWorkspaceOps('contact_lookup', { email });
-        if (busca.ok && busca.data?.data?.id) {
-          const c = busca.data.data;
+        // Buscar na tabela contacts_freshsales (sincronizada do Freshsales)
+        const emailEnc = encodeURIComponent(email.toLowerCase().trim());
+        const res = await supabaseFetch(
+          `/rest/v1/contacts_freshsales?email=ilike.${emailEnc}&select=fs_id,first_name,last_name,display_name,email,mobile,phone,cf_tipo,cf_cpf,tag_list,lifecycle_stage_id&limit=1`,
+          'GET'
+        );
+        if (res.ok && Array.isArray(res.data) && res.data.length > 0) {
+          const c = res.data[0];
+          const nome = c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'N/A';
+          const tel = c.mobile || c.phone || 'N/A';
           return jsonResponse({
             ok: true, tool: 'consultar_contato',
             data: c,
-            summary: `📋 Contato encontrado: ${c.first_name || ''} ${c.last_name || ''} | Email: ${c.email || email} | Tel: ${c.mobile_number || c.work_number || 'N/A'} | ID: ${c.id}`,
+            summary: `📋 Contato encontrado: ${nome} | Email: ${c.email || email} | Tel: ${tel} | Tipo: ${c.cf_tipo || 'N/A'} | ID: ${c.fs_id}`,
           });
         }
-        // Tentar busca por nome se não encontrou por email
+        // Fallback: buscar por display_name (ilike)
+        const nomeQuery = email.includes('@') ? email.split('@')[0] : email;
+        const nomeEnc = encodeURIComponent(nomeQuery);
+        const res2 = await supabaseFetch(
+          `/rest/v1/contacts_freshsales?display_name=ilike.*${nomeEnc}*&select=fs_id,first_name,last_name,display_name,email,mobile,phone,cf_tipo&limit=1`,
+          'GET'
+        );
+        if (res2.ok && Array.isArray(res2.data) && res2.data.length > 0) {
+          const c = res2.data[0];
+          const nome = c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim();
+          const tel = c.mobile || c.phone || 'N/A';
+          return jsonResponse({
+            ok: true, tool: 'consultar_contato',
+            data: c,
+            summary: `📋 Contato encontrado (por nome): ${nome} | Email: ${c.email || 'N/A'} | Tel: ${tel} | Tipo: ${c.cf_tipo || 'N/A'} | ID: ${c.fs_id}`,
+          });
+        }
+        console.log('[tool] consultar_contato: não encontrado na tabela contacts_freshsales para:', email);
         return jsonResponse({ ok: false, tool: 'consultar_contato', error: `Contato com email ${email} não encontrado no CRM.` });
       } catch (e: any) {
         return jsonResponse({ ok: false, tool: 'consultar_contato', error: 'Erro inesperado em consultar_contato.', details: String(e?.message ?? e) });
@@ -1059,22 +1083,26 @@ function orchestratorFactory(deps: {
           console.error("Error creating user:", e);
         }
         
-        // Novo usuário: tentar identificar no Freshsales pelo email do Slack
+        // Novo usuário: tentar identificar na tabela contacts_freshsales (sincronizada)
         let freshsalesContext = '';
         if (email && type === 'cliente') {
           try {
-            const fsLookup = await fetch(`${supabaseUrl}/functions/v1/workspace-ops`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}`, 'x-hmadv-secret': supabaseKey },
-              body: JSON.stringify({ operation: 'contact_lookup', params: { email } }),
-            });
-            const fsData = fsLookup.ok ? await fsLookup.json() : null;
-            if (fsData?.data?.id) {
-              const c = fsData.data;
-              freshsalesContext = `\nCRM Freshsales: Contato encontrado — ID: ${c.id}, Tel: ${c.mobile_number || c.work_number || 'N/A'}`;
-              console.log('[persona] freshsales lookup ok:', c.id);
+            const emailEnc = encodeURIComponent(email.toLowerCase().trim());
+            const fsLookup = await fetch(
+              `${supabaseUrl}/rest/v1/contacts_freshsales?email=ilike.${emailEnc}&select=fs_id,display_name,first_name,last_name,mobile,phone,cf_tipo,tag_list&limit=1`,
+              { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } }
+            );
+            const fsRows = fsLookup.ok ? await fsLookup.json() : [];
+            if (Array.isArray(fsRows) && fsRows.length > 0) {
+              const c = fsRows[0];
+              const nome = c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim();
+              const tel = c.mobile || c.phone || 'N/A';
+              freshsalesContext = `\nCRM: Contato encontrado — ${nome} | Tel: ${tel} | Tipo: ${c.cf_tipo || 'N/A'} | ID: ${c.fs_id}`;
+              console.log('[persona] contacts_freshsales lookup ok:', c.fs_id, nome);
+            } else {
+              console.log('[persona] contacts_freshsales: não encontrado para', email);
             }
-          } catch(e) { console.log('[persona] freshsales lookup error:', e); }
+          } catch(e) { console.log('[persona] contacts_freshsales lookup error:', e); }
         }
         if (type === 'owner') {
           personaContext = `USUÁRIO: ${realName} (Dr. Adriano — dono do escritório Hermida Maia)\nPERMISSÕES: TOTAIS — sem restrições, sem triagem, sem perguntas desnecessárias. Responda diretamente o que for solicitado, com máxima objetividade.\nLINGUAGEM: Direta, concisa, profissional. Tuteia permitido.`;
