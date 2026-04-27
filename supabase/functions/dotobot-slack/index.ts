@@ -288,7 +288,9 @@ const dbPublic = createClient(SUPABASE_URL, SVC_KEY);
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function slackToken(): string {
-  return SLACK_USER_TOKEN || SLACK_BOT_TOKEN;
+  const token = SLACK_USER_TOKEN || SLACK_BOT_TOKEN;
+  if (!token) console.error("[dotobot] ERRO: nenhum token Slack configurado (SLACK_USER_TOKEN e SLACK_BOT_TOKEN vazios)");
+  return token;
 }
 
 async function callSlackApi(method: string, payload: Record<string, unknown>, token = slackToken()) {
@@ -313,7 +315,13 @@ async function callSlackApi(method: string, payload: Record<string, unknown>, to
 async function postSlack(channel: string, text: string, blocks?: unknown[]): Promise<void> {
   const payload: Record<string, unknown> = { channel, text, unfurl_links: false };
   if (blocks) payload.blocks = blocks;
-  await callSlackApi("chat.postMessage", payload);
+  try {
+    await callSlackApi("chat.postMessage", payload);
+    console.log("[dotobot] postSlack ok:", { channel, chars: text.length });
+  } catch (err) {
+    console.error("[dotobot] postSlack ERRO:", { channel, error: String(err) });
+    throw err;
+  }
 }
 
 async function postSlackEphemeral(channel: string, user: string, text: string, blocks?: unknown[]): Promise<void> {
@@ -1960,12 +1968,15 @@ ${context ? `\n\nBase de conhecimento relevante:\n${context}` : ""}`;
     const answer = await llm.runLLM(messages);
 
     await postSlack(channel, answer);
-  } catch (err) {
-    console.error("[dotobot] handleIaPerguntar erro:", err);
-    await postSlack(channel, "⚠️ Não consegui processar sua pergunta. Tente novamente.");
+   } catch (err) {
+    console.error("[dotobot] handleIaPerguntar erro:", String(err));
+    try {
+      await postSlack(channel, "⚠️ Não consegui processar sua pergunta. Tente novamente.");
+    } catch (postErr) {
+      console.error("[dotobot] postSlack fallback erro:", String(postErr));
+    }
   }
 }
-
 async function handleIaResumirProcesso(channel: string, userId: string, cnj: string): Promise<void> {
   if (!cnj.trim()) {
     await postSlack(channel, "❓ Use: `/dotobot resumir [CNJ do processo]`\nExemplo: `/dotobot resumir 0001234-56.2023.8.04.0001`");
