@@ -2409,7 +2409,18 @@ Deno.serve(async (req) => {
       if ((isDirectMessage || isMention) && isHumanMessage && eventUser && eventChannel && eventText) {
         EdgeRuntime.waitUntil((async () => {
           try {
-            await dispatchSlackTextCommand(eventChannel, eventUser, eventText);
+            // Para DMs: usar conversations.open para garantir que a resposta aparece
+            // na conversa ativa do usuário (não apenas no histórico do bot)
+            let replyChannel = eventChannel;
+            if (isDirectMessage) {
+              try {
+                replyChannel = await openSlackDm(eventUser);
+                console.log("[dotobot] replyChannel:", { eventChannel, replyChannel, same: replyChannel === eventChannel });
+              } catch (dmErr) {
+                console.error("[dotobot] openSlackDm falhou, usando eventChannel:", String(dmErr));
+              }
+            }
+            await dispatchSlackTextCommand(replyChannel, eventUser, eventText);
           } catch (error) {
             await postSlack(eventChannel, `❌ Erro ao processar mensagem: ${String(error)}`);
           }
