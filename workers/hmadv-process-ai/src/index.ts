@@ -1,8 +1,3 @@
-import { buildActivityPrompt, buildProcessPrompt, CONVERSATION_SYSTEM_PROMPT, SYSTEM_PROMPT } from './prompts';
-import { CopilotConversationRoomV2 } from './copilot-room';
-
-type Json = Record<string, unknown>;
-
 type AiResponse = { response?: string } & Json;
 type AiBinding = {
   run(model: string, payload: Json): Promise<AiResponse>;
@@ -231,76 +226,8 @@ async function handleCopilotRoomRequest(req: Request, env: Env, pathname: string
   return json({ ok: false, error: 'not_found' }, 404);
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function shouldRetryVectorizeError(error: unknown) {
-  const message = String((error as { message?: string })?.message || '').toLowerCase();
-  return (
-    message.includes('timeout') ||
-    message.includes('temporar') ||
-    message.includes('rate') ||
-    message.includes('429') ||
-    message.includes('503') ||
-    message.includes('504') ||
-    message.includes('network') ||
-    message.includes('fetch')
-  );
-}
-
-async function withVectorizeRetry<T>(operation: () => Promise<T>, maxRetries = 2) {
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      if (attempt >= maxRetries || !shouldRetryVectorizeError(error)) {
-        console.warn('[vectorize] operation failed without retry', {
-          attempt,
-          maxRetries,
-          error: String((error as { message?: string })?.message || 'unknown_error'),
-        });
-        throw error;
-      }
-      console.warn('[vectorize] retrying operation', {
-        attempt,
-        nextAttempt: attempt + 1,
-        maxRetries,
-        backoffMs: Math.pow(2, attempt) * 250,
-        error: String((error as { message?: string })?.message || 'unknown_error'),
-      });
-      await sleep(Math.pow(2, attempt) * 250);
-    }
-  }
-  throw lastError;
-}
-
-async function runJson(env: Env, prompt: string) {
-  const model = resolveChatModel(env);
-  const result = await runAi(env, model, {
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    response_format: { type: 'json_object' },
-    max_tokens: 1400,
-  });
-  return JSON.parse(String(result.response ?? '{}'));
-}
-
-function buildConversationPrompt(query: string, context: Json, retrievedContext: Json[]) {
-  const assistant = (context as Record<string, any>)?.assistant || {};
-  const rag = (context as Record<string, any>)?.rag || {};
-  return [
-    CONVERSATION_SYSTEM_PROMPT.trim(),
-    assistant.system_prompt ? `Instrucoes adicionais do workspace:\n${String(assistant.system_prompt).trim()}` : null,
-    `Modo: ${String((assistant as Record<string, any>).mode || context?.mode || 'chat')}`,
-    `Idioma: ${String((context as Record<string, any>).locale || 'pt-BR')}`,
-    rag?.matches?.length
-      ? `Contexto RAG recuperado:\n${JSON.stringify(rag.matches.slice(0, 6), null, 2)}`
-      : null,
+import { buildActivityPrompt, buildProcessPrompt, CONVERSATION_SYSTEM_PROMPT, SYSTEM_PROMPT } from './prompts';
+import { CopilotConversationRoomV2 } from './copilot-room';
     retrievedContext.length
       ? `Memorias relacionadas:\n${JSON.stringify(retrievedContext.slice(0, 6), null, 2)}`
       : null,
