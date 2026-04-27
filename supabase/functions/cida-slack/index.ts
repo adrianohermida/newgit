@@ -1035,14 +1035,21 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
       toolContext.push(lead.ok ? `Contato (mock): ${JSON.stringify(lead.data)}` : `Erro: ${lead.error}`);
     }
 
+    // ── Decidir se o RAG é necessário ──────────────────────────────────────
+    // Pular RAG para: saudações, mensagens curtas (<15 chars), owner sem intenção específica
+    const isOwnerContext = personaContext.includes('DR. ADRIANO') || personaContext.includes('owner');
+    const isSimpleGreeting = /^(oi|olá|ola|hey|hi|hello|bom dia|boa tarde|boa noite|tudo bem|tudo bom|e aí|e ai|ok|okay|certo|entendi|obrigad|valeu|vlw|👋|😊|🙂)[\.!?\s]*$/i.test(inputText.trim());
+    const isShortMessage = inputText.trim().length < 15;
+    const skipRag = isSimpleGreeting || (isOwnerContext && isShortMessage && intent.type === 'geral');
+
     const knowledgeQuery = [
       inputText,
       cnj ? `CNJ: ${cnj}` : '',
       `Intenção: ${intent.type}`,
       toolContext.length ? `Contexto ferramentas: ${toolContext.join('\n')}` : '',
     ].filter(Boolean).join('\n');
-
-    const knowledgeText = await deps.rag.getKnowledge(knowledgeQuery);
+    const knowledgeText = skipRag ? '' : await deps.rag.getKnowledge(knowledgeQuery);
+    if (skipRag) console.log('[rag] pulando RAG — mensagem simples ou saudação');;
 
     // Montar system prompt com modo aprendizado se ativo
     let activeSystemPrompt = deps.systemPrompt + "\n\nCONTEXTO DO USUÁRIO ATUAL:\n" + personaContext;
@@ -1053,14 +1060,14 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
     // ── Montar mensagens com histórico individual (melhor para o LLM) ────────
     const messages: ChatMessage[] = [{ role: 'system', content: activeSystemPrompt }];
 
-    // Histórico como mensagens individuais (últimas 10 para economizar tokens)
-    const recentHistory = history.slice(-10);
+    // Histórico como mensagens individuais (últimas 6 para economizar tokens)
+    const recentHistory = history.slice(-6);
     for (const m of recentHistory) {
       messages.push({ role: m.role as 'user' | 'assistant', content: m.content.slice(0, 400) });
     }
 
-    // RAG comprimido (max 1500 chars para economizar tokens)
-    const ragCompressed = knowledgeText ? knowledgeText.slice(0, 1500) : '';
+    // RAG comprimido (max 800 chars para economizar tokens)
+    const ragCompressed = knowledgeText ? knowledgeText.slice(0, 800) : '';
 
     const assembledUser = [
       inputText,
