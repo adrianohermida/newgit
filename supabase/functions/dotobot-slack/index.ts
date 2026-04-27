@@ -1034,6 +1034,94 @@ async function tryDeterministicQuestionRoute(query: string): Promise<{ route: st
   return null;
 }
 
+// ── Diagnóstico de Banco de Dados (CRUD) ──────────────────────────────────
+async function handleTestData(channel: string): Promise<void> {
+  const blocks = [
+    header("🔍 Diagnóstico Completo de Banco de Dados (CRUD)"),
+    section("Iniciando testes de conectividade e permissões no Supabase...")
+  ];
+  
+  await postSlack(channel, "Diagnóstico CRUD iniciado", blocks);
+  
+  const results = {
+    read: { success: false, msg: "" },
+    write: { success: false, msg: "", id: "" },
+    update: { success: false, msg: "" },
+    delete: { success: false, msg: "" }
+  };
+  
+  try {
+    // 1. READ: Buscar um registro qualquer
+    const { data: readData, error: readErr } = await db.from("publicacoes").select("id").limit(1);
+    if (readErr) throw new Error(`READ error: ${readErr.message}`);
+    results.read = { success: true, msg: `✅ Sucesso (encontrado ${readData?.length || 0} registros)` };
+    
+    // 2. WRITE: Inserir um registro na fila de monitoramento
+    const testPayload = {
+      tipo: "diagnostico_dotobot",
+      status: "concluido",
+      payload: { teste: "crud_operations", ts: Date.now() }
+    };
+    
+    const { data: writeData, error: writeErr } = await db.from("monitoramento_queue")
+      .insert(testPayload)
+      .select("id")
+      .single();
+      
+    if (writeErr) throw new Error(`WRITE error: ${writeErr.message}`);
+    results.write = { success: true, msg: `✅ Sucesso (ID: ${writeData.id})`, id: writeData.id };
+    
+    // 3. UPDATE: Atualizar o registro inserido
+    if (writeData?.id) {
+      const { error: updateErr } = await db.from("monitoramento_queue")
+        .update({ status: "erro", erro: "teste_update_dotobot" })
+        .eq("id", writeData.id);
+        
+      if (updateErr) throw new Error(`UPDATE error: ${updateErr.message}`);
+      results.update = { success: true, msg: `✅ Sucesso (ID atualizado: ${writeData.id})` };
+      
+      // 4. DELETE: Remover o registro de teste
+      const { error: deleteErr } = await db.from("monitoramento_queue")
+        .delete()
+        .eq("id", writeData.id);
+        
+      if (deleteErr) throw new Error(`DELETE error: ${deleteErr.message}`);
+      results.delete = { success: true, msg: `✅ Sucesso (ID removido: ${writeData.id})` };
+    }
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    if (!results.read.success) results.read.msg = `❌ Falha: ${errMsg}`;
+    else if (!results.write.success) results.write.msg = `❌ Falha: ${errMsg}`;
+    else if (!results.update.success) results.update.msg = `❌ Falha: ${errMsg}`;
+    else if (!results.delete.success) results.delete.msg = `❌ Falha: ${errMsg}`;
+  }
+  
+  const finalBlocks = [
+    header("🔍 Diagnóstico Completo de Banco de Dados (CRUD)"),
+    divider(),
+    section(
+      `*1. READ (Leitura)*
+${results.read.msg}
+
+` +
+      `*2. WRITE (Gravação)*
+${results.write.msg}
+
+` +
+      `*3. UPDATE (Atualização)*
+${results.update.msg}
+
+` +
+      `*4. DELETE (Exclusão)*
+${results.delete.msg}`
+    ),
+    divider(),
+    context([`_Diagnóstico executado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Manaus" })}_`])
+  ];
+  
+  await postSlack(channel, "Resultado do Diagnóstico CRUD", finalBlocks);
+}
+
 // ── Handlers de Comandos ──────────────────────────────────────────────────────
 
 async function handleStatus(channel: string, userId: string): Promise<void> {
@@ -2258,7 +2346,8 @@ async function dispatchSlackTextCommand(channelId: string, userId: string, text:
   const lowered = normalizedText.toLowerCase();
   const [cmd] = lowered.split(" ");
 
-  if (cmd === "status") await handleStatus(channelId, userId);
+  if (cmd === "test_data" || cmd === "test-data" || cmd === "diagnostico") await handleTestData(channelId);
+  else if (cmd === "status") await handleStatus(channelId, userId);
   else if (cmd === "publicacoes") await handlePublicacoes(channelId);
   else if (cmd === "andamentos") await handleAndamentos(channelId);
   else if (cmd === "audiencias") await handleAudiencias(channelId);
