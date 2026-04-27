@@ -941,8 +941,128 @@ function orchestratorFactory(deps: {
   const agent = async (inputText: string, channel: string, userId?: string) => {
     console.log('[agent] start:', { channel });
 
-    // ── Detecção de comandos de modo aprendizado ──
+    // ── Detecção de comandos de modo aprendizado e diagnóstico ──
     const lowerInput = inputText.toLowerCase().trim();
+
+    if (lowerInput === 'test_tools') {
+      console.log('[diagnostico] Iniciando teste de tools (test_tools)');
+      
+      const relatorio = [];
+      relatorio.push('🔍 *Modo de Diagnóstico da Cida (test_tools)*');
+      relatorio.push('Iniciando verificação de todos os módulos de integração...\n');
+
+      // 1. Teste de RAG / Base de Conhecimento (Supabase pgvector)
+      try {
+        const t0 = Date.now();
+        const resRag = await deps.tools.buscar_conhecimento('teste de sistema');
+        const ms = Date.now() - t0;
+        if (resRag.ok) {
+          relatorio.push(`✅ *Base de Conhecimento (RAG)* — OK (${ms}ms)`);
+          relatorio.push(`> _Retorno amostral:_ ${String(resRag.summary || '').slice(0, 100)}...`);
+        } else {
+          relatorio.push(`❌ *Base de Conhecimento (RAG)* — FALHA (${ms}ms)`);
+          relatorio.push(`> _Erro:_ ${resRag.error}`);
+          if (resRag.details) relatorio.push(`> _Detalhes:_ ${JSON.stringify(resRag.details).slice(0, 150)}`);
+        }
+      } catch(e: any) {
+        relatorio.push(`❌ *Base de Conhecimento (RAG)* — EXCEÇÃO: ${e.message}`);
+      }
+
+      // 2. Teste de Consulta de Contato (Supabase contacts_freshsales)
+      try {
+        const t0 = Date.now();
+        // Usando um email genérico para ver se a tabela responde, mesmo que não ache
+        const resContato = await deps.tools.consultar_contato('adrianohermida@hotmail.com');
+        const ms = Date.now() - t0;
+        if (resContato.ok) {
+          relatorio.push(`\n✅ *Consulta de Contatos (Supabase)* — OK (${ms}ms)`);
+          relatorio.push(`> _Retorno amostral:_ ${resContato.summary}`);
+        } else {
+          // Se não achar o contato, mas a API respondeu, a integração em si está OK
+          if (resContato.error && resContato.error.includes('não encontrado')) {
+            relatorio.push(`\n⚠️ *Consulta de Contatos (Supabase)* — OK, mas contato teste não encontrado (${ms}ms)`);
+          } else {
+            relatorio.push(`\n❌ *Consulta de Contatos (Supabase)* — FALHA (${ms}ms)`);
+            relatorio.push(`> _Erro:_ ${resContato.error}`);
+          }
+        }
+      } catch(e: any) {
+        relatorio.push(`\n❌ *Consulta de Contatos (Supabase)* — EXCEÇÃO: ${e.message}`);
+      }
+
+      // 3. Teste de Consulta de Processo (Supabase judiciario.processos)
+      try {
+        const t0 = Date.now();
+        const resProcesso = await deps.tools.consultar_processo('0000000-00.0000.0.00.0000');
+        const ms = Date.now() - t0;
+        if (resProcesso.ok) {
+          relatorio.push(`\n✅ *Consulta de Processos (Supabase)* — OK (${ms}ms)`);
+        } else {
+          if (resProcesso.error && resProcesso.error.includes('não localizado')) {
+            relatorio.push(`\n⚠️ *Consulta de Processos (Supabase)* — OK, mas processo teste não encontrado (${ms}ms)`);
+          } else {
+            relatorio.push(`\n❌ *Consulta de Processos (Supabase)* — FALHA (${ms}ms)`);
+            relatorio.push(`> _Erro:_ ${resProcesso.error}`);
+          }
+        }
+      } catch(e: any) {
+        relatorio.push(`\n❌ *Consulta de Processos (Supabase)* — EXCEÇÃO: ${e.message}`);
+      }
+
+      // 4. Teste de Integração Freshdesk (workspace-ops ticket_create)
+      try {
+        const t0 = Date.now();
+        const resTicket = await deps.tools.criar_contato({
+          email: 'teste.diagnostico@hermidamaia.adv.br',
+          nome: 'Teste Diagnóstico Cida',
+          canal: 'Slack',
+          origem: 'Diagnóstico',
+          observacao: 'Teste automático de integração via test_tools'
+        });
+        const ms = Date.now() - t0;
+        if (resTicket.ok) {
+          relatorio.push(`\n✅ *Integração Freshdesk (workspace-ops)* — OK (${ms}ms)`);
+          relatorio.push(`> _Retorno amostral:_ ${resTicket.summary}`);
+        } else {
+          relatorio.push(`\n❌ *Integração Freshdesk (workspace-ops)* — FALHA (${ms}ms)`);
+          relatorio.push(`> _Erro:_ ${resTicket.error}`);
+          if (resTicket.details) relatorio.push(`> _Onde quebrou:_ ${JSON.stringify(resTicket.details).slice(0, 150)}`);
+        }
+      } catch(e: any) {
+        relatorio.push(`\n❌ *Integração Freshdesk (workspace-ops)* — EXCEÇÃO: ${e.message}`);
+      }
+
+      // 5. Teste de Integração Freshsales (workspace-ops contact_lookup direto)
+      try {
+        const t0 = Date.now();
+        const resFs = await fetch(`${deps.supabaseUrl}/functions/v1/workspace-ops`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${deps.serviceRoleKey}`,
+            'x-hmadv-secret': deps.serviceRoleKey,
+          },
+          body: JSON.stringify({ operation: 'contact_lookup', params: { email: 'adrianohermida@hotmail.com' } }),
+        });
+        const ms = Date.now() - t0;
+        const fsData = resFs.ok ? await resFs.json() : await resFs.text();
+        if (resFs.ok) {
+          relatorio.push(`\n✅ *Integração Freshsales API (workspace-ops)* — OK (${ms}ms)`);
+          relatorio.push(`> _Retorno amostral:_ ${JSON.stringify(fsData).slice(0, 100)}...`);
+        } else {
+          relatorio.push(`\n❌ *Integração Freshsales API (workspace-ops)* — FALHA HTTP ${resFs.status} (${ms}ms)`);
+          relatorio.push(`> _Onde quebrou:_ Verifica credenciais do Freshsales no workspace-ops ou token de acesso.`);
+          relatorio.push(`> _Detalhes:_ ${String(fsData).slice(0, 150)}`);
+        }
+      } catch(e: any) {
+        relatorio.push(`\n❌ *Integração Freshsales API (workspace-ops)* — EXCEÇÃO: ${e.message}`);
+      }
+
+      relatorio.push('\n🏁 *Fim do diagnóstico.* Se houver falhas em "workspace-ops", verifique os secrets do Supabase (FRESHSALES_API_KEY, FRESHDESK_API_KEY). Se houver falhas no Supabase, verifique as permissões das tabelas ou se a sincronização está rodando.');
+      
+      return { response: relatorio.join('\n') };
+    }
+
     if (lowerInput.includes('ativar modo aprendizado')) {
       await setLearningMode(deps.supabaseUrl, deps.serviceRoleKey, channel, true);
       console.log('[learning] mode ACTIVATED for channel:', channel);
