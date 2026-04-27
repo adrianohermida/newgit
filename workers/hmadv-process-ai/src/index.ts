@@ -2,62 +2,7 @@ import { buildActivityPrompt, buildProcessPrompt, CONVERSATION_SYSTEM_PROMPT, SY
 import { CopilotConversationRoomV2 } from './copilot-room';
 import { runAi } from './ai';
 
-async function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
-  });
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
-  return String(error ?? 'unknown_error');
-}
-
-function buildAiFailure(error: unknown) {
-  const detail = getErrorMessage(error);
-  const normalized = detail.toLowerCase();
-  if (normalized.includes('daily free allocation') || normalized.includes('4006') || normalized.includes('quota')) {
-    return {
-      status: 429,
-      code: 'cloudflare_ai_quota_exceeded',
-      detail,
-    };
-  }
-  return {
-    status: 502,
-    code: 'cloudflare_ai_failed',
-    detail,
-  };
-}
-
-async function runAi(env: Env, model: string, payload: Json) {
-  try {
-    return await env.AI.run(model, payload);
-  } catch (error) {
-    const failure = buildAiFailure(error);
-    const wrapped = new Error(failure.detail);
-    Object.assign(wrapped, failure);
-    throw wrapped;
-  }
-}
-
-function bearer(req: Request) {
-  const raw = req.headers.get('authorization') ?? '';
-  return raw.startsWith('Bearer ') ? raw.slice(7) : '';
-}
-
-function getSharedSecret(env: Env) {
-  return (
-    env.HMDAV_AI_SHARED_SECRET?.trim() ||
-    env.HMADV_AI_SHARED_SECRET?.trim() ||
-    env.LAWDESK_AI_SHARED_SECRET?.trim() ||
-    ''
-  );
-}
-
-function getDefaultChatModel(env: Env) {
+// ...existing code...
   return env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
 }
 
