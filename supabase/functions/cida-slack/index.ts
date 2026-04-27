@@ -356,14 +356,15 @@ function toolsFactory(supabase: {
   };
 
   // ── Helper para chamar workspace-ops ──────────────────────────────────────
+  const wopsSecret = Deno.env.get('CIDA_WOPS_SECRET') || serviceRoleKey;
   const callWorkspaceOps = async (operation: string, params: Record<string, any>) => {
     try {
       const res = await fetch(`${supabaseUrl}/functions/v1/workspace-ops`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${serviceRoleKey}`,
-          'x-hmadv-secret': serviceRoleKey,
+          'Authorization': `Bearer ${wopsSecret}`,
+          'x-hmadv-secret': wopsSecret,
         },
         body: JSON.stringify({ operation, params }),
       });
@@ -948,7 +949,8 @@ function orchestratorFactory(deps: {
       console.log('[diagnostico] Iniciando teste de tools (test_tools)');
 
       // Helper para chamar workspace-ops
-      // Usa serviceRoleKey como autenticação (workspace-ops v1.1.0+ aceita serviceRoleKey)
+      // Usa CIDA_WOPS_SECRET dedicado para comunicação interna entre edge functions
+      const wopsSecret = Deno.env.get('CIDA_WOPS_SECRET') || deps.serviceRoleKey;
       const callWops = async (operation: string, params: Record<string, any> = {}) => {
         const t0 = Date.now();
         try {
@@ -956,8 +958,8 @@ function orchestratorFactory(deps: {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${deps.serviceRoleKey}`,
-              'x-hmadv-secret': deps.serviceRoleKey,
+              'Authorization': `Bearer ${wopsSecret}`,
+              'x-hmadv-secret': wopsSecret,
             },
             body: JSON.stringify({ operation, params }),
           });

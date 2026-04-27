@@ -68,6 +68,7 @@ function getSupabaseKey(): string {
 
 function getGatewaySecret(): string | null {
   return (
+    getEnv("CIDA_WOPS_SECRET") ||
     getEnv("FREDDY_ACTION_SHARED_SECRET") ||
     getEnv("HMDAV_AI_SHARED_SECRET") ||
     getEnv("HMADV_AI_SHARED_SECRET") ||
