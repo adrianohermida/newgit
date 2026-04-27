@@ -46,9 +46,12 @@ export const CALLER_QUOTAS: Record<string, number> = {
   'publicacoes-freshsales':   300,
   'fs-account-repair':        200,
   'fs-repair-orphans':        150,
-  'processo-sync':            120,
+  'processo-sync':            150,
   'billing-import':           100,
-  'datajud-andamentos-sync':   60,
+  'datajud-andamentos-sync':  150,
+  'publicacoes-partes':       100,
+  'publicacoes-prazos':        60,
+  'publicacoes-audiencias':    40,
   'fs-tag-leilao':             40,
 };
 

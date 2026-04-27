@@ -65,16 +65,46 @@ const JOB_FUNCTION_MAP: Record<string, { fn: string; payload: (pendentes: number
 };
 
 async function invokeFunction(
-  supabase: ReturnType<typeof createClient>,
   fnName: string,
   payload: Record<string, unknown>
 ): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke(fnName, {
-      body: payload,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, data };
+    // Passar action e batch_size na query string (algumas funções leem de lá)
+    const action = payload.action as string | undefined;
+    const batchSize = payload.batch_size as number | undefined;
+    let url = `${SUPABASE_URL}/functions/v1/${fnName}`;
+    const params: string[] = [];
+    if (action) params.push(`action=${encodeURIComponent(action)}`);
+    if (batchSize !== undefined) params.push(`batch_size=${batchSize}`);
+    if (params.length > 0) url += `?${params.join("&")}`;
+    // Timeout de 25s para evitar que o orchestrator trave
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        return { ok: false, error: `HTTP ${resp.status}: ${JSON.stringify(data).slice(0, 200)}` };
+      }
+      return { ok: true, data };
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      if ((fetchErr as Error).name === "AbortError") {
+        // Timeout: função foi invocada mas demorou mais de 25s
+        // Tratar como dispatched (não como erro crítico)
+        return { ok: true, data: { dispatched: true, timeout: true } };
+      }
+      throw fetchErr;
+    }
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -142,11 +172,12 @@ async function actionRun(
 
     // Invocar a Edge Function
     const payload = fnConfig.payload(job.pendentes, job.batch_size);
-    const result = await invokeFunction(supabase, fnConfig.fn, payload);
+    const result = await invokeFunction(fnConfig.fn, payload);
 
-    // Extrair métricas do resultado
-    const processados = (result.data as Record<string, number>)?.processados ?? 0;
-    const erros = (result.data as Record<string, number>)?.erros ?? 0;
+    // Extrair métricas do resultado (suporte a múltiplos campos de resposta)
+    const data = result.data as Record<string, number> ?? {};
+    const processados = data?.processados ?? data?.sucesso ?? data?.total ?? 0;
+    const erros = data?.erros ?? data?.erro ?? 0;
 
     // Registrar conclusão
     await supabase.rpc("orchestrator_mark_done", {
@@ -291,6 +322,26 @@ Deno.serve(async (req: Request) => {
         break;
       case "reset":
         result = await actionReset(supabase, body.entidade ?? "", body.acao ?? "");
+        break;
+      case "debug":
+        result = {
+          ok: true,
+          supabase_url: SUPABASE_URL,
+          service_key_prefix: SUPABASE_SERVICE_KEY ? SUPABASE_SERVICE_KEY.substring(0, 30) + "..." : "UNDEFINED",
+          anon_key_prefix: Deno.env.get("SUPABASE_ANON_KEY") ? Deno.env.get("SUPABASE_ANON_KEY")!.substring(0, 30) + "..." : "UNDEFINED",
+          all_env_keys: Object.keys(Deno.env.toObject()).filter(k => k.includes("SUPABASE") || k.includes("JWT")),
+          test_url: `${SUPABASE_URL}/functions/v1/publicacoes-freshsales`,
+        };
+        break;
+      case "debug":
+        result = {
+          ok: true,
+          supabase_url: SUPABASE_URL,
+          service_key_prefix: SUPABASE_SERVICE_KEY ? SUPABASE_SERVICE_KEY.substring(0, 30) + "..." : "UNDEFINED",
+          anon_key_prefix: Deno.env.get("SUPABASE_ANON_KEY") ? Deno.env.get("SUPABASE_ANON_KEY")!.substring(0, 30) + "..." : "UNDEFINED",
+          all_env_keys: Object.keys(Deno.env.toObject()).filter(k => k.includes("SUPABASE") || k.includes("JWT")),
+          test_url: `${SUPABASE_URL}/functions/v1/publicacoes-freshsales`,
+        };
         break;
       default:
         result = { ok: false, error: `Ação desconhecida: ${action}` };

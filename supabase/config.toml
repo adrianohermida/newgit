@@ -30,3 +30,18 @@ verify_jwt = false
 
 [functions.dotobot-slack]
 verify_jwt = false
+
+[functions.publicacoes-freshsales]
+verify_jwt = false
+
+[functions.datajud-andamentos-sync]
+verify_jwt = false
+
+[functions.publicacoes-partes]
+verify_jwt = false
+
+[functions.orchestrator-engine]
+verify_jwt = false
+
+[functions.datajud-worker]
+verify_jwt = false
