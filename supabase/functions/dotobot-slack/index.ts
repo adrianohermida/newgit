@@ -1922,8 +1922,8 @@ async function handleIaPerguntar(
   channel: string,
   userId: string,
   question: string,
-  supabaseUrl: string,
-  serviceRoleKey: string
+  supabaseUrl: string = SUPABASE_URL,
+  serviceRoleKey: string = SVC_KEY
 ) {
   try {
     // Buscar contexto RAG da base de conhecimento
