@@ -3,6 +3,7 @@ import React from "react";
 import Layout from "../components/Layout";
 import Head from "next/head";
 import { useInternalTheme } from "../components/interno/InternalThemeProvider";
+import { MapPin, Phone, Mail, Instagram, Facebook, Linkedin, Youtube, TrendingUp } from "lucide-react";
 
 export default function Contato() {
   const { isLightTheme } = useInternalTheme();
@@ -59,6 +60,14 @@ export default function Contato() {
     setLoading(false);
   };
 
+  const socialLinks = [
+    { icon: Instagram, href: 'https://www.instagram.com/dr.adrianohermidamaia', label: 'Instagram' },
+    { icon: Facebook, href: 'https://www.facebook.com/hermidamaiaadv', label: 'Facebook' },
+    { icon: TrendingUp, href: 'https://www.tiktok.com/@dr.adrianohermidamaia', label: 'TikTok' },
+    { icon: Linkedin, href: 'https://www.linkedin.com/in/adrianohermida/', label: 'LinkedIn' },
+    { icon: Youtube, href: 'https://www.youtube.com/c/AdrianoHermidaMaia', label: 'YouTube' },
+  ];
+
   return (
     <Layout>
       <Head>
@@ -90,7 +99,8 @@ export default function Contato() {
                 <select name="subject" value={form.subject} onChange={handleChange} className={`rounded-lg p-3 focus:border-[#C5A059] focus:ring-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC] text-[#13201D]" : "border-[#2D2E2E] bg-[#232323] text-[#F4F1EA]"}`}>
                   <option>Revisão de Dívidas</option>
                   <option>Recuperação Judicial</option>
-                  <option>LGPD</option>
+                  <option>Direito Bancário</option>
+                  <option>Direito Civil</option>
                   <option>Outros Assuntos</option>
                 </select>
               </div>
@@ -117,7 +127,7 @@ export default function Contato() {
           <div className="space-y-6">
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#C5A059]/20 text-[#C5A059]">
-                <span className="material-symbols-outlined">location_on</span>
+                <MapPin size={24} />
               </div>
               <div>
                 <p className={`font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}>Endereço</p>
@@ -126,7 +136,7 @@ export default function Contato() {
             </div>
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#C5A059]/20 text-[#C5A059]">
-                <span className="material-symbols-outlined">call</span>
+                <Phone size={24} />
               </div>
               <div>
                 <p className={`font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}>Telefone e WhatsApp</p>
@@ -135,7 +145,7 @@ export default function Contato() {
             </div>
             <div className="flex items-start gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#C5A059]/20 text-[#C5A059]">
-                <span className="material-symbols-outlined">mail</span>
+                <Mail size={24} />
               </div>
               <div>
                 <p className={`font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}>E-mail</p>
@@ -146,15 +156,21 @@ export default function Contato() {
           <div>
             <p className="mb-4 font-bold uppercase tracking-widest text-[#C5A059]">Siga-nos</p>
             <div className="flex gap-4">
-              <a className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-[#C5A059] ${isLightTheme ? "bg-[#FFFFFF] border border-[#D4DEE8]" : "bg-[#232323]"}`} href="#">
-                <span className="material-symbols-outlined text-xl text-[#C5A059]">share</span>
-              </a>
-              <a className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-[#C5A059] ${isLightTheme ? "bg-[#FFFFFF] border border-[#D4DEE8]" : "bg-[#232323]"}`} href="#">
-                <span className="material-symbols-outlined text-xl text-[#C5A059]">public</span>
-              </a>
-              <a className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-[#C5A059] ${isLightTheme ? "bg-[#FFFFFF] border border-[#D4DEE8]" : "bg-[#232323]"}`} href="#">
-                <span className="material-symbols-outlined text-xl text-[#C5A059]">work</span>
-              </a>
+              {socialLinks.map((social) => {
+                const Icon = social.icon;
+                return (
+                  <a
+                    key={social.label}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={social.label}
+                    className={`flex h-10 w-10 items-center justify-center rounded-lg transition-all hover:bg-[#C5A059] hover:text-[#050706] ${isLightTheme ? "bg-[#FFFFFF] border border-[#D4DEE8] text-[#13201D]" : "bg-[#232323] text-[#C5A059]"}`}
+                  >
+                    <Icon size={20} />
+                  </a>
+                );
+              })}
             </div>
           </div>
         </div>
