@@ -947,25 +947,17 @@ function orchestratorFactory(deps: {
     if (lowerInput === 'test_tools') {
       console.log('[diagnostico] Iniciando teste de tools (test_tools)');
 
-      // Helper para chamar workspace-ops diretamente neste contexto
-      // IMPORTANTE: workspace-ops usa FREDDY_ACTION_SHARED_SECRET / HMDAV_AI_SHARED_SECRET
-      // A cida-slack deve usar o mesmo secret que o workspace-ops espera
-      const wopsSecret = Deno.env.get('HMDAV_AI_SHARED_SECRET') ||
-                         Deno.env.get('HMADV_AI_SHARED_SECRET') ||
-                         Deno.env.get('FREDDY_ACTION_SHARED_SECRET') ||
-                         Deno.env.get('LAWDESK_AI_SHARED_SECRET') ||
-                         deps.serviceRoleKey;
-
+      // Helper para chamar workspace-ops
+      // Usa serviceRoleKey como autenticação (workspace-ops v1.1.0+ aceita serviceRoleKey)
       const callWops = async (operation: string, params: Record<string, any> = {}) => {
         const t0 = Date.now();
         try {
-          // Usar /execute (não a raiz que retorna health check)
-          const res = await fetch(`${deps.supabaseUrl}/functions/v1/workspace-ops/execute`, {
+          const res = await fetch(`${deps.supabaseUrl}/functions/v1/workspace-ops`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${wopsSecret}`,
-              'x-hmadv-secret': wopsSecret,
+              'Authorization': `Bearer ${deps.serviceRoleKey}`,
+              'x-hmadv-secret': deps.serviceRoleKey,
             },
             body: JSON.stringify({ operation, params }),
           });
@@ -1247,6 +1239,242 @@ function orchestratorFactory(deps: {
           relatorio.push(`> _Detalhes:_ ${JSON.stringify(resMem.data).slice(0, 200)}`);
         }
       } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
+
+      // ═══════════════════════════════════════════════
+      // TESTES CRUD — WRITE / UPDATE / DELETE
+      // ═══════════════════════════════════════════════
+      relatorio.push('\n---');
+      relatorio.push('*🛠️ TESTES CRUD — WRITE / UPDATE / DELETE*');
+      relatorio.push('_Cada operação cria, atualiza e remove um registro de teste. Não afeta dados reais._\n');
+
+      // ── CRUD A: Task (criar → atualizar → deletar)
+      relatorio.push('*🗒️ CRUD A — Tasks (Freshsales)*');
+      let taskTestId: string | null = null;
+      try {
+        // CREATE
+        const tCreate = await callWops('task_create', {
+          title: '[TEST_TOOLS] Tarefa de diagnóstico',
+          description: 'Criada automaticamente pelo test_tools da Cida. Pode ser removida.',
+          due_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        });
+        if (tCreate.ok && tCreate.data?.result?.data?.id) {
+          taskTestId = String(tCreate.data.result.data.id);
+          relatorio.push(`  ✅ CREATE: tarefa criada — ID ${taskTestId} (${tCreate.ms}ms)`);
+
+          // UPDATE
+          const tUpdate = await callWops('task_update', {
+            id: taskTestId,
+            patch: { title: '[TEST_TOOLS] Tarefa atualizada', status: 'open' },
+          });
+          relatorio.push(tUpdate.ok
+            ? `  ✅ UPDATE: tarefa atualizada (${tUpdate.ms}ms)`
+            : `  ❌ UPDATE: ${JSON.stringify(tUpdate.data).slice(0, 100)}`);
+
+          // DELETE
+          const tDelete = await callWops('task_delete', { id: taskTestId });
+          relatorio.push(tDelete.ok
+            ? `  ✅ DELETE: tarefa removida (${tDelete.ms}ms)`
+            : `  ❌ DELETE: ${JSON.stringify(tDelete.data).slice(0, 100)}`);
+        } else {
+          relatorio.push(`  ❌ CREATE falhou (${tCreate.ms}ms): ${JSON.stringify(tCreate.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD B: Ticket Freshdesk (criar)
+      relatorio.push('\n*🎫 CRUD B — Tickets Freshdesk*');
+      try {
+        const fdCreate = await callWops('ticket_create', {
+          email: 'teste.diagnostico@hermidamaia.adv.br',
+          subject: '[TEST_TOOLS] Ticket de diagnóstico da Cida',
+          description: 'Ticket criado automaticamente pelo test_tools. Pode ser removido.',
+          priority: 1,
+          status: 2,
+        });
+        if (fdCreate.ok) {
+          const ticketId = fdCreate.data?.result?.data?.id || fdCreate.data?.result?.data?.ticket?.id || 'n/d';
+          relatorio.push(`  ✅ CREATE: ticket criado — ID ${ticketId} (${fdCreate.ms}ms)`);
+          relatorio.push(`  _Nota: DELETE de tickets via API Freshdesk requer permissão admin_`);
+        } else {
+          relatorio.push(`  ❌ CREATE falhou (${fdCreate.ms}ms): ${JSON.stringify(fdCreate.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD C: Contact READ (busca por email real)
+      relatorio.push('\n*👤 CRUD C — Contact Lookup (Freshsales)*');
+      try {
+        const cLookup = await callWops('contact_lookup', { email: 'adrianohermida@hotmail.com' });
+        if (cLookup.ok) {
+          const cData = cLookup.data?.result?.data;
+          const cText = cLookup.data?.result?.text || '';
+          if (cData?.id) {
+            relatorio.push(`  ✅ READ: contato encontrado — ID ${cData.id} (${cLookup.ms}ms)`);
+            relatorio.push(`  • *Nome:* ${cData.display_name || cData.first_name || 'n/d'}`);
+            relatorio.push(`  • *Email:* ${cData.email || (Array.isArray(cData.emails) ? cData.emails[0] : 'n/d')}`);
+            relatorio.push(`  • *Telefone:* ${cData.mobile_number || cData.work_number || 'n/d'}`);
+            relatorio.push(`  • *Campos disponíveis:* ${Object.keys(cData).join(', ')}`);
+          } else {
+            relatorio.push(`  ⚠️ READ: contato não encontrado no Freshsales (${cLookup.ms}ms)`);
+            relatorio.push(`  > _Texto:_ ${cText.slice(0, 100)}`);
+          }
+        } else {
+          relatorio.push(`  ❌ READ falhou (${cLookup.ms}ms): ${JSON.stringify(cLookup.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD D: Deal READ (listar + ver detalhe)
+      relatorio.push('\n*💰 CRUD D — Deals (Freshsales)*');
+      try {
+        const dSum = await callWops('daily_summary');
+        const deals = Array.isArray(dSum.data?.result?.data?.deals) ? dSum.data.result.data.deals : [];
+        if (dSum.ok && deals.length > 0) {
+          const sample = deals[0] as any;
+          relatorio.push(`  ✅ READ (list): ${deals.length} deal(s) (${dSum.ms}ms)`);
+          relatorio.push(`  • *Deal amostra:* ${sample.name || 'n/d'} | ID: ${sample.id || 'n/d'} | Valor: ${sample.amount || 'n/d'} | Estágio: ${sample.stage_name || 'n/d'}`);
+
+          // READ detalhe
+          if (sample.id) {
+            const dView = await callWops('deal_view', { id: String(sample.id) });
+            if (dView.ok && dView.data?.result?.data?.id) {
+              const d = dView.data.result.data;
+              relatorio.push(`  ✅ READ (detalhe): deal ${d.id} (${dView.ms}ms)`);
+              relatorio.push(`  • *Campos disponíveis:* ${Object.keys(d).join(', ')}`);
+            } else {
+              relatorio.push(`  ⚠️ READ (detalhe): ${JSON.stringify(dView.data).slice(0, 100)}`);
+            }
+          }
+        } else if (dSum.ok) {
+          relatorio.push(`  ⚠️ READ: nenhum deal no Freshsales (${dSum.ms}ms)`);
+        } else {
+          relatorio.push(`  ❌ READ falhou (${dSum.ms}ms): ${JSON.stringify(dSum.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD E: Appointments READ
+      relatorio.push('\n*📅 CRUD E — Appointments / Audiências (Freshsales)*');
+      try {
+        const aList = await callWops('appointments_list', { limit: 3 });
+        const appts = Array.isArray(aList.data?.result?.data) ? aList.data.result.data : [];
+        if (aList.ok && appts.length > 0) {
+          const sample = appts[0] as any;
+          relatorio.push(`  ✅ READ: ${appts.length} appointment(s) (${aList.ms}ms)`);
+          relatorio.push(`  • *Amostra:* ${sample.title || 'n/d'} | De: ${sample.from_date || 'n/d'} | Até: ${sample.end_date || 'n/d'}`);
+          relatorio.push(`  • *Campos disponíveis:* ${Object.keys(sample).join(', ')}`);
+        } else if (aList.ok) {
+          const txt = aList.data?.result?.text || '';
+          relatorio.push(`  ⚠️ READ: nenhum appointment (${aList.ms}ms) — ${txt.slice(0, 80)}`);
+        } else {
+          relatorio.push(`  ❌ READ falhou (${aList.ms}ms): ${JSON.stringify(aList.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD F: Publicações READ (Supabase)
+      relatorio.push('\n*📰 CRUD F — Publicações (Supabase)*');
+      try {
+        const pubR = await callSupa(
+          'publicacoes?select=id,numero_processo_api,data_publicacao,conteudo,ai_resumo,ai_tipo_ato,ai_urgencia,vara_descricao,nome_cliente,lido,tem_prazo,prazo_data&limit=3&order=data_publicacao.desc.nullslast'
+        );
+        if (pubR.ok && Array.isArray(pubR.data) && pubR.data.length > 0) {
+          const s = randomSample(pubR.data);
+          relatorio.push(`  ✅ READ: ${pubR.data.length} publicação(s) (${pubR.ms}ms)`);
+          relatorio.push(`  • *ID:* ${s.id}`);
+          relatorio.push(`  • *Número processo:* ${s.numero_processo_api || 'vazio'}`);
+          relatorio.push(`  • *Data publicação:* ${s.data_publicacao || 'vazio'}`);
+          relatorio.push(`  • *Vara:* ${s.vara_descricao || 'vazio'}`);
+          relatorio.push(`  • *Cliente:* ${s.nome_cliente || 'vazio'}`);
+          relatorio.push(`  • *Lido:* ${s.lido ?? 'vazio'} | *Tem prazo:* ${s.tem_prazo ?? 'vazio'} | *Prazo:* ${s.prazo_data || 'vazio'}`);
+          relatorio.push(`  • *AI Resumo:* ${s.ai_resumo ? s.ai_resumo.slice(0, 80) + '...' : 'vazio'}`);
+          relatorio.push(`  • *AI Tipo ato:* ${s.ai_tipo_ato || 'vazio'} | *Urgência:* ${s.ai_urgencia || 'vazio'}`);
+        } else if (pubR.ok) {
+          relatorio.push(`  ⚠️ READ: tabela vazia (${pubR.ms}ms)`);
+        } else {
+          relatorio.push(`  ❌ READ falhou (${pubR.ms}ms): ${JSON.stringify(pubR.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD G: Processos READ (Supabase)
+      relatorio.push('\n*⚖️ CRUD G — Processos (Supabase)*');
+      try {
+        const procR = await callSupa(
+          'processos?select=numero_cnj,titulo,tribunal,comarca,orgao_julgador,status,polo_ativo,polo_passivo,data_distribuicao,data_ultima_movimentacao,area,classe,assunto&limit=3&order=data_distribuicao.desc.nullslast'
+        );
+        if (procR.ok && Array.isArray(procR.data) && procR.data.length > 0) {
+          const s = randomSample(procR.data);
+          relatorio.push(`  ✅ READ: ${procR.data.length} processo(s) (${procR.ms}ms)`);
+          relatorio.push(`  • *Número CNJ:* ${s.numero_cnj || 'vazio'}`);
+          relatorio.push(`  • *Título:* ${String(s.titulo || 'vazio').slice(0, 60)}`);
+          relatorio.push(`  • *Tribunal:* ${s.tribunal || 'vazio'} | *Comarca:* ${s.comarca || 'vazio'}`);
+          relatorio.push(`  • *Órgão julgador:* ${s.orgao_julgador || 'vazio'}`);
+          relatorio.push(`  • *Status:* ${s.status || 'vazio'} | *Área:* ${s.area || 'vazio'}`);
+          relatorio.push(`  • *Polo ativo:* ${s.polo_ativo || 'vazio'}`);
+          relatorio.push(`  • *Polo passivo:* ${s.polo_passivo || 'vazio'}`);
+          relatorio.push(`  • *Distribuição:* ${s.data_distribuicao || 'vazio'} | *Últ. mov.:* ${s.data_ultima_movimentacao || 'vazio'}`);
+        } else if (procR.ok) {
+          relatorio.push(`  ⚠️ READ: tabela vazia (${procR.ms}ms)`);
+        } else {
+          relatorio.push(`  ❌ READ falhou (${procR.ms}ms): ${JSON.stringify(procR.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD H: Contatos READ (Supabase contacts_freshsales)
+      relatorio.push('\n*👤 CRUD H — Contatos (Supabase contacts_freshsales)*');
+      try {
+        const cSupa = await callSupa(
+          'contacts_freshsales?select=fs_id,display_name,first_name,last_name,email,mobile,phone,cf_tipo,cf_cpf,tag_list,lifecycle_stage_id,owner_id,synced_at&limit=3&order=synced_at.desc.nullslast',
+          { 'Accept-Profile': 'judiciario' }
+        );
+        if (cSupa.ok && Array.isArray(cSupa.data) && cSupa.data.length > 0) {
+          const s = randomSample(cSupa.data);
+          relatorio.push(`  ✅ READ: ${cSupa.data.length} contato(s) (${cSupa.ms}ms)`);
+          relatorio.push(`  • *Nome:* ${s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'vazio'}`);
+          relatorio.push(`  • *Email:* ${s.email || 'vazio'}`);
+          relatorio.push(`  • *Celular:* ${s.mobile || 'vazio'} | *Telefone:* ${s.phone || 'vazio'}`);
+          relatorio.push(`  • *Tipo:* ${s.cf_tipo || 'vazio'} | *CPF:* ${s.cf_cpf || 'vazio'}`);
+          relatorio.push(`  • *Tags:* ${s.tag_list || 'vazio'}`);
+          relatorio.push(`  • *Sincronizado em:* ${s.synced_at || 'vazio'}`);
+        } else if (cSupa.ok) {
+          relatorio.push(`  ⚠️ READ: tabela vazia (${cSupa.ms}ms)`);
+        } else {
+          relatorio.push(`  ❌ READ falhou (${cSupa.ms}ms): ${JSON.stringify(cSupa.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD I: Tickets Freshdesk READ
+      relatorio.push('\n*🎫 CRUD I — Tickets Freshdesk (fila)*');
+      try {
+        const fdQ = await callWops('freshdesk_queue', { limit: 3 });
+        const fdTickets = Array.isArray(fdQ.data?.result?.data) ? fdQ.data.result.data : [];
+        if (fdQ.ok && fdTickets.length > 0) {
+          const s = fdTickets[0] as any;
+          relatorio.push(`  ✅ READ: ${fdTickets.length} ticket(s) na fila (${fdQ.ms}ms)`);
+          relatorio.push(`  • *ID:* ${s.id || 'n/d'} | *Assunto:* ${String(s.subject || 'n/d').slice(0, 60)}`);
+          relatorio.push(`  • *Status:* ${s.status || 'n/d'} | *Prioridade:* ${s.priority || 'n/d'}`);
+          relatorio.push(`  • *Campos disponíveis:* ${Object.keys(s).join(', ')}`);
+        } else if (fdQ.ok) {
+          const txt = fdQ.data?.result?.text || '';
+          relatorio.push(`  ⚠️ READ: fila vazia (${fdQ.ms}ms) — ${txt.slice(0, 80)}`);
+        } else {
+          relatorio.push(`  ❌ READ falhou (${fdQ.ms}ms): ${JSON.stringify(fdQ.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+
+      // ── CRUD J: Memória / Messages (Supabase)
+      relatorio.push('\n*💬 CRUD J — Memória / Messages (Supabase)*');
+      try {
+        // READ
+        const memR = await callSupa(
+          `messages?select=id,channel,role,content,created_at&order=created_at.desc.nullslast&limit=3`
+        );
+        if (memR.ok && Array.isArray(memR.data) && memR.data.length > 0) {
+          const s = memR.data[0];
+          relatorio.push(`  ✅ READ: ${memR.data.length} mensagem(ns) (${memR.ms}ms)`);
+          relatorio.push(`  • *Canal:* ${s.channel || 'n/d'} | *Role:* ${s.role || 'n/d'}`);
+          relatorio.push(`  • *Preview:* ${String(s.content || '').slice(0, 80)}...`);
+        } else if (memR.ok) {
+          relatorio.push(`  ⚠️ READ: tabela vazia (${memR.ms}ms)`);
+        } else {
+          relatorio.push(`  ❌ READ falhou (${memR.ms}ms): ${JSON.stringify(memR.data).slice(0, 150)}`);
+        }
+      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
 
       // ═══════════════════════════════════════════════
       // RESUMO FINAL
