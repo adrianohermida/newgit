@@ -1125,10 +1125,16 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'title', 'description', 'due_date', 'status', 'owner_id', 'targetable_type', 'targetable_id']));
           }
         } else if (resT.ok) {
-          // Pode ter retornado texto mas sem tasks
-          const textPreview = resT.data?.text || JSON.stringify(resT.data).slice(0, 150);
-          relatorio.push(`⚠️ OK mas nenhuma tarefa retornada (${resT.ms}ms)`);
-          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          const textPreview = resT.data?.result?.text || resT.data?.text || JSON.stringify(resT.data).slice(0, 150);
+          // Verificar se é rate limit (texto contém indicação de limite)
+          const isRateLimit = textPreview.toLowerCase().includes('rate') || textPreview.toLowerCase().includes('limit') || textPreview.toLowerCase().includes('429');
+          if (isRateLimit) {
+            relatorio.push(`⚠️ RATE LIMIT Freshsales (${resT.ms}ms) — aguarde alguns minutos e repita o test_tools`);
+            relatorio.push(`> _Mensagem:_ ${textPreview.slice(0, 150)}`);
+          } else {
+            relatorio.push(`⚠️ OK mas nenhuma tarefa retornada (${resT.ms}ms)`);
+            relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          }
         } else {
           relatorio.push(`❌ FALHA HTTP ${resT.status} (${resT.ms}ms)`);
           relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida, secret do workspace-ops incorreto, ou endpoint /tasks indisponível`);
@@ -1154,9 +1160,15 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'name', 'amount', 'stage_name', 'expected_close_date', 'owner_id', 'deal_stage_id']));
           }
         } else if (resD.ok) {
-          const textPreview = resD.data?.text || JSON.stringify(resD.data).slice(0, 150);
-          relatorio.push(`⚠️ OK mas nenhum deal retornado (${resD.ms}ms)`);
-          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          const textPreview = resD.data?.result?.text || resD.data?.text || JSON.stringify(resD.data).slice(0, 150);
+          const isRateLimit = textPreview.toLowerCase().includes('rate') || textPreview.toLowerCase().includes('limit') || textPreview.toLowerCase().includes('429');
+          if (isRateLimit) {
+            relatorio.push(`⚠️ RATE LIMIT Freshsales (${resD.ms}ms) — aguarde alguns minutos e repita o test_tools`);
+            relatorio.push(`> _Mensagem:_ ${textPreview.slice(0, 150)}`);
+          } else {
+            relatorio.push(`⚠️ OK mas nenhum deal retornado (${resD.ms}ms)`);
+            relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          }
         } else {
           relatorio.push(`❌ FALHA HTTP ${resD.status} (${resD.ms}ms)`);
           relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida, secret do workspace-ops incorreto, ou endpoint /deals indisponível`);
@@ -1182,9 +1194,15 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'title', 'from_date', 'end_date', 'location', 'description', 'outcome', 'targetable_type', 'targetable_id']));
           }
         } else if (resA.ok) {
-          const textPreview = resA.data?.text || JSON.stringify(resA.data).slice(0, 150);
-          relatorio.push(`⚠️ OK mas nenhum agendamento retornado (${resA.ms}ms)`);
-          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          const textPreview = resA.data?.result?.text || resA.data?.text || JSON.stringify(resA.data).slice(0, 150);
+          const isRateLimit = textPreview.toLowerCase().includes('rate') || textPreview.toLowerCase().includes('limit') || textPreview.toLowerCase().includes('429');
+          if (isRateLimit) {
+            relatorio.push(`⚠️ RATE LIMIT Freshsales (${resA.ms}ms) — aguarde alguns minutos e repita o test_tools`);
+            relatorio.push(`> _Mensagem:_ ${textPreview.slice(0, 150)}`);
+          } else {
+            relatorio.push(`⚠️ OK mas nenhum agendamento retornado (${resA.ms}ms)`);
+            relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          }
         } else {
           relatorio.push(`❌ FALHA HTTP ${resA.status} (${resA.ms}ms)`);
           relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida, secret do workspace-ops incorreto, ou endpoint /appointments indisponível`);
@@ -1210,9 +1228,15 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'subject', 'status', 'priority', 'requester_id', 'email', 'created_at', 'updated_at']));
           }
         } else if (resFq.ok) {
-          const textPreview = resFq.data?.text || JSON.stringify(resFq.data).slice(0, 150);
-          relatorio.push(`⚠️ OK mas fila vazia (${resFq.ms}ms)`);
-          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          const textPreview = resFq.data?.result?.text || resFq.data?.text || JSON.stringify(resFq.data).slice(0, 150);
+          const isRateLimit = textPreview.toLowerCase().includes('rate') || textPreview.toLowerCase().includes('limit') || textPreview.toLowerCase().includes('429');
+          if (isRateLimit) {
+            relatorio.push(`⚠️ RATE LIMIT Freshdesk (${resFq.ms}ms) — aguarde alguns minutos e repita o test_tools`);
+            relatorio.push(`> _Mensagem:_ ${textPreview.slice(0, 150)}`);
+          } else {
+            relatorio.push(`⚠️ OK mas fila vazia (${resFq.ms}ms)`);
+            relatorio.push(`> _Texto retornado:_ ${textPreview}`);
+          }
         } else {
           relatorio.push(`❌ FALHA HTTP ${resFq.status} (${resFq.ms}ms)`);
           relatorio.push(`> _Onde quebrou:_ FRESHDESK_API_KEY inválida, domínio Freshdesk incorreto, ou secret do workspace-ops incorreto`);
@@ -1276,9 +1300,22 @@ function orchestratorFactory(deps: {
             ? `  ✅ DELETE: tarefa removida (${tDelete.ms}ms)`
             : `  ❌ DELETE: ${JSON.stringify(tDelete.data).slice(0, 100)}`);
         } else {
-          relatorio.push(`  ❌ CREATE falhou (${tCreate.ms}ms): ${JSON.stringify(tCreate.data).slice(0, 150)}`);
+          const errText = JSON.stringify(tCreate.data).slice(0, 200);
+          const isRateLimit = errText.toLowerCase().includes('rate') || errText.toLowerCase().includes('limit') || errText.toLowerCase().includes('429');
+          if (isRateLimit) {
+            relatorio.push(`  ⚠️ CREATE: Freshsales rate limit (${tCreate.ms}ms) — aguarde e repita`);
+          } else {
+            relatorio.push(`  ❌ CREATE falhou (${tCreate.ms}ms): ${errText}`);
+          }
         }
-      } catch(e: any) { relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`); }
+      } catch(e: any) {
+        const isRateLimit = e.message?.toLowerCase().includes('rate') || e.message?.toLowerCase().includes('429');
+        if (isRateLimit) {
+          relatorio.push(`  ⚠️ CREATE: Freshsales rate limit — aguarde e repita`);
+        } else {
+          relatorio.push(`  ❌ EXCEÇÃO: ${e.message}`);
+        }
+      }
 
       // ── CRUD B: Ticket Freshdesk (criar)
       relatorio.push('\n*🎫 CRUD B — Tickets Freshdesk*');

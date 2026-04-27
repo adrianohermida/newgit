@@ -165,8 +165,19 @@ async function fsRequest(
     payload = text ? JSON.parse(text) : null;
   } catch {
     // Freshsales retornou HTML (rate limit, auth error, etc.)
-    // Preservar como objeto de erro para que o chamador possa tratar
-    payload = { _raw_error: text.slice(0, 200), _status: resp.status };
+    payload = { _raw_error: text.slice(0, 300), _status: resp.status };
+  }
+  // Lançar erro explícito para status problemáticos
+  if (resp.status === 429) {
+    throw new Error(`[Freshsales] Rate limit atingido (HTTP 429). Aguarde alguns minutos e tente novamente.`);
+  }
+  if (resp.status === 401 || resp.status === 403) {
+    throw new Error(`[Freshsales] Autenticação falhou (HTTP ${resp.status}). Verifique FRESHSALES_API_KEY.`);
+  }
+  // Verificar se o payload contém _raw_error (HTML inesperado)
+  const p = payload as Record<string, unknown>;
+  if (p?._raw_error) {
+    throw new Error(`[Freshsales] Resposta inválida (HTTP ${resp.status}): ${String(p._raw_error).slice(0, 150)}`);
   }
   return { status: resp.status, payload };
 }
