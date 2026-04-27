@@ -948,15 +948,24 @@ function orchestratorFactory(deps: {
       console.log('[diagnostico] Iniciando teste de tools (test_tools)');
 
       // Helper para chamar workspace-ops diretamente neste contexto
+      // IMPORTANTE: workspace-ops usa FREDDY_ACTION_SHARED_SECRET / HMDAV_AI_SHARED_SECRET
+      // A cida-slack deve usar o mesmo secret que o workspace-ops espera
+      const wopsSecret = Deno.env.get('HMDAV_AI_SHARED_SECRET') ||
+                         Deno.env.get('HMADV_AI_SHARED_SECRET') ||
+                         Deno.env.get('FREDDY_ACTION_SHARED_SECRET') ||
+                         Deno.env.get('LAWDESK_AI_SHARED_SECRET') ||
+                         deps.serviceRoleKey;
+
       const callWops = async (operation: string, params: Record<string, any> = {}) => {
         const t0 = Date.now();
         try {
-          const res = await fetch(`${deps.supabaseUrl}/functions/v1/workspace-ops`, {
+          // Usar /execute (não a raiz que retorna health check)
+          const res = await fetch(`${deps.supabaseUrl}/functions/v1/workspace-ops/execute`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${deps.serviceRoleKey}`,
-              'x-hmadv-secret': deps.serviceRoleKey,
+              'Authorization': `Bearer ${wopsSecret}`,
+              'x-hmadv-secret': wopsSecret,
             },
             body: JSON.stringify({ operation, params }),
           });
@@ -971,11 +980,15 @@ function orchestratorFactory(deps: {
       };
 
       // Helper para query Supabase REST diretamente
-      const callSupa = async (path: string) => {
+      const callSupa = async (path: string, extraHeaders: Record<string,string> = {}) => {
         const t0 = Date.now();
         try {
           const res = await fetch(`${deps.supabaseUrl}/rest/v1/${path}`, {
-            headers: { 'apikey': deps.serviceRoleKey, 'Authorization': `Bearer ${deps.serviceRoleKey}` },
+            headers: {
+              'apikey': deps.serviceRoleKey,
+              'Authorization': `Bearer ${deps.serviceRoleKey}`,
+              ...extraHeaders,
+            },
           });
           const ms = Date.now() - t0;
           const text = await res.text();
@@ -1027,22 +1040,27 @@ function orchestratorFactory(deps: {
       // ═══════════════════════════════════════════════
       // MÓDULO 2: Contatos (Supabase contacts_freshsales)
       // ═══════════════════════════════════════════════
-      relatorio.push('\n*👤 Módulo 2 — Contatos (Supabase → contacts_freshsales)*');
+      relatorio.push('\n*👤 Módulo 2 — Contatos (Supabase → contacts_freshsales, schema: judiciario)*');
       try {
-        // Buscar qualquer contato real (sem filtro de email)
-        const resC = await callSupa('contacts_freshsales?select=fs_id,first_name,last_name,display_name,email,mobile,phone,cf_tipo,cf_cpf,tag_list,lifecycle_stage_id,owner_id,synced_at&limit=3&order=synced_at.desc.nullslast');
+        // contacts_freshsales está no schema 'judiciario', não no 'public'
+        // Requer header Accept-Profile: judiciario
+        const resC = await callSupa(
+          'contacts_freshsales?select=fs_id,first_name,last_name,display_name,email,mobile,phone,cf_tipo,cf_cpf,tag_list,lifecycle_stage_id,owner_id,synced_at&limit=3&order=synced_at.desc.nullslast',
+          { 'Accept-Profile': 'judiciario' }
+        );
         if (resC.ok && Array.isArray(resC.data) && resC.data.length > 0) {
           const total = resC.data.length;
           const sample = randomSample(resC.data);
           relatorio.push(`✅ OK — ${total} contato(s) retornado(s) (${resC.ms}ms)`);
-          relatorio.push(`> *Campos disponíveis:* fs_id, first_name, last_name, display_name, email, mobile, phone, cf_tipo, cf_cpf, tag_list, lifecycle_stage_id, owner_id, synced_at`);
+          relatorio.push(`> *Schema:* judiciario | *Campos:* fs_id, first_name, last_name, display_name, email, mobile, phone, cf_tipo, cf_cpf, tag_list, lifecycle_stage_id, owner_id, synced_at`);
           relatorio.push(`> *Amostra aleatória:*`);
           relatorio.push(fmtFields(sample, ['display_name', 'email', 'mobile', 'cf_tipo', 'cf_cpf', 'tag_list', 'lifecycle_stage_id', 'synced_at']));
         } else if (resC.ok) {
           relatorio.push(`⚠️ OK mas tabela vazia — sincronização (fs-contacts-sync) pode não ter rodado (${resC.ms}ms)`);
+          relatorio.push(`> _Nota:_ tabela está no schema judiciario (Accept-Profile: judiciario)`);
         } else {
           relatorio.push(`❌ FALHA HTTP ${resC.status} (${resC.ms}ms)`);
-          relatorio.push(`> _Onde quebrou:_ Permissão na tabela contacts_freshsales ou SUPABASE_SERVICE_ROLE_KEY inválida`);
+          relatorio.push(`> _Onde quebrou:_ Tabela contacts_freshsales está no schema judiciario. Verificar se Accept-Profile: judiciario está sendo enviado`);
           relatorio.push(`> _Detalhes:_ ${JSON.stringify(resC.data).slice(0, 200)}`);
         }
       } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
@@ -1050,21 +1068,25 @@ function orchestratorFactory(deps: {
       // ═══════════════════════════════════════════════
       // MÓDULO 3: Processos (Supabase judiciario.processos)
       // ═══════════════════════════════════════════════
-      relatorio.push('\n*⚖️ Módulo 3 — Processos Judiciais (Supabase → judiciario.processos)*');
+      relatorio.push('\n*⚖️ Módulo 3 — Processos Judiciais (Supabase → public.processos)*');
       try {
-        const resP = await callSupa('processos?select=numero_cnj,classe,assunto,tribunal,vara,situacao,data_distribuicao,partes,advogados,ultima_movimentacao&limit=3&order=data_distribuicao.desc.nullslast');
+        // processos está no schema public (não judiciario)
+        // Campos reais: numero_cnj, numero_processo, titulo, classe, assunto, tribunal, comarca,
+        // orgao_julgador, status, polo_ativo, polo_passivo, data_distribuicao, data_ultima_movimentacao
+        const resP = await callSupa(
+          'processos?select=numero_cnj,numero_processo,titulo,classe,assunto,tribunal,comarca,orgao_julgador,status,polo_ativo,polo_passivo,data_distribuicao,data_ultima_movimentacao,area&limit=3&order=data_distribuicao.desc.nullslast'
+        );
         if (resP.ok && Array.isArray(resP.data) && resP.data.length > 0) {
           const sample = randomSample(resP.data);
           relatorio.push(`✅ OK — ${resP.data.length} processo(s) retornado(s) (${resP.ms}ms)`);
-          relatorio.push(`> *Campos disponíveis:* numero_cnj, classe, assunto, tribunal, vara, situacao, data_distribuicao, partes, advogados, ultima_movimentacao`);
+          relatorio.push(`> *Schema:* public | *Campos:* numero_cnj, numero_processo, titulo, classe, assunto, tribunal, comarca, orgao_julgador, status, polo_ativo, polo_passivo, data_distribuicao, data_ultima_movimentacao, area`);
           relatorio.push(`> *Amostra aleatória:*`);
-          relatorio.push(fmtFields(sample, ['numero_cnj', 'classe', 'assunto', 'tribunal', 'situacao', 'data_distribuicao']));
+          relatorio.push(fmtFields(sample, ['numero_cnj', 'titulo', 'tribunal', 'comarca', 'orgao_julgador', 'status', 'polo_ativo', 'data_distribuicao']));
         } else if (resP.ok) {
           relatorio.push(`⚠️ OK mas tabela vazia — nenhum processo cadastrado (${resP.ms}ms)`);
-          relatorio.push(`> _Schema esperado:_ judiciario.processos (verifique Accept-Profile: judiciario no header)`);
         } else {
           relatorio.push(`❌ FALHA HTTP ${resP.status} (${resP.ms}ms)`);
-          relatorio.push(`> _Onde quebrou:_ Schema judiciario não encontrado ou sem permissão de leitura`);
+          relatorio.push(`> _Onde quebrou:_ Tabela processos sem permissão ou campos incorretos`);
           relatorio.push(`> _Detalhes:_ ${JSON.stringify(resP.data).slice(0, 200)}`);
         }
       } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
@@ -1096,11 +1118,13 @@ function orchestratorFactory(deps: {
       // ═══════════════════════════════════════════════
       // MÓDULO 5: Tarefas / Tasks (Freshsales via workspace-ops)
       // ═══════════════════════════════════════════════
-      relatorio.push('\n*✅ Módulo 5 — Tarefas / Tasks (Freshsales → workspace-ops: tasks_list)*');
+      relatorio.push('\n*✅ Módulo 5 — Tarefas / Tasks (Freshsales → workspace-ops/execute: tasks_list)*');
       try {
         const resT = await callWops('tasks_list', { limit: 5 });
-        if (resT.ok && Array.isArray(resT.data?.data)) {
-          const tasks = resT.data.data as any[];
+        // workspace-ops retorna { ok: true, text: '...', data: [...] }
+        const tasksData = resT.data?.data;
+        const tasks = Array.isArray(tasksData) ? tasksData : [];
+        if (resT.ok && tasks.length > 0) {
           const sample = randomSample(tasks);
           relatorio.push(`✅ OK — ${tasks.length} tarefa(s) retornada(s) (${resT.ms}ms)`);
           if (sample) {
@@ -1109,11 +1133,13 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'title', 'description', 'due_date', 'status', 'owner_id', 'targetable_type', 'targetable_id']));
           }
         } else if (resT.ok) {
+          // Pode ter retornado texto mas sem tasks
+          const textPreview = resT.data?.text || JSON.stringify(resT.data).slice(0, 150);
           relatorio.push(`⚠️ OK mas nenhuma tarefa retornada (${resT.ms}ms)`);
-          relatorio.push(`> _Resposta bruta:_ ${JSON.stringify(resT.data).slice(0, 150)}`);
+          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
         } else {
           relatorio.push(`❌ FALHA HTTP ${resT.status} (${resT.ms}ms)`);
-          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida ou endpoint /tasks indisponível`);
+          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida, secret do workspace-ops incorreto, ou endpoint /tasks indisponível`);
           relatorio.push(`> _Detalhes:_ ${JSON.stringify(resT.data).slice(0, 200)}`);
         }
       } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
@@ -1121,11 +1147,13 @@ function orchestratorFactory(deps: {
       // ═══════════════════════════════════════════════
       // MÓDULO 6: Faturas / Deals (Freshsales via workspace-ops)
       // ═══════════════════════════════════════════════
-      relatorio.push('\n*💰 Módulo 6 — Faturas / Deals (Freshsales → workspace-ops: daily_summary)*');
+      relatorio.push('\n*💰 Módulo 6 — Faturas / Deals (Freshsales → workspace-ops/execute: daily_summary)*');
       try {
         const resD = await callWops('daily_summary');
-        if (resD.ok && Array.isArray(resD.data?.data?.deals)) {
-          const deals = resD.data.data.deals as any[];
+        // daily_summary retorna { ok, text, data: { deals, accounts, appointments, tasks, tickets } }
+        const dealsData = resD.data?.data?.deals;
+        const deals = Array.isArray(dealsData) ? dealsData : [];
+        if (resD.ok && deals.length > 0) {
           const sample = randomSample(deals);
           relatorio.push(`✅ OK — ${deals.length} deal(s) retornado(s) (${resD.ms}ms)`);
           if (sample) {
@@ -1134,11 +1162,12 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'name', 'amount', 'stage_name', 'expected_close_date', 'owner_id', 'deal_stage_id']));
           }
         } else if (resD.ok) {
+          const textPreview = resD.data?.text || JSON.stringify(resD.data).slice(0, 150);
           relatorio.push(`⚠️ OK mas nenhum deal retornado (${resD.ms}ms)`);
-          relatorio.push(`> _Resposta bruta:_ ${JSON.stringify(resD.data).slice(0, 150)}`);
+          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
         } else {
           relatorio.push(`❌ FALHA HTTP ${resD.status} (${resD.ms}ms)`);
-          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida ou endpoint /deals indisponível`);
+          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida, secret do workspace-ops incorreto, ou endpoint /deals indisponível`);
           relatorio.push(`> _Detalhes:_ ${JSON.stringify(resD.data).slice(0, 200)}`);
         }
       } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
@@ -1146,11 +1175,13 @@ function orchestratorFactory(deps: {
       // ═══════════════════════════════════════════════
       // MÓDULO 7: Audiências / Appointments (Freshsales via workspace-ops)
       // ═══════════════════════════════════════════════
-      relatorio.push('\n*📅 Módulo 7 — Audiências / Appointments (Freshsales → workspace-ops: appointments_list)*');
+      relatorio.push('\n*📅 Módulo 7 — Audiências / Appointments (Freshsales → workspace-ops/execute: appointments_list)*');
       try {
         const resA = await callWops('appointments_list', { limit: 5 });
-        if (resA.ok && Array.isArray(resA.data?.data)) {
-          const appts = resA.data.data as any[];
+        // appointments_list retorna { ok, text, data: [...] }
+        const apptsData = resA.data?.data;
+        const appts = Array.isArray(apptsData) ? apptsData : [];
+        if (resA.ok && appts.length > 0) {
           const sample = randomSample(appts);
           relatorio.push(`✅ OK — ${appts.length} agendamento(s) retornado(s) (${resA.ms}ms)`);
           if (sample) {
@@ -1159,11 +1190,12 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'title', 'from_date', 'end_date', 'location', 'description', 'outcome', 'targetable_type', 'targetable_id']));
           }
         } else if (resA.ok) {
+          const textPreview = resA.data?.text || JSON.stringify(resA.data).slice(0, 150);
           relatorio.push(`⚠️ OK mas nenhum agendamento retornado (${resA.ms}ms)`);
-          relatorio.push(`> _Resposta bruta:_ ${JSON.stringify(resA.data).slice(0, 150)}`);
+          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
         } else {
           relatorio.push(`❌ FALHA HTTP ${resA.status} (${resA.ms}ms)`);
-          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida ou endpoint /appointments indisponível`);
+          relatorio.push(`> _Onde quebrou:_ FRESHSALES_API_KEY inválida, secret do workspace-ops incorreto, ou endpoint /appointments indisponível`);
           relatorio.push(`> _Detalhes:_ ${JSON.stringify(resA.data).slice(0, 200)}`);
         }
       } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
@@ -1171,11 +1203,13 @@ function orchestratorFactory(deps: {
       // ═══════════════════════════════════════════════
       // MÓDULO 8: Fila Freshdesk (tickets abertos)
       // ═══════════════════════════════════════════════
-      relatorio.push('\n*🎫 Módulo 8 — Fila Freshdesk (workspace-ops: freshdesk_queue)*');
+      relatorio.push('\n*🎫 Módulo 8 — Fila Freshdesk (workspace-ops/execute: freshdesk_queue)*');
       try {
         const resFq = await callWops('freshdesk_queue', { limit: 5 });
-        if (resFq.ok && Array.isArray(resFq.data?.data)) {
-          const tickets = resFq.data.data as any[];
+        // freshdesk_queue retorna { ok, text, data: [...] }
+        const ticketsData = resFq.data?.data;
+        const tickets = Array.isArray(ticketsData) ? ticketsData : [];
+        if (resFq.ok && tickets.length > 0) {
           const sample = randomSample(tickets);
           relatorio.push(`✅ OK — ${tickets.length} ticket(s) na fila (${resFq.ms}ms)`);
           if (sample) {
@@ -1184,10 +1218,12 @@ function orchestratorFactory(deps: {
             relatorio.push(fmtFields(sample, ['id', 'subject', 'status', 'priority', 'requester_id', 'email', 'created_at', 'updated_at']));
           }
         } else if (resFq.ok) {
+          const textPreview = resFq.data?.text || JSON.stringify(resFq.data).slice(0, 150);
           relatorio.push(`⚠️ OK mas fila vazia (${resFq.ms}ms)`);
+          relatorio.push(`> _Texto retornado:_ ${textPreview}`);
         } else {
           relatorio.push(`❌ FALHA HTTP ${resFq.status} (${resFq.ms}ms)`);
-          relatorio.push(`> _Onde quebrou:_ FRESHDESK_API_KEY inválida ou domínio Freshdesk incorreto`);
+          relatorio.push(`> _Onde quebrou:_ FRESHDESK_API_KEY inválida, domínio Freshdesk incorreto, ou secret do workspace-ops incorreto`);
           relatorio.push(`> _Detalhes:_ ${JSON.stringify(resFq.data).slice(0, 200)}`);
         }
       } catch(e: any) { relatorio.push(`❌ EXCEÇÃO: ${e.message}`); }
