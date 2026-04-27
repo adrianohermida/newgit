@@ -1,5 +1,3 @@
-// Tipos e interface Env removidos. Usar apenas código executável e imports necessários.
-
 import { buildActivityPrompt, buildProcessPrompt, CONVERSATION_SYSTEM_PROMPT, SYSTEM_PROMPT } from './prompts';
 import { CopilotConversationRoomV2 } from './copilot-room';
 import { runAi } from './ai';
