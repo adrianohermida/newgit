@@ -288,8 +288,11 @@ const dbPublic = createClient(SUPABASE_URL, SVC_KEY);
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function slackToken(): string {
-  const token = SLACK_USER_TOKEN || SLACK_BOT_TOKEN;
-  if (!token) console.error("[dotobot] ERRO: nenhum token Slack configurado (SLACK_USER_TOKEN e SLACK_BOT_TOKEN vazios)");
+  // SLACK_BOT_TOKEN tem prioridade — é o token do app Dotobot
+  // SLACK_USER_TOKEN é fallback apenas se o bot token não estiver configurado
+  const token = SLACK_BOT_TOKEN || SLACK_USER_TOKEN;
+  if (!token) console.error("[dotobot] ERRO: nenhum token Slack configurado");
+  console.log("[dotobot] token usado:", SLACK_BOT_TOKEN ? "SLACK_BOT_TOKEN" : SLACK_USER_TOKEN ? "SLACK_USER_TOKEN" : "NENHUM");
   return token;
 }
 
