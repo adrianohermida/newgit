@@ -54,6 +54,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createLLMHub, providerLabel as llmProviderLabel } from '../_shared/llm-hub.ts';
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SVC_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1733,7 +1734,7 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
       section(`*Pergunta:* _"${query}"_`),
       divider(),
       section(deterministicRoute.answer),
-      context([`_Rota deterministica: ${deterministicRoute.route} | Acionado por <@${userId}>_`]),
+      context([`_Rota determinística: ${deterministicRoute.route} | Acionado por <@${userId}>_`]),
     ];
     await postSlack(channel, deterministicRoute.answer, blocks);
     return;
@@ -1742,12 +1743,6 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
   await postSlack(channel, `🤔 Consultando IA sobre: _"${query}"_...`);
 
   try {
-    const openaiKey = Deno.env.get("OPENAI_API_KEY") || "";
-    if (!openaiKey) {
-      await postSlack(channel, "⚠️ OPENAI_API_KEY não configurada. Configure nos secrets do Supabase.");
-      return;
-    }
-
     // Buscar contexto recente do Supabase
     const [pubRecentes, prazosUrgentes] = await Promise.all([
       db.from("publicacoes")
@@ -1775,41 +1770,28 @@ async function handleIaPerguntar(channel: string, userId: string, query: string)
         : "Sem prazos pendentes imediatos.",
     ].join("\n");
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante. Nunca invente datas. Para qualquer referência temporal relativa como hoje, ontem, amanhã, agora, esta semana ou este mês, use a referência temporal absoluta fornecida no contexto.\n\n${contexto}`
-          },
-          { role: "user", content: query }
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      }),
-    });
+    // Usar o hub de LLM compartilhado (Cloudflare → Ollama → OpenAI)
+    const llmHub = createLLMHub(SUPABASE_URL, SVC_KEY);
+    const llmResult = await llmHub.runLLM([
+      {
+        role: "system",
+        content: `Você é o DotoBot, assistente jurídico inteligente do escritório Hermida Maia Advocacia. Responda de forma objetiva, profissional e em português. Use os dados do contexto para embasar sua resposta quando relevante. Nunca invente datas. Para qualquer referência temporal relativa como hoje, ontem, amanhã, agora, esta semana ou este mês, use a referência temporal absoluta fornecida no contexto.\n\n${contexto}`
+      },
+      { role: "user", content: query }
+    ]);
 
-    if (res.ok) {
-      const data = await res.json();
-      const resposta = data?.choices?.[0]?.message?.content || "Sem resposta.";
-      const tokens = data?.usage?.total_tokens || 0;
-      const blocks = [
-        header("🤖 DotoBot IA — Resposta"),
-        section(`*Pergunta:* _"${query}"_`),
-        divider(),
-        section(resposta.substring(0, 2900)),
-        context([`_Tokens usados: ${tokens} | Modelo: gpt-4.1-mini | Acionado por <@${userId}>_`]),
-      ];
-      await postSlack(channel, `🤖 DotoBot IA — ${query.substring(0, 60)}`, blocks);
-    } else {
-      const errText = await res.text();
-      await postSlack(channel, `❌ Erro ao consultar IA: HTTP ${res.status} — ${errText.substring(0, 200)}`);
-    }
+    const resposta = llmResult.content;
+    const providerUsed = llmProviderLabel(llmResult.provider);
+    const blocks = [
+      header("🤖 DotoBot IA — Resposta"),
+      section(`*Pergunta:* _"${query}"_`),
+      divider(),
+      section(resposta.substring(0, 2900)),
+      context([`_${providerUsed} | Acionado por <@${userId}>_`]),
+    ];
+    await postSlack(channel, `🤖 DotoBot IA — ${query.substring(0, 60)}`, blocks);
   } catch (e) {
-    await postSlack(channel, `❌ Erro: ${String(e)}`);
+    await postSlack(channel, `❌ Erro ao consultar IA: ${String(e)}`);
   }
 }
 
