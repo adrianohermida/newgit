@@ -198,11 +198,11 @@ function buildCF(
   set('cf_polo_ativo',           proc.polo_ativo);
   set('cf_parte_adversa',        proc.polo_passivo);
   set('cf_status',               proc.status_atual_processo);
-  set('cf_data_de_distribuio',   proc.data_ajuizamento);
+  set('cf_data_de_distribuio',   proc.data_distribuicao ?? proc.data_ajuizamento);
   set('cf_data_ultimo_movimento',proc.data_ultima_movimentacao);
-  set('cf_descricao_ultimo_movimento', proc.ultimo_movimento_descricao);
+  // cf_descricao_ultimo_movimento: coluna ultimo_movimento_descricao não existe na tabela processos
   set('cf_area',                 proc.area);
-  set('cf_sistema',              proc.sistema);
+  set('cf_sistema',              proc.parser_sistema ?? proc.sistema);
   if (proc.segredo_justica != null) set('cf_segredo_de_justica', proc.segredo_justica);
   set('cf_DJ',                   proc.nome_diario);
   set('cf_publicacao_em',        proc.ultima_publicacao_em);
@@ -435,8 +435,8 @@ async function sprintSyncBidirectional(limite: number): Promise<Record<string,un
   const { data: procs } = await db.from('processos')
     .select('id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,'+
             'tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,'+
-            'classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,'+
-            'status_atual_processo,data_ajuizamento,data_ultima_movimentacao,'+
+            'classe,assunto,assunto_principal,sistema,parser_sistema,comarca,link_externo_processo,segredo_justica,'+
+            'status_atual_processo,data_ajuizamento,data_distribuicao,data_ultima_movimentacao,'+
             'account_id_freshsales,dados_incompletos,parte_representada_adriano')
     .not('account_id_freshsales','is',null)
     .limit(limite);
@@ -531,8 +531,8 @@ async function sprintPushFs(limite: number, batch: number): Promise<Record<strin
   const { data: semAccount } = await db.from('processos')
     .select('id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,'+
             'tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,'+
-            'classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,'+
-            'data_ajuizamento,data_ultima_movimentacao,status_atual_processo,'+
+            'classe,assunto,assunto_principal,sistema,parser_sistema,comarca,link_externo_processo,segredo_justica,'+
+            'data_ajuizamento,data_distribuicao,data_ultima_movimentacao,status_atual_processo,'+
             'parte_representada_adriano')
     .is('account_id_freshsales', null)
     .limit(limite);
