@@ -1,5 +1,5 @@
 import { buildActivityPrompt, buildProcessPrompt, CONVERSATION_SYSTEM_PROMPT, SYSTEM_PROMPT } from './prompts';
-import { CopilotConversationRoom } from './copilot-room';
+import { CopilotConversationRoomV2 } from './copilot-room';
 
 type Json = Record<string, unknown>;
 
@@ -50,10 +50,9 @@ type KvNamespaceBinding = {
   get<T = unknown>(key: string, type: "json"): Promise<T | null>;
 };
 
-export interface Env {
   AI: AiBinding;
   VECTORIZE: VectorizeBinding;
-  COPILOT_CONVERSATIONS_DO_V2: DurableObjectNamespace<CopilotConversationRoom>;
+  COPILOT_CONVERSATIONS_DO_V2: DurableObjectNamespace<CopilotConversationRoomV2>;
   ANALYTICS_ENGINE?: AnalyticsEngineBinding;
   CLOUDFLARE_KV_NAMESPACE?: KvNamespaceBinding;
   hmadv_process_ai: D1Database;

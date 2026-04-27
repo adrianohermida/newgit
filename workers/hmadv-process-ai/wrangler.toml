@@ -33,11 +33,11 @@ id = "1e0740f44693445cbc798c0fe6e45a98"
 
 [[durable_objects.bindings]]
 name = "COPILOT_CONVERSATIONS_DO_V2"
-class_name = "CopilotConversationRoom"
+class_name = "CopilotConversationRoomV2"
 
 [[migrations]]
-tag = "v1"
-new_sqlite_classes = ["CopilotConversationRoom"]
+tag = "v2"
+new_sqlite_classes = ["CopilotConversationRoomV2"]
 
 [triggers]
 crons = ["*/15 * * * *", "0 7 * * *"]
