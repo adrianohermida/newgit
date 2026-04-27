@@ -1937,7 +1937,43 @@ async function handleIaPerguntar(
   serviceRoleKey: string = SVC_KEY
 ) {
   try {
-    // Buscar contexto RAG da base de conhecimento
+    // ── Resposta temporal determinística (sem LLM) ────────────────────────────
+    const temporalAnswer = resolveTemporalAnswer(question);
+    if (temporalAnswer) {
+      await postSlack(channel, temporalAnswer);
+      return;
+    }
+
+    // ── Buscar perfil do usuário para persona ─────────────────────────────────
+    let personaBlock = "";
+    try {
+      const userRes = await fetch(
+        `${supabaseUrl}/rest/v1/users?slack_id=eq.${encodeURIComponent(userId)}&limit=1`,
+        { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+      );
+      if (userRes.ok) {
+        const users = await userRes.json();
+        if (users && users.length > 0) {
+          const u = users[0];
+          const role = u.role || "cliente";
+          const name = u.name || userId;
+          if (role === "owner") {
+            personaBlock = `USUÁRIO: ${name} (Dr. Adriano — dono do escritório)\nPERMISSÕES: TOTAIS — sem restrições, sem triagem, responda diretamente o que for solicitado.`;
+          } else if (role === "interno") {
+            personaBlock = `USUÁRIO: ${name} (equipe interna do escritório)\nPERMISSÕES: Acesso amplo a processos, prazos e dados internos. Linguagem profissional e direta.`;
+          } else {
+            personaBlock = `USUÁRIO: ${name} (cliente externo)\nPERMISSÕES: Acesso restrito às informações do próprio cliente. Linguagem acessível, humanizada e empática.`;
+          }
+        }
+      }
+    } catch (_) { /* silencioso */ }
+
+    // ── Reality Context Engine ────────────────────────────────────────────────
+    const { dateLabel, timeLabel } = getNowInSaoPaulo();
+    const rce = `CONTEXTO DE REALIDADE (use SEMPRE):\n- Horário atual: ${timeLabel} (Brasília/São Paulo)\n- Data: ${dateLabel}\nNUNCA invente horário ou data. Use SEMPRE os valores acima.`;
+    console.log("[dotobot][rce]", timeLabel, dateLabel);
+
+    // ── Buscar contexto RAG da base de conhecimento ───────────────────────────
     let context = "";
     try {
       const ragResp = await fetch(`${supabaseUrl}/functions/v1/dotobot-rag`, {
@@ -1951,16 +1987,21 @@ async function handleIaPerguntar(
       if (ragResp.ok) {
         const ragData = await ragResp.json();
         if (ragData.chunks && ragData.chunks.length > 0) {
-          context = ragData.chunks.map((c: any) => c.content).join("\n\n");
+          context = ragData.chunks.map((c: any) => c.content).slice(0, 800).join("\n\n");
         }
       }
     } catch (ragErr) {
       console.log("[dotobot] RAG erro:", ragErr?.message);
     }
 
-    const systemPrompt = `Você é o Dotobot, assistente jurídico especializado em processos e legislação brasileira.
-Responda de forma clara, objetiva e profissional.
-${context ? `\n\nBase de conhecimento relevante:\n${context}` : ""}`;
+    const systemPrompt = [
+      `Você é o Dotobot, assistente jurídico especializado em processos e legislação brasileira.`,
+      `Responda SEMPRE em português (PT-BR). Seja claro, objetivo e profissional.`,
+      `REGRAS ABSOLUTAS:\n- Responda APENAS ao que foi perguntado.\n- NUNCA invente dados de processos ou prazos.\n- NUNCA use palavras em inglês.`,
+      rce,
+      personaBlock,
+      context ? `Base de conhecimento relevante:\n${context}` : "",
+    ].filter(Boolean).join("\n\n");
 
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
@@ -1971,7 +2012,7 @@ ${context ? `\n\nBase de conhecimento relevante:\n${context}` : ""}`;
     const answer = await llm.runLLM(messages);
 
     await postSlack(channel, answer);
-   } catch (err) {
+  } catch (err) {
     console.error("[dotobot] handleIaPerguntar erro:", String(err));
     try {
       await postSlack(channel, "⚠️ Não consegui processar sua pergunta. Tente novamente.");
@@ -2363,6 +2404,7 @@ Deno.serve(async (req) => {
       const isDirectMessage = eventType === "message" && (eventChannelType === "im" || eventChannelType === "mpim");
       const isMention = eventType === "app_mention";
       const isHumanMessage = !eventSubtype && !event?.bot_id;
+      console.log("[dotobot] event:", { eventType, eventChannelType, eventChannel, eventUser, isDirectMessage, isMention, isHumanMessage, textLen: eventText.length });
 
       if ((isDirectMessage || isMention) && isHumanMessage && eventUser && eventChannel && eventText) {
         EdgeRuntime.waitUntil((async () => {

@@ -946,12 +946,16 @@ function orchestratorFactory(deps: {
       if (contacts && contacts.length > 0) {
         const contact = contacts[0];
         const displayName = contact.name || realName;
-        const isDbOwner = contact.role === 'owner';
-        personaContext = `Você está falando com ${displayName} (Email: ${contact.email || email || 'N/A'}).
-Role: ${contact.role || (isOwner ? 'owner' : 'cliente')}
-Lembre-se do contexto dessa pessoa e adapte sua linguagem.`;
+        const role = contact.role || 'cliente';
+        const isDbOwner = role === 'owner';
+        const isInterno = role === 'interno';
         if (isDbOwner) {
           isOwner = true;
+          personaContext = `USUÁRIO: ${displayName} (Dr. Adriano — dono do escritório Hermida Maia)\nPERMISSÕES: TOTAIS — sem restrições, sem triagem, sem perguntas desnecessárias. Responda diretamente o que for solicitado, com máxima objetividade.\nLINGUAGEM: Direta, concisa, profissional. Tuteia permitido.`;
+        } else if (isInterno) {
+          personaContext = `USUÁRIO: ${displayName} (equipe interna do escritório — role: interno)\nPERMISSÕES: Acesso amplo a processos, prazos, audiências e dados internos. Sem triagem de atendimento.\nLINGUAGEM: Profissional, direta, técnica quando necessário.`;
+        } else {
+          personaContext = `USUÁRIO: ${displayName} (cliente externo — Email: ${contact.email || email || 'N/A'})\nPERMISSÕES: Acesso restrito às informações do próprio cliente. Não forneça dados de outros clientes ou processos alheios.\nLINGUAGEM: Acessível, humanizada, empática. Explique termos jurídicos quando necessário.`;
         }
         
         // Atualizar last_interaction
@@ -994,9 +998,7 @@ Tipo: ${type}
 Este é um novo contato. Trate-o de acordo com seu tipo.`;
       }
       
-      if (isOwner) {
-        personaContext += "\n\nATENÇÃO: VOCÊ ESTÁ FALANDO COM O DR. ADRIANO (O DONO DO ESCRITÓRIO). SEJA EXTREMAMENTE DIRETA, CONCISA E NÃO FAÇA PERGUNTAS DE TRIAGEM. APENAS RESPONDA O QUE ELE PEDIR DE FORMA OBJETIVA.";
-      }
+      // personaContext já inclui as permissões corretas por role (owner/interno/cliente)
     }
 
     console.log("[persona] final context:", personaContext);
