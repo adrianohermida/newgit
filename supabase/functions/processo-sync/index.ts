@@ -182,6 +182,19 @@ function mergeSeguro(
 }
 
 // Custom fields para envio ao FS (Supabase → FS)
+// Busca a descrição do último movimento de um processo
+async function getUltimoMovimentoDescricao(processoId: string): Promise<string | null> {
+  const { data } = await db.from('movimentos')
+    .select('descricao, data_movimento')
+    .eq('processo_id', processoId)
+    .not('descricao', 'is', null)
+    .neq('descricao', '')
+    .order('data_movimento', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.descricao ?? null;
+}
+
 // REGRA: só envia campos não-nulos; nunca apaga valor existente no FS
 function buildCF(
   proc: Record<string,unknown>, cnjFmt: string,
@@ -200,7 +213,8 @@ function buildCF(
   set('cf_status',               proc.status_atual_processo);
   set('cf_data_de_distribuio',   proc.data_distribuicao ?? proc.data_ajuizamento);
   set('cf_data_ultimo_movimento',proc.data_ultima_movimentacao);
-  // cf_descricao_ultimo_movimento: coluna ultimo_movimento_descricao não existe na tabela processos
+  // cf_descricao_ultimo_movimento: preenchido via getUltimoMovimentoDescricao() antes de chamar buildCF
+  set('cf_descricao_ultimo_movimento', proc.ultimo_movimento_descricao_real);
   set('cf_area',                 proc.area);
   set('cf_sistema',              proc.parser_sistema ?? proc.sistema);
   if (proc.segredo_justica != null) set('cf_segredo_de_justica', proc.segredo_justica);
@@ -496,6 +510,9 @@ async function sprintSyncBidirectional(limite: number): Promise<Record<string,un
       // ── Supabase → FS: envia dados do Supabase que o FS não tem ─────────
       // (só campos vazios no FS, nunca sobrescreve)
       const procMerged = { ...proc, ...sbUpdate } as Record<string,unknown>;
+      // Enriquecer com descrição do último movimento da tabela movimentos
+      const ultimoMovDesc = await getUltimoMovimentoDescricao(proc.id as string);
+      if (ultimoMovDesc) procMerged.ultimo_movimento_descricao_real = ultimoMovDesc;
       const cf = buildCF(procMerged, cnjFmt);
       const std = buildStandardAccountFields(procMerged);
       // Filtra apenas campos que o FS não tem (cf no FS está vazio/nulo)
@@ -570,8 +587,13 @@ async function sprintPushFs(limite: number, batch: number): Promise<Record<strin
       ? proc.titulo
       : await buildTitulo(proc.id, cnjFmt, proc as Record<string,unknown>);
     try {
-      const cf = buildCF(proc as Record<string,unknown>, cnjFmt);
-      const std = buildStandardAccountFields(proc as Record<string,unknown>);
+      // Enriquecer com descrição do último movimento da tabela movimentos
+      const ultimoMovDescPush = await getUltimoMovimentoDescricao(proc.id as string);
+      const procEnriquecido = ultimoMovDescPush
+        ? { ...proc, ultimo_movimento_descricao_real: ultimoMovDescPush }
+        : proc as Record<string,unknown>;
+      const cf = buildCF(procEnriquecido, cnjFmt);
+      const std = buildStandardAccountFields(procEnriquecido);
       const { status, data } = await fsPost('sales_accounts', {
         sales_account: {
           name: titulo,
