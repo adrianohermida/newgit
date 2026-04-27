@@ -1035,11 +1035,12 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
     }
 
     // ── Decidir se o RAG é necessário ──────────────────────────────────────
-    // Pular RAG para: saudações, mensagens curtas (<15 chars), owner sem intenção específica
+    // Pular RAG para: saudações, mensagens curtas (<15 chars), owner sem intenção específica, perguntas temporais
     const isOwnerContext = personaContext.includes('DR. ADRIANO') || personaContext.includes('owner');
-    const isSimpleGreeting = /^(oi|olá|ola|hey|hi|hello|bom dia|boa tarde|boa noite|tudo bem|tudo bom|e aí|e ai|ok|okay|certo|entendi|obrigad|valeu|vlw|👋|😊|🙂)[\.!?\s]*$/i.test(inputText.trim());
+    const isSimpleGreeting = /^(oi|olá|ola|hey|hi|hello|bom dia|boa tarde|boa noite|tudo bem|tudo bom|e aí|e ai|ok|okay|certo|entendi|obrigad|valeu|vlw|👋|😊|🙂)[\.\.!?\s]*$/i.test(inputText.trim());
     const isShortMessage = inputText.trim().length < 15;
-    const skipRag = isSimpleGreeting || (isOwnerContext && isShortMessage && intent.type === 'geral');
+    const isTemporalQuestion = /\b(que horas|horas são|hora é|que dia|dia é|hoje é|manhã|tarde|noite|período|horário|data de hoje|dia da semana|semana|mês|ano)\b/i.test(inputText);
+    const skipRag = isSimpleGreeting || isTemporalQuestion || (isOwnerContext && isShortMessage && intent.type === 'geral');
 
     const knowledgeQuery = [
       inputText,
@@ -1050,8 +1051,27 @@ Este é um novo contato. Trate-o de acordo com seu tipo.`;
     const knowledgeText = skipRag ? '' : await deps.rag.getKnowledge(knowledgeQuery);
     if (skipRag) console.log('[rag] pulando RAG — mensagem simples ou saudação');;
 
+    // ── Reality Context Engine: injetar data/hora real (timezone Brasília) ──
+    const _now = new Date();
+    const _tzOffset = -3 * 60; // America/Sao_Paulo (UTC-3, sem DST)
+    const _nowBrasilia = new Date(_now.getTime() + (_tzOffset - _now.getTimezoneOffset()) * 60000);
+    const _weekdays = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+    const _months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    const _hora = _nowBrasilia.getHours().toString().padStart(2,'0');
+    const _min = _nowBrasilia.getMinutes().toString().padStart(2,'0');
+    const _diaSemana = _weekdays[_nowBrasilia.getDay()];
+    const _dia = _nowBrasilia.getDate();
+    const _mes = _months[_nowBrasilia.getMonth()];
+    const _ano = _nowBrasilia.getFullYear();
+    const _periodo = _nowBrasilia.getHours() < 12 ? 'manhã' : _nowBrasilia.getHours() < 18 ? 'tarde' : 'noite';
+    const realityContext = `CONTEXTO DE REALIDADE (use SEMPRE para perguntas sobre tempo):
+- Horário atual: ${_hora}:${_min} (Brasília, UTC-3)
+- Período: ${_periodo}
+- Data: ${_diaSemana}, ${_dia} de ${_mes} de ${_ano}
+NUNCA invente horário. Use SEMPRE os valores acima.`;
+    console.log('[rce] reality context:', realityContext.split('\n')[1]); // log da hora para diagnóstico
     // Montar system prompt com modo aprendizado se ativo
-    let activeSystemPrompt = deps.systemPrompt + "\n\nCONTEXTO DO USUÁRIO ATUAL:\n" + personaContext;
+    let activeSystemPrompt = deps.systemPrompt + "\n\n" + realityContext + "\n\nCONTEXTO DO USUÁRIO ATUAL:\n" + personaContext;
     if (isLearningMode) {
       activeSystemPrompt += "\n\n" + CIDA_LEARNING_MODE_PROMPT + "\n\n" + CIDA_LEARNING_VALIDATED_PROMPT;
     }
