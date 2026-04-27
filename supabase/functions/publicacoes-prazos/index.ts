@@ -636,9 +636,21 @@ Deno.serve(async (req) => {
       // Buscar publicações sem prazo calculado
       // Usar offset para paginação quando batch_offset é fornecido
       const batchOffset = body.batch_offset || 0;
-      // Priorizar publicações dos últimos 45 dias corridos (≈30 dias úteis) sem prazo calculado
-      const dataLimite = new Date();
-      dataLimite.setDate(dataLimite.getDate() - 45);
+      // Priorizar publicações mais recentes sem prazo calculado
+      // Busca a data mais recente disponível no banco e prioriza os últimos 45 dias a partir dela
+      const { data: maxDateRow } = await supabase
+        .schema("judiciario")
+        .from("publicacoes")
+        .select("data_publicacao")
+        .not("data_publicacao", "is", null)
+        .not("conteudo", "is", null)
+        .not("processo_id", "is", null)
+        .order("data_publicacao", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const maxDate = maxDateRow?.data_publicacao ? new Date(maxDateRow.data_publicacao) : new Date();
+      const dataLimite = new Date(maxDate);
+      dataLimite.setDate(maxDate.getDate() - 45);
       const dataLimiteStr = dataLimite.toISOString();
       const { data: publicacoes, error: fetchError } = await supabase
         .schema("judiciario")
