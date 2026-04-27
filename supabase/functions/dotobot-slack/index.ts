@@ -2005,13 +2005,43 @@ async function handleIaPerguntar(
       context ? `Base de conhecimento relevante:\n${context}` : "",
     ].filter(Boolean).join("\n\n");
 
+    // ── Histórico de conversa (últimas 6 mensagens do canal) ──────────────────
+    let historyMessages: ChatMessage[] = [];
+    try {
+      const histRes = await fetch(
+        `${supabaseUrl}/rest/v1/messages?channel=eq.${encodeURIComponent(channel)}&select=role,content,created_at&order=created_at.desc.nullslast&limit=12`,
+        { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+      );
+      if (histRes.ok) {
+        const rows: { role: string; content: string }[] = await histRes.json();
+        historyMessages = rows.reverse().slice(-6).map(r => ({
+          role: r.role as 'user' | 'assistant',
+          content: r.content.slice(0, 400),
+        }));
+        if (historyMessages.length > 0) console.log('[dotobot] histórico:', historyMessages.length, 'msgs');
+      }
+    } catch (_) { /* silencioso */ }
+
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
+      ...historyMessages,
       { role: "user", content: question },
     ];
 
     const llm = llmFactory(supabaseUrl, serviceRoleKey);
     const answer = await llm.runLLM(messages);
+
+    // Salvar mensagem do usuário e resposta no histórico
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/messages`, {
+        method: 'POST',
+        headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify([
+          { channel, role: 'user', content: question },
+          { channel, role: 'assistant', content: answer },
+        ]),
+      });
+    } catch (_) { /* silencioso */ }
 
     await postSlack(channel, answer, undefined, thread_ts);
   } catch (err) {
