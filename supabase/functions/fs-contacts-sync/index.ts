@@ -1,3 +1,4 @@
+import { checkRateLimit, createPublicClient } from '../_shared/rate-limit.ts';
 // @@@@@@@@@@@@@@
 // fs-contacts-sync v3 — Sincronização Freshsales Contacts <-> Supabase
 // Supabase é a única fonte da verdade.
@@ -18,6 +19,7 @@ const FS_API_KEY = Deno.env.get('FRESHSALES_API_KEY') ?? '';
 
 // Cliente Supabase — schema judiciario para contacts_freshsales
 const db = createClient(SUPABASE_URL, SVC_KEY, { db: { schema: 'judiciario' } });
+const dbPublic = createPublicClient(); // schema public para rate limit
 
 function authHdr(): string {
   if (FS_CONTACTS_TOKEN) return `Authtoken ${FS_CONTACTS_TOKEN}`;
@@ -138,6 +140,11 @@ async function actionStatus() {
 
 // ─── ACTION: ingest_incremental / ingest_full ─────────────────────────────────
 async function actionIngest(since: string) {
+  // Verificar rate limit global antes de iniciar (cada página = 1 chamada ao FS)
+  const rl = await checkRateLimit(dbPublic, 'fs-contacts-sync', 10);
+  if (!rl.ok) {
+    return { ok: false, motivo: 'rate_limit_global', slots_avail: rl.slots_avail };
+  }
   let page = 1;
   let total_upserted = 0;
   let total_pages = 1;

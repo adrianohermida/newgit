@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { checkRateLimit, safeBatchSize } from '../_shared/rate-limit.ts';
+import { checkRateLimit, safeBatchSize, createPublicClient } from '../_shared/rate-limit.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -8,6 +8,7 @@ const FS_API_KEY = Deno.env.get('FRESHSALES_API_KEY')!;
 const FS_DOMAIN_RAW = Deno.env.get('FRESHSALES_DOMAIN')!;
 
 const db = createClient(SUPABASE_URL, SVC_KEY, { db: { schema: 'judiciario' } });
+const dbPublic = createPublicClient(); // schema public para rate limit
 
 const DOMAIN_MAP: Record<string, string> = {
   'hmadv-7b725ea101eff55.freshsales.io': 'hmadv-org.myfreshworks.com',
@@ -406,7 +407,7 @@ Deno.serve(async (req) => {
       const batchSize = Math.max(1, Math.min(Number(body.batch_size ?? url.searchParams.get('batch_size') ?? 20), 50));
       const cursor    = Number(body.cursor ?? url.searchParams.get('cursor') ?? 0);
       // Rate limit: 1 chamada FS por publicação (PUT activity)
-      const rl = await checkRateLimit(db, 'fs-account-repair', batchSize);
+      const rl = await checkRateLimit(dbPublic, 'fs-account-repair', batchSize);
       if (!rl.ok) return new Response(JSON.stringify({ ok: false, motivo: 'rate_limit_global', slots_avail: rl.slots_avail }), { status: 429, headers: { 'Content-Type': 'application/json' } });
       const safeBatch = safeBatchSize(rl.slots_avail, 1, batchSize);
 
@@ -463,7 +464,7 @@ Deno.serve(async (req) => {
       const limit = Math.max(1, Math.min(Number(body.limit ?? url.searchParams.get('limit') ?? 10), 50));
       const offset = Math.max(0, Number(body.offset ?? url.searchParams.get('offset') ?? 0));
       // Rate limit: ~5 chamadas FS por processo (GET account + PUT campos custom)
-      const rlBatch = await checkRateLimit(db, 'fs-account-repair', limit * 5);
+      const rlBatch = await checkRateLimit(dbPublic, 'fs-account-repair', limit * 5);
       if (!rlBatch.ok) return new Response(JSON.stringify({ ok: false, motivo: 'rate_limit_global', slots_avail: rlBatch.slots_avail }), { status: 429, headers: { 'Content-Type': 'application/json' } });
 
       const { data: processos } = await db.from('processos')

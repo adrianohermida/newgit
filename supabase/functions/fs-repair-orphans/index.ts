@@ -1,5 +1,5 @@
 /**
-import { checkRateLimit, safeBatchSize } from '../_shared/rate-limit.ts';
+import { checkRateLimit, safeBatchSize, createPublicClient } from '../_shared/rate-limit.ts';
  * fs-repair-orphans v1
  * 
  * Corrige campos órfãos nos processos do Supabase e sincroniza com o Freshsales.
@@ -25,6 +25,7 @@ const supabase = createClient(
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const dbPublic = createPublicClient(); // schema public para rate limit
 const FS_DOMAIN = Deno.env.get("FRESHSALES_DOMAIN") ?? "hermidamaia.myfreshworks.com";
 const FS_KEY = Deno.env.get("FRESHSALES_API_KEY")!;
 
@@ -407,7 +408,7 @@ Deno.serve(async (req) => {
         break;
       case "fix_fs_sync": {
         // Rate limit: ~3 chamadas FS por processo (GET + POST account + PUT)
-        const rlFsSync = await checkRateLimit(db, 'fs-repair-orphans', Math.min(batch, 30) * 3);
+        const rlFsSync = await checkRateLimit(dbPublic, 'fs-repair-orphans', Math.min(batch, 30) * 3);
         if (!rlFsSync.ok) { resultado = { ok: false, motivo: 'rate_limit_global', slots_avail: rlFsSync.slots_avail }; break; }
         resultado = await fixFsSync(safeBatchSize(rlFsSync.slots_avail, 3, Math.min(batch, 30)));
         break;
@@ -421,7 +422,7 @@ Deno.serve(async (req) => {
       case "criar_processos_ausentes": {
         const batchSize = Number(body.batch_size ?? body.batch ?? url.searchParams.get("batch_size") ?? 20);
         // Rate limit: ~2 chamadas FS por processo (POST account + GET verify)
-        const rlCriar = await checkRateLimit(db, 'fs-repair-orphans', batchSize * 2);
+        const rlCriar = await checkRateLimit(dbPublic, 'fs-repair-orphans', batchSize * 2);
         if (!rlCriar.ok) { resultado = { ok: false, motivo: 'rate_limit_global', slots_avail: rlCriar.slots_avail }; break; }
         resultado = await criarProcessosAusentes(safeBatchSize(rlCriar.slots_avail, 2, batchSize));
         break;

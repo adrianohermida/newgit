@@ -48,7 +48,7 @@ const JOB_FUNCTION_MAP: Record<string, { fn: string; payload: (pendentes: number
   },
   "prazos:create_task": {
     fn: "publicacoes-prazos",
-    payload: (_, bs) => ({ action: "calcular_batch", batch_size: bs }),
+    payload: (_, bs) => ({ action: "criar_tasks_pendentes", batch_size: bs }),
   },
   "datajud:fetch_movimentos": {
     fn: "datajud-worker",

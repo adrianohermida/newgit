@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { checkRateLimit, safeBatchSize } from '../_shared/rate-limit.ts';
+import { checkRateLimit, safeBatchSize, createPublicClient } from '../_shared/rate-limit.ts';
 
 /**
  * processo-sync  v1
@@ -63,6 +63,7 @@ const FS_TYPE_ANDAMENTOS  = Number(envFirst(
 const ADVOGADO_REGEX = /adriano\s+menezes\s+hermida\s+maia/i;
 
 const db = createClient(SUPABASE_URL, SVC_KEY, { db: { schema: 'judiciario' } });
+const dbPublic = createPublicClient(); // schema public para rate limit
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 function log(n: 'info'|'warn'|'error', m: string, e: Record<string,unknown> = {}) {
   console[n](JSON.stringify({ ts: new Date().toISOString(), msg: m, ...e }));
@@ -922,7 +923,7 @@ Deno.serve(async (req: Request) => {
       case 'push_freshsales':    // Sprint 5
         // Rate limit: ~4 chamadas FS por processo (POST account + PUT campos + GET verify + POST contact)
         {
-          const rlPush = await checkRateLimit(db, 'processo-sync', batch * 4);
+          const rlPush = await checkRateLimit(dbPublic, 'processo-sync', batch * 4);
           if (!rlPush.ok) {
             result = { ok: false, motivo: 'rate_limit_global', slots_avail: rlPush.slots_avail };
           } else {
@@ -945,7 +946,7 @@ Deno.serve(async (req: Request) => {
         const s4 = await sprintEnriquecer(Math.min(limite * 5, 500)); // enriquece mais pubs
         const s2 = await sprintSyncBidirectional(Math.min(limite, 30));
         // Rate limit para pipeline
-        const rlPipeline = await checkRateLimit(db, 'processo-sync', batch * 4);
+        const rlPipeline = await checkRateLimit(dbPublic, 'processo-sync', batch * 4);
         const safeBatchPipeline = rlPipeline.ok ? safeBatchSize(rlPipeline.slots_avail, 4, batch) : 0;
         const s5 = safeBatchPipeline > 0 ? await sprintPushFs(limite, safeBatchPipeline) : { ok: false, motivo: 'rate_limit_global' };
         const s7 = await sprintAuditoria();
