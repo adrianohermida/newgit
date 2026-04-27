@@ -88,8 +88,8 @@ export default function Contato() {
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-[#C5A059]">Assunto</label>
                 <select name="subject" value={form.subject} onChange={handleChange} className={`rounded-lg p-3 focus:border-[#C5A059] focus:ring-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC] text-[#13201D]" : "border-[#2D2E2E] bg-[#232323] text-[#F4F1EA]"}`}>
-                  <option>RevisÃ£o de DÃ­vidas</option>
-                  <option>RecuperaÃ§Ã£o Judicial</option>
+                  <option>Revisão de Dívidas</option>
+                  <option>Recuperação Judicial</option>
                   <option>LGPD</option>
                   <option>Outros Assuntos</option>
                 </select>
@@ -120,7 +120,8 @@ export default function Contato() {
                 <span className="material-symbols-outlined">location_on</span>
               </div>
               <div>
-                <p className={`font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}}`}>Endereço</p>                <p className="text-[#C5A059]">Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS</p>
+                <p className={`font-bold ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}>Endereço</p>
+                <p className="text-[#C5A059]">Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS</p>
               </div>
             </div>
             <div className="flex items-start gap-4">

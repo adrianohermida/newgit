@@ -224,6 +224,15 @@ export default function Layout({ children, forceDarkMode = true, hideThemeContro
           </nav>
 
           <div className="flex items-center gap-4">
+            {!hideThemeControls && (
+              <div className="hidden xl:flex items-center bg-black/20 rounded-full p-1 border border-white/10">
+                <button onClick={() => setThemePreference("light")} className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full transition-all ${preference === "light" ? "bg-[#C5A059] text-black" : "text-white/40 hover:text-white"}`}>Claro</button>
+                <button onClick={() => setThemePreference("system")} className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full transition-all ${preference === "system" ? "bg-[#C5A059] text-black" : "text-white/40 hover:text-white"}`}>Sistema</button>
+                <button onClick={() => setThemePreference("dark")} className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full transition-all ${preference === "dark" ? "bg-[#C5A059] text-black" : "text-white/40 hover:text-white"}`}>Escuro</button>
+                <button onClick={toggleTheme} className="ml-2 px-3 py-1 text-[10px] font-bold uppercase text-[#C5A059] hover:opacity-80">Alternar</button>
+              </div>
+            )}
+
             <Link href="/agendamento" legacyBehavior>
               <a
                 className="hidden md:inline-flex items-center gap-2 border border-[#C5A059]/50 text-[#C5A059] px-6 py-2.5 text-xs font-semibold tracking-[0.12em] uppercase hover:bg-[#C5A059] hover:text-[#050706] transition-all duration-300"
