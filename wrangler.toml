@@ -23,10 +23,15 @@ bucket_name = "newgit-copilot-attachment"
 # Este wrangler.toml representa o projeto Cloudflare Pages `newgit-pages`.
 # O recurso `newgit` nao deve ser usado como alvo de deploy deste repositorio.
 #
-# No Pages Dashboard:
+# No Pages Dashboard (projeto newgit-pages):
 #   Build command: npm run build:pages
 #   Build output directory: out
-#   Deploy command: (deixe vazio)
+#   Deploy command: (deixe vazio — o Pages faz o deploy automaticamente)
+#
+# No Workers Dashboard (worker hmadv-process-ai — workers.cloudflare.com):
+#   Build command: npm run build:pages
+#   Deploy command: npm run deploy:worker
+#   (O script deploy:worker chama: npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml)
 #
 # Importante:
 #   `npm run build` sozinho nao deve ser tratado como contrato de publish do Pages.
