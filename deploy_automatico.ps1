@@ -18,4 +18,16 @@ if (Test-Path $workerPath) {
     Write-Host "Pasta workers/hmadv-process-ai não encontrada. Pulei deploy do Worker AI." -ForegroundColor Yellow
 }
 
+
+# Deploy do novo Worker API (hmadv-api)
+$apiWorkerPath = "workers/hmadv-api"
+if (Test-Path $apiWorkerPath) {
+    Write-Host "Deployando novo Worker API (hmadv-api)..." -ForegroundColor Cyan
+    Push-Location $apiWorkerPath
+    wrangler deploy
+    Pop-Location
+} else {
+    Write-Host "Pasta workers/hmadv-api não encontrada. Pulei deploy do Worker API." -ForegroundColor Yellow
+}
+
 Write-Host "Script de deploy automático local concluído." -ForegroundColor Green
