@@ -4,7 +4,7 @@ compatibility_date = "2026-03-31"
 workers_dev = false
 
 routes = [
-  { pattern = "api.hermidamaia.adv.br/*", custom_domain = true }
+  { pattern = "api.hermidamaia.adv.br", custom_domain = true }
 ]
 
 [triggers]
