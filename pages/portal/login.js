@@ -46,28 +46,28 @@ export default function PortalLoginPage() {
 
   return (
     <PortalAuthLayout
-      title="Entrar no portal"
-        description="Acesse sua area autenticada para acompanhar consultas, solicitacoes, documentos e os proximos passos do seu atendimento."
+      title="Acesso ao Portal"
+      description="Bem-vindo ao seu espaço seguro. Aqui você acompanha suas consultas, documentos, processos e próximos passos do seu atendimento jurídico."
     >
       <form className="space-y-6" onSubmit={handleSubmit}>
         {configLoading ? (
           <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
-            Carregando configuracao segura do portal...
+            Carregando seu portal...
           </div>
         ) : !isConfigured ? (
           <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
-            Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar o portal do cliente.
+            O portal está em manutenção. Por favor, tente novamente em alguns momentos.
           </div>
         ) : null}
 
         <label className="block">
-          <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C49C56]">E-mail</span>
+          <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C49C56]">Seu E-mail</span>
           <input
             type="email"
             value={form.email}
             onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[#F7F1E8] placeholder:text-white/20 focus:border-[#C49C56] focus:ring-[#C49C56]"
-            placeholder="voce@exemplo.com"
+            placeholder="seu@email.com"
             required
           />
         </label>
@@ -84,7 +84,13 @@ export default function PortalLoginPage() {
           />
         </label>
 
-        {error ? <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">{error}</div> : null}
+        {error ? (
+          <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">
+            {error.includes("Invalid login credentials") || error.includes("invalid") 
+              ? "E-mail ou senha incorretos. Por favor, tente novamente." 
+              : error}
+          </div>
+        ) : null}
 
         <button
           type="submit"

@@ -19,8 +19,7 @@ export default function PortalAuthLayout({ title, description, children }) {
               Acompanhe seu caso com clareza, contexto e acesso seguro.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-[#D6D0C3]/78">
-              Nova area autenticada para clientes, inspirada nos fluxos antigos do escritorio e recomposta sobre Supabase,
-              Cloudflare Pages e o projeto atual.
+              Acesse seus documentos, acompanhe o progresso de seus processos e comunique-se diretamente com nosso escritório de forma segura e confidencial.
             </p>
           </section>
 
