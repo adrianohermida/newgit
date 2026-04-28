@@ -37,10 +37,15 @@ resp = requests.post(API_AGENDAR, json={
     "hora": hora,
     "observacoes": "Teste automatizado."
 })
+
 if resp.status_code != 200:
-    print("[ERRO] Falha ao criar agendamento:", resp.text)
+    print("[ERRO] Falha ao criar agendamento:", resp.status_code, resp.text)
     exit(1)
-result = resp.json()
+try:
+    result = resp.json()
+except Exception as e:
+    print("[ERRO] Resposta não é JSON válido:", resp.status_code, resp.text)
+    exit(1)
 if not result.get("ok"):
     print("[ERRO] API retornou erro:", result)
     exit(1)
