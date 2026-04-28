@@ -1,14 +1,90 @@
 name = "hmadv-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-31"
+compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 
+# Domínio customizado — todas as chamadas a api.hermidamaia.adv.br chegam aqui
 routes = [
-  { pattern = "api.hermidamaia.adv.br", custom_domain = true }
+  { pattern = "api.hermidamaia.adv.br/*", custom_domain = true }
 ]
 
-[triggers]
-crons = ["0 7 * * *"]
+# ─── Bindings ────────────────────────────────────────────────────────────────
 
+# Banco D1 compartilhado com o Pages (agendamentos, copilot, etc.)
+[[d1_databases]]
+binding = "DB"
+database_name = "hmadv-process-ai"
+database_id = "1d61b217-289f-468d-9d29-40abb8a23a85"
+
+# KV — cache de documentação Cloudflare e outros
+[[kv_namespaces]]
+binding = "CLOUDFLARE_DOCS_KV"
+id = "3162a38a5bc24b85913891043f86d9c8"
+
+# R2 — anexos do Copilot
+[[r2_buckets]]
+binding = "COPILOT_ATTACHMENTS_BUCKET"
+bucket_name = "newgit-copilot-attachment"
+
+# Workers AI — usado pelo Copilot e Dotobot
+[ai]
+binding = "AI"
+
+# Cron jobs — limpeza de agendamentos expirados e sincronização diária
+[triggers]
+crons = ["0 7 * * *", "0 */6 * * *"]
+
+# ─── Variáveis públicas (não-secretas) ───────────────────────────────────────
 [vars]
-# Adicione variáveis de ambiente necessárias aqui
+SITE_URL = "https://hermidamaia.adv.br"
+CLOUDFLARE_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
+
+# ─── Secrets esperados (configurar via Dashboard ou wrangler secret put) ─────
+# SUPABASE_URL
+# SUPABASE_ANON_KEY
+# SUPABASE_SERVICE_ROLE_KEY
+# GOOGLE_CLIENT_ID
+# GOOGLE_CLIENT_SECRET
+# GOOGLE_OAUTH_REFRESH_TOKEN
+# RESEND_API_KEY
+# FRESHCHAT_API_BASE
+# FRESHCHAT_API_KEY
+# FRESHCHAT_JWT_SECRET
+# FRESHCHAT_ENABLE_WEB_MESSENGER
+# FRESHCHAT_WIDGET_SCRIPT_URL
+# FRESHCHAT_WEB_MESSENGER_TOKEN
+# FRESHCHAT_WEB_MESSENGER_HOST
+# FRESHSALES_API_BASE
+# FRESHSALES_API_KEY
+# FRESHSALES_ACCESS_TOKEN
+# FRESHSALES_CONTACT_LIFECYCLE_FIELD
+# FRESHSALES_CONTACT_MEETING_FIELD
+# FRESHSALES_CONTACT_NEGOTIATION_FIELD
+# FRESHSALES_CONTACT_CLOSING_FIELD
+# FRESHSALES_CONTACT_CLIENT_FIELD
+# FRESHSALES_STAGE_VALUE_MAP
+# FRESHSALES_ACTIVITY_TYPE_BY_EVENT
+# FRESHSALES_APPOINTMENT_FIELD_MAP
+# FRESHDESK_DOMAIN
+# FRESHDESK_BASIC_TOKEN
+# HMADV_RUNNER_TOKEN
+# FREDDY_ACTION_SHARED_SECRET
+# SLACK_CLIENT_ID
+# SLACK_CLIENT_SECRET
+# SLACK_SIGNING_SECRET
+# SLACK_BOT_TOKEN
+# SLACK_ACCESS_TOKEN
+# SLACK_USER_TOKEN
+# SLACK_WEBHOOK_URL
+# ZOOM_ACCOUNT_ID
+# ZOOM_CLIENT_ID
+# ZOOM_CLIENT_SECRET
+# ZOOM_USER_ID
+# ZOOM_DEFAULT_TIMEZONE
+# WHATSAPP_PROVIDER
+# WHATSAPP_CLOUD_API_TOKEN
+# WHATSAPP_PHONE_NUMBER_ID
+# WHATSAPP_CLOUD_API_VERSION
+# PROCESS_AI_BASE
+# HMDAV_AI_SHARED_SECRET
