@@ -9,7 +9,7 @@ pip install requests
 """
 import requests
 
-BASE_URL = "http://hermidamaia.adv.br" # Altere para a URL do seu ambiente
+BASE_URL = "https://api.hermidamaia.adv.br" # Subdomínio correto da API
 
 # 1. Testar endpoint de configuração pública do Supabase
 print("Testando /api/admin-auth-config...")
