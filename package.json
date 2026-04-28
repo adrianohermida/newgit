@@ -11,6 +11,7 @@
     "build:pages": "node scripts/build-pages-static.cjs",
     "diagnose:pages-assets": "node scripts/diagnose-pages-export-assets.cjs",
     "deploy:pages": "npm run build:pages && node scripts/guard-pages-static-deploy.cjs && npx wrangler pages deploy out --project-name=newgit-pages --branch main",
+    "build:worker": "echo 'Worker hmadv-process-ai: sem etapa de build separada (wrangler compila TypeScript automaticamente no deploy)'",
     "deploy:worker": "npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml",
     "deploy:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/deploy-hmadv-process-ai.ps1",
     "release:cf": "powershell -ExecutionPolicy Bypass -File scripts/release-cloudflare.ps1",
