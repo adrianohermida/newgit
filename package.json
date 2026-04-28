@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "dev:pages": "npm run build:pages && npx wrangler pages dev out --project-name=newgit-pages",
+    "dev:pages": "npm run build:pages && npx wrangler pages dev out",
     "build:core": "node scripts/guard-next-build-lock.cjs",
     "build": "set AUTO_DEPLOY_WRANGLER=1&& set ALLOW_STATIC_ONLY_PAGES_DEPLOY=1&& npm run build:core && node scripts/normalize-pages-export-assets.js && node scripts/copy-manual-to-public.js && node scripts/copy-functions-to-out.js",
     "build:pages": "node scripts/build-pages-static.cjs",
