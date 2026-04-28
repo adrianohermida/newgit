@@ -1,0 +1,657 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "hybrid",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/blog/[slug]",
+      "regex": "^/blog/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/blog/(?<nxtPslug>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/agendamento",
+      "regex": "^/agendamento(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/agendamento(?:/)?$"
+    },
+    {
+      "page": "/api/admin-agendamentos",
+      "regex": "^/api/admin\\-agendamentos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-agendamentos(?:/)?$"
+    },
+    {
+      "page": "/api/admin-agentlab",
+      "regex": "^/api/admin\\-agentlab(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-agentlab(?:/)?$"
+    },
+    {
+      "page": "/api/admin-agentlab-governance",
+      "regex": "^/api/admin\\-agentlab\\-governance(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-agentlab\\-governance(?:/)?$"
+    },
+    {
+      "page": "/api/admin-agentlab-intelligence",
+      "regex": "^/api/admin\\-agentlab\\-intelligence(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-agentlab\\-intelligence(?:/)?$"
+    },
+    {
+      "page": "/api/admin-agentlab-sync",
+      "regex": "^/api/admin\\-agentlab\\-sync(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-agentlab\\-sync(?:/)?$"
+    },
+    {
+      "page": "/api/admin-agentlab-training",
+      "regex": "^/api/admin\\-agentlab\\-training(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-agentlab\\-training(?:/)?$"
+    },
+    {
+      "page": "/api/admin-auth-config",
+      "regex": "^/api/admin\\-auth\\-config(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-auth\\-config(?:/)?$"
+    },
+    {
+      "page": "/api/admin-dotobot-chat",
+      "regex": "^/api/admin\\-dotobot\\-chat(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-dotobot\\-chat(?:/)?$"
+    },
+    {
+      "page": "/api/admin-dotobot-rag-health",
+      "regex": "^/api/admin\\-dotobot\\-rag\\-health(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-dotobot\\-rag\\-health(?:/)?$"
+    },
+    {
+      "page": "/api/admin-extensao-download",
+      "regex": "^/api/admin\\-extensao\\-download(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-extensao\\-download(?:/)?$"
+    },
+    {
+      "page": "/api/admin-freshsales-catalog",
+      "regex": "^/api/admin\\-freshsales\\-catalog(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-freshsales\\-catalog(?:/)?$"
+    },
+    {
+      "page": "/api/admin-hmadv-financeiro",
+      "regex": "^/api/admin\\-hmadv\\-financeiro(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-hmadv\\-financeiro(?:/)?$"
+    },
+    {
+      "page": "/api/admin-hmadv-processos",
+      "regex": "^/api/admin\\-hmadv\\-processos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-hmadv\\-processos(?:/)?$"
+    },
+    {
+      "page": "/api/admin-hmadv-publicacoes",
+      "regex": "^/api/admin\\-hmadv\\-publicacoes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-hmadv\\-publicacoes(?:/)?$"
+    },
+    {
+      "page": "/api/admin-integration-kit-export",
+      "regex": "^/api/admin\\-integration\\-kit\\-export(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-integration\\-kit\\-export(?:/)?$"
+    },
+    {
+      "page": "/api/admin-integration-kit-preview",
+      "regex": "^/api/admin\\-integration\\-kit\\-preview(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-integration\\-kit\\-preview(?:/)?$"
+    },
+    {
+      "page": "/api/admin-integration-kit-run",
+      "regex": "^/api/admin\\-integration\\-kit\\-run(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-integration\\-kit\\-run(?:/)?$"
+    },
+    {
+      "page": "/api/admin-integration-kit-save-setup",
+      "regex": "^/api/admin\\-integration\\-kit\\-save\\-setup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-integration\\-kit\\-save\\-setup(?:/)?$"
+    },
+    {
+      "page": "/api/admin-lawdesk-chat",
+      "regex": "^/api/admin\\-lawdesk\\-chat(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-lawdesk\\-chat(?:/)?$"
+    },
+    {
+      "page": "/api/admin-lawdesk-providers",
+      "regex": "^/api/admin\\-lawdesk\\-providers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-lawdesk\\-providers(?:/)?$"
+    },
+    {
+      "page": "/api/admin-leads",
+      "regex": "^/api/admin\\-leads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-leads(?:/)?$"
+    },
+    {
+      "page": "/api/admin-market-ads",
+      "regex": "^/api/admin\\-market\\-ads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-market\\-ads(?:/)?$"
+    },
+    {
+      "page": "/api/admin-posts",
+      "regex": "^/api/admin\\-posts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/admin\\-posts(?:/)?$"
+    },
+    {
+      "page": "/api/agendar",
+      "regex": "^/api/agendar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/agendar(?:/)?$"
+    },
+    {
+      "page": "/api/chat",
+      "regex": "^/api/chat(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/chat(?:/)?$"
+    },
+    {
+      "page": "/api/freddy-get-contact-360",
+      "regex": "^/api/freddy\\-get\\-contact\\-360(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/freddy\\-get\\-contact\\-360(?:/)?$"
+    },
+    {
+      "page": "/api/freddy-save-memory",
+      "regex": "^/api/freddy\\-save\\-memory(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/freddy\\-save\\-memory(?:/)?$"
+    },
+    {
+      "page": "/api/freddy-save-outcome",
+      "regex": "^/api/freddy\\-save\\-outcome(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/freddy\\-save\\-outcome(?:/)?$"
+    },
+    {
+      "page": "/api/freddy-search-memory",
+      "regex": "^/api/freddy\\-search\\-memory(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/freddy\\-search\\-memory(?:/)?$"
+    },
+    {
+      "page": "/api/freshchat-jwt",
+      "regex": "^/api/freshchat\\-jwt(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/freshchat\\-jwt(?:/)?$"
+    },
+    {
+      "page": "/api/freshchat-widget-event",
+      "regex": "^/api/freshchat\\-widget\\-event(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/freshchat\\-widget\\-event(?:/)?$"
+    },
+    {
+      "page": "/api/freshdesk-ticket",
+      "regex": "^/api/freshdesk\\-ticket(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/freshdesk\\-ticket(?:/)?$"
+    },
+    {
+      "page": "/api/health",
+      "regex": "^/api/health(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/health(?:/)?$"
+    },
+    {
+      "page": "/api/public-chat-config",
+      "regex": "^/api/public\\-chat\\-config(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/public\\-chat\\-config(?:/)?$"
+    },
+    {
+      "page": "/api/slack-events",
+      "regex": "^/api/slack\\-events(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/slack\\-events(?:/)?$"
+    },
+    {
+      "page": "/api/slots",
+      "regex": "^/api/slots(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/slots(?:/)?$"
+    },
+    {
+      "page": "/atualizar-senha",
+      "regex": "^/atualizar\\-senha(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/atualizar\\-senha(?:/)?$"
+    },
+    {
+      "page": "/blog",
+      "regex": "^/blog(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/blog(?:/)?$"
+    },
+    {
+      "page": "/calculadora",
+      "regex": "^/calculadora(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/calculadora(?:/)?$"
+    },
+    {
+      "page": "/cancelar",
+      "regex": "^/cancelar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/cancelar(?:/)?$"
+    },
+    {
+      "page": "/cliente",
+      "regex": "^/cliente(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/cliente(?:/)?$"
+    },
+    {
+      "page": "/confirmar",
+      "regex": "^/confirmar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/confirmar(?:/)?$"
+    },
+    {
+      "page": "/contato",
+      "regex": "^/contato(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/contato(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/faq",
+      "regex": "^/faq(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/faq(?:/)?$"
+    },
+    {
+      "page": "/interno",
+      "regex": "^/interno(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno(?:/)?$"
+    },
+    {
+      "page": "/interno/agendamentos",
+      "regex": "^/interno/agendamentos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agendamentos(?:/)?$"
+    },
+    {
+      "page": "/interno/agendamentos/detalhe",
+      "regex": "^/interno/agendamentos/detalhe(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agendamentos/detalhe(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab",
+      "regex": "^/interno/agentlab(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/agents",
+      "regex": "^/interno/agentlab/agents(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/agents(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/conversations",
+      "regex": "^/interno/agentlab/conversations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/conversations(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/environment",
+      "regex": "^/interno/agentlab/environment(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/environment(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/evaluation",
+      "regex": "^/interno/agentlab/evaluation(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/evaluation(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/knowledge",
+      "regex": "^/interno/agentlab/knowledge(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/knowledge(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/orquestracao",
+      "regex": "^/interno/agentlab/orquestracao(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/orquestracao(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/training",
+      "regex": "^/interno/agentlab/training(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/training(?:/)?$"
+    },
+    {
+      "page": "/interno/agentlab/workflows",
+      "regex": "^/interno/agentlab/workflows(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/agentlab/workflows(?:/)?$"
+    },
+    {
+      "page": "/interno/ai-task",
+      "regex": "^/interno/ai\\-task(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/ai\\-task(?:/)?$"
+    },
+    {
+      "page": "/interno/aprovacoes",
+      "regex": "^/interno/aprovacoes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/aprovacoes(?:/)?$"
+    },
+    {
+      "page": "/interno/atualizar-senha",
+      "regex": "^/interno/atualizar\\-senha(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/atualizar\\-senha(?:/)?$"
+    },
+    {
+      "page": "/interno/cadastro-inicial",
+      "regex": "^/interno/cadastro\\-inicial(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/cadastro\\-inicial(?:/)?$"
+    },
+    {
+      "page": "/interno/clientes",
+      "regex": "^/interno/clientes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/clientes(?:/)?$"
+    },
+    {
+      "page": "/interno/contacts",
+      "regex": "^/interno/contacts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/contacts(?:/)?$"
+    },
+    {
+      "page": "/interno/copilot",
+      "regex": "^/interno/copilot(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/copilot(?:/)?$"
+    },
+    {
+      "page": "/interno/extensao",
+      "regex": "^/interno/extensao(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/extensao(?:/)?$"
+    },
+    {
+      "page": "/interno/financeiro",
+      "regex": "^/interno/financeiro(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/financeiro(?:/)?$"
+    },
+    {
+      "page": "/interno/integration-kit",
+      "regex": "^/interno/integration\\-kit(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/integration\\-kit(?:/)?$"
+    },
+    {
+      "page": "/interno/jobs",
+      "regex": "^/interno/jobs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/jobs(?:/)?$"
+    },
+    {
+      "page": "/interno/leads",
+      "regex": "^/interno/leads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/leads(?:/)?$"
+    },
+    {
+      "page": "/interno/login",
+      "regex": "^/interno/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/login(?:/)?$"
+    },
+    {
+      "page": "/interno/market-ads",
+      "regex": "^/interno/market\\-ads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/market\\-ads(?:/)?$"
+    },
+    {
+      "page": "/interno/posts",
+      "regex": "^/interno/posts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/posts(?:/)?$"
+    },
+    {
+      "page": "/interno/posts/editar",
+      "regex": "^/interno/posts/editar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/posts/editar(?:/)?$"
+    },
+    {
+      "page": "/interno/posts/novo",
+      "regex": "^/interno/posts/novo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/posts/novo(?:/)?$"
+    },
+    {
+      "page": "/interno/processos",
+      "regex": "^/interno/processos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/processos(?:/)?$"
+    },
+    {
+      "page": "/interno/publicacoes",
+      "regex": "^/interno/publicacoes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/publicacoes(?:/)?$"
+    },
+    {
+      "page": "/interno/recuperar-senha",
+      "regex": "^/interno/recuperar\\-senha(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/recuperar\\-senha(?:/)?$"
+    },
+    {
+      "page": "/interno/setup-integracao",
+      "regex": "^/interno/setup\\-integracao(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/interno/setup\\-integracao(?:/)?$"
+    },
+    {
+      "page": "/llm-test",
+      "regex": "^/llm\\-test(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/llm\\-test(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/meu-painel",
+      "regex": "^/meu\\-painel(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/meu\\-painel(?:/)?$"
+    },
+    {
+      "page": "/portal",
+      "regex": "^/portal(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal(?:/)?$"
+    },
+    {
+      "page": "/portal/consultas",
+      "regex": "^/portal/consultas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/consultas(?:/)?$"
+    },
+    {
+      "page": "/portal/documentos",
+      "regex": "^/portal/documentos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/documentos(?:/)?$"
+    },
+    {
+      "page": "/portal/financeiro",
+      "regex": "^/portal/financeiro(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/financeiro(?:/)?$"
+    },
+    {
+      "page": "/portal/login",
+      "regex": "^/portal/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/login(?:/)?$"
+    },
+    {
+      "page": "/portal/onboarding",
+      "regex": "^/portal/onboarding(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/onboarding(?:/)?$"
+    },
+    {
+      "page": "/portal/perfil",
+      "regex": "^/portal/perfil(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/perfil(?:/)?$"
+    },
+    {
+      "page": "/portal/processos",
+      "regex": "^/portal/processos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/processos(?:/)?$"
+    },
+    {
+      "page": "/portal/processos/detalhe",
+      "regex": "^/portal/processos/detalhe(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/processos/detalhe(?:/)?$"
+    },
+    {
+      "page": "/portal/publicacoes",
+      "regex": "^/portal/publicacoes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/publicacoes(?:/)?$"
+    },
+    {
+      "page": "/portal/tickets",
+      "regex": "^/portal/tickets(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/tickets(?:/)?$"
+    },
+    {
+      "page": "/recuperar-senha",
+      "regex": "^/recuperar\\-senha(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/recuperar\\-senha(?:/)?$"
+    },
+    {
+      "page": "/remarcar",
+      "regex": "^/remarcar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/remarcar(?:/)?$"
+    },
+    {
+      "page": "/servicos",
+      "regex": "^/servicos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/servicos(?:/)?$"
+    }
+  ],
+  "dataRoutes": [
+    {
+      "page": "/blog",
+      "dataRouteRegex": "^/_next/data/J80f\\-MHp_yJD4slQ6\\-GY4/blog\\.json$"
+    },
+    {
+      "page": "/blog/[slug]",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "dataRouteRegex": "^/_next/data/J80f\\-MHp_yJD4slQ6\\-GY4/blog/([^/]+?)\\.json$",
+      "namedDataRouteRegex": "^/_next/data/J80f\\-MHp_yJD4slQ6\\-GY4/blog/(?<nxtPslug>[^/]+?)\\.json$"
+    }
+  ],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
+  }
+}
