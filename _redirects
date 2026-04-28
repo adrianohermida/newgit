@@ -1,2 +1,16 @@
-/llm-test    /llm-test.html   200
+# Gerado automaticamente por scripts/generate-cf-pages-redirects.cjs
+# NÃO edite manualmente — será sobrescrito no próximo build:pages
+
+# API routes → Pages Functions
 /api/*   /api/:splat   200
+
+# Rewrites de páginas estáticas (sem extensão → .html)
+/interno/agentlab/agents   /interno/agentlab/agents.html   200
+/portal/processos/detalhe   /portal/processos/detalhe.html   200
+/interno/login   /interno/login.html   200
+/portal/login   /portal/login.html   200
+/agendamento   /agendamento.html   200
+/servicos   /servicos.html   200
+
+# SPA fallback: rotas não mapeadas → 404
+/*   /404.html   404

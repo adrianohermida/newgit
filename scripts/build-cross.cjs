@@ -44,3 +44,4 @@ run('npm', ['run', 'build:core']);
 run('node', [path.join('scripts', 'normalize-pages-export-assets.js')]);
 run('node', [path.join('scripts', 'copy-manual-to-public.js')]);
 run('node', [path.join('scripts', 'copy-functions-to-out.js')]);
+run('node', [path.join('scripts', 'generate-cf-pages-redirects.cjs')]);

@@ -31,6 +31,7 @@ function run(command, args, extraEnv = {}) {
 
 run("npm", ["run", "build:core"], { STATIC_EXPORT: "1" });
 run("node", [path.join("scripts", "normalize-pages-export-assets.js")], { STATIC_EXPORT: "1" });
+run("node", [path.join("scripts", "generate-cf-pages-redirects.cjs")]);
 
 const outDir = path.join(process.cwd(), "out");
 const requiredStaticExportArtifacts = [

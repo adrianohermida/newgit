@@ -4,7 +4,9 @@ const path = require("path");
 const root = process.cwd();
 const outDir = path.join(root, "out");
 const nextStaticDir = path.join(outDir, "_next", "static");
-const passthroughFiles = ["_redirects", "_headers", "_routes.json"];
+// _redirects e _routes.json são gerados automaticamente por generate-cf-pages-redirects.cjs
+// e NÃO devem ser copiados da raiz (evita sobrescrever o gerado com o estático antigo)
+const passthroughFiles = ["_headers"];
 const passthroughDirs = ["functions"];
 
 function walk(dir, bucket = []) {
