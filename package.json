@@ -93,7 +93,7 @@
     "test:console-log": "node --experimental-vm-modules tests/lawdesk/console-log-utils.test.cjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.101.0",
+    "@supabase/supabase-js": "^2.105.0",
     "framer-motion": "^12.35.2",
     "googleapis": "^171.4.0",
     "lucide-react": "^0.577.0",
