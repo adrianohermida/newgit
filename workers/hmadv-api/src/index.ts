@@ -1,18 +1,12 @@
+import { agendarHandler } from "./agendar";
+
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: any): Promise<Response> {
     const url = new URL(request.url);
 
     // Endpoint de agendamento (POST)
     if (url.pathname === "/api/agendar" && request.method === "POST") {
-      let body = {};
-      try {
-        body = await request.json();
-      } catch {}
-      // Aqui você pode validar e processar o agendamento real
-      return new Response(
-        JSON.stringify({ ok: true, message: "Agendamento recebido! (mock)", recebido: body }),
-        { headers: { "content-type": "application/json" }, status: 200 }
-      );
+      return agendarHandler(request, env);
     }
 
     // Endpoint de teste para autenticação
