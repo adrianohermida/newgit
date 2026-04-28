@@ -15,9 +15,7 @@
     "/*.svg",
     "/*.woff",
     "/*.woff2",
-    "/*.js",
     "/*.css",
-    "/*.json",
     "/*.txt",
     "/*.xml",
     "/*.webmanifest"
