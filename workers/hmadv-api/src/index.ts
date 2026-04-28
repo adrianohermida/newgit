@@ -1,3 +1,7 @@
+export default {
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
     // Endpoint de agendamento (POST)
     if (url.pathname === "/api/agendar" && request.method === "POST") {
       let body = {};
@@ -10,10 +14,6 @@
         { headers: { "content-type": "application/json" }, status: 200 }
       );
     }
-export default {
-  async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-
 
     // Endpoint de teste para autenticação
     if (url.pathname === "/api/admin-auth-config") {
