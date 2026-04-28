@@ -24,6 +24,7 @@ export async function onRequestGet(context) {
     const anonKey =
       cleanEnvValue(env.SUPABASE_ANON_KEY) ||
       cleanEnvValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+      cleanEnvValue(env.SUPABASE_ANON_KEY) ||
       null;
 
     if (!url || !anonKey) {
