@@ -31,6 +31,10 @@ function run(command, args, extraEnv = {}) {
 
 run("npm", ["run", "build:core"], { STATIC_EXPORT: "1" });
 run("node", [path.join("scripts", "normalize-pages-export-assets.js")], { STATIC_EXPORT: "1" });
+// Copia assets manuais e Pages Functions para out/ antes de gerar os redirects
+run("node", [path.join("scripts", "copy-manual-to-public.js")]);
+run("node", [path.join("scripts", "copy-functions-to-out.js")]);
+// Gera _redirects e _routes.json com base nos .html exportados
 run("node", [path.join("scripts", "generate-cf-pages-redirects.cjs")]);
 
 const outDir = path.join(process.cwd(), "out");

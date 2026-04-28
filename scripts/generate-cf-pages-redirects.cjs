@@ -35,6 +35,7 @@ const SKIP_ROUTES = new Set([
 const API_FUNCTION_PATTERNS = ["/api/*"];
 
 // Assets estáticos que nunca devem passar pelas Functions
+// NOTA: Não incluir /*.json aqui pois bloqueia respostas JSON das APIs
 const STATIC_EXCLUDES = [
   "/_next/static/*",
   "/_next/data/*",
@@ -47,9 +48,7 @@ const STATIC_EXCLUDES = [
   "/*.svg",
   "/*.woff",
   "/*.woff2",
-  "/*.js",
   "/*.css",
-  "/*.json",
   "/*.txt",
   "/*.xml",
   "/*.webmanifest",
