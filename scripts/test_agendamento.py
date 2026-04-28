@@ -14,7 +14,7 @@ import random
 import string
 import time
 
-BASE_URL = "http://localhost:8788"  # Altere para a URL do seu ambiente
+BASE_URL = "http://hermidamaia.adv.br"  # Altere para a URL do seu ambiente
 API_AGENDAR = f"{BASE_URL}/api/agendar"
 
 # Dados de teste
