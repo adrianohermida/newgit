@@ -33,10 +33,16 @@ bucket_name = "newgit-copilot-attachment"
 #   Build output directory: out
 #   Deploy command: (deixe vazio — o Pages faz o deploy automaticamente)
 #
-# No Workers Dashboard (worker hmadv-process-ai — workers.cloudflare.com):
-#   Build command: npm run build:pages
+# No Workers Dashboard (worker hmadv-process-ai — ai.hermidamaia.adv.br):
+#   Build command: npm run build:worker
 #   Deploy command: npm run deploy:worker
 #   (O script deploy:worker chama: npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml)
+#
+# No Workers Dashboard (worker hmadv-api — api.hermidamaia.adv.br):
+#   Build command: npm run build:hmadv-api
+#   Deploy command: npm run deploy:hmadv-api
+#   (O script deploy:hmadv-api chama: npx wrangler deploy --config workers/hmadv-api/wrangler.toml)
+#   Serve todas as rotas /api/* que antes eram Pages Functions em functions/api/
 #
 # Importante:
 #   `npm run build` sozinho nao deve ser tratado como contrato de publish do Pages.
