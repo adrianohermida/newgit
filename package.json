@@ -9,7 +9,7 @@
     "build": "set AUTO_DEPLOY_WRANGLER=1&& set ALLOW_STATIC_ONLY_PAGES_DEPLOY=1&& npm run build:core && node scripts/normalize-pages-export-assets.js && node scripts/copy-manual-to-public.js && npm run deploy:pages",
     "build:pages": "node scripts/build-pages-static.cjs",
     "diagnose:pages-assets": "node scripts/diagnose-pages-export-assets.cjs",
-    "deploy:pages": "npm run build:pages && node scripts/guard-pages-static-deploy.cjs && npx wrangler pages deploy out --project-name=newgit-pages",
+    "deploy:pages": "npm run build:pages && node scripts/guard-pages-static-deploy.cjs && npx wrangler pages deploy out --project-name=newgit-pages --branch main",
     "deploy:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/deploy-hmadv-process-ai.ps1",
     "release:cf": "powershell -ExecutionPolicy Bypass -File scripts/release-cloudflare.ps1",
     "release:auto": "powershell -ExecutionPolicy Bypass -File scripts/release-cloudflare.ps1 -UseGitHubWorkerDeploy",

@@ -5,6 +5,7 @@ const root = process.cwd();
 const outDir = path.join(root, "out");
 const nextStaticDir = path.join(outDir, "_next", "static");
 const passthroughFiles = ["_redirects", "_headers", "_routes.json"];
+const passthroughDirs = ["functions"];
 
 function walk(dir, bucket = []) {
   if (!fs.existsSync(dir)) return bucket;
@@ -30,6 +31,17 @@ function copyPassthroughFiles() {
     const target = path.join(outDir, fileName);
     fs.copyFileSync(source, target);
     copied.push(fileName);
+  }
+
+  for (const dirName of passthroughDirs) {
+    const source = path.join(root, dirName);
+    if (!fs.existsSync(source)) continue;
+    const target = path.join(outDir, dirName);
+    if (fs.existsSync(target)) {
+      fs.rmSync(target, { recursive: true, force: true });
+    }
+    fs.cpSync(source, target, { recursive: true });
+    copied.push(dirName);
   }
 
   return copied;
