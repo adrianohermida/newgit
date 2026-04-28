@@ -35,8 +35,15 @@ function listLingeringNextProcessIds() {
       shell: '/bin/sh',
     }).toString().trim();
 
+    // On Linux/CI the grep may match the current process itself (because its
+    // command line contains 'guard-next-build-lock.cjs'). Filter out the
+    // current PID and its parent PID to avoid false-positive self-detection.
+    const currentPid = process.pid;
+    const parentPid = process.ppid;
     return out
-      ? out.split(/\r?\n/).map((line) => Number(line.trim().split(/\s+/)[0])).filter(Boolean)
+      ? out.split(/\r?\n/)
+          .map((line) => Number(line.trim().split(/\s+/)[0]))
+          .filter((pid) => Boolean(pid) && pid !== currentPid && pid !== parentPid)
       : [];
   } catch {
     return [];
