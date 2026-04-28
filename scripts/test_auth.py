@@ -12,31 +12,44 @@ import requests
 BASE_URL = "https://api.hermidamaia.adv.br" # Subdomínio correto da API
 
 # 1. Testar endpoint de configuração pública do Supabase
+
 print("Testando /api/admin-auth-config...")
 resp = requests.get(f"{BASE_URL}/api/admin-auth-config")
 print("Status:", resp.status_code)
-try:
-    data = resp.json()
-    print("Resposta:", data)
-    if not data.get("ok"):
-        print("[ERRO] Configuração pública do Supabase ausente ou inválida.")
+content_type = resp.headers.get("Content-Type", "")
+if "application/json" in content_type:
+    try:
+        data = resp.json()
+        print("Resposta:", data)
+        if not data.get("ok"):
+            print("[ERRO] Configuração pública do Supabase ausente ou inválida.")
+            exit(1)
+    except Exception as e:
+        print("[ERRO] Falha ao decodificar resposta JSON:", e)
+        print(resp.text)
         exit(1)
-except Exception as e:
-    print("[ERRO] Falha ao decodificar resposta JSON:", e)
+else:
+    print("[ERRO] Resposta não é JSON:")
     print(resp.text)
     exit(1)
 
 # 2. Testar endpoint de configuração pública do Freshchat (se usado no login)
+
 print("\nTestando /api/public-chat-config...")
 resp = requests.get(f"{BASE_URL}/api/public-chat-config")
 print("Status:", resp.status_code)
-try:
-    data = resp.json()
-    print("Resposta:", data)
-    if not data.get("ok"):
-        print("[ERRO] Configuração pública do Freshchat ausente ou inválida.")
-except Exception as e:
-    print("[ERRO] Falha ao decodificar resposta JSON:", e)
+content_type = resp.headers.get("Content-Type", "")
+if "application/json" in content_type:
+    try:
+        data = resp.json()
+        print("Resposta:", data)
+        if not data.get("ok"):
+            print("[ERRO] Configuração pública do Freshchat ausente ou inválida.")
+    except Exception as e:
+        print("[ERRO] Falha ao decodificar resposta JSON:", e)
+        print(resp.text)
+else:
+    print("[ERRO] Resposta não é JSON:")
     print(resp.text)
 
 # 3. (Opcional) Testar login Supabase direto (se credenciais de teste disponíveis)
