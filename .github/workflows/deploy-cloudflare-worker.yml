@@ -3,6 +3,9 @@ name: Deploy Cloudflare Worker
 on:
   push:
     branches: ["main"]
+    paths:
+      - "workers/hmadv-process-ai/**"
+      - ".github/workflows/deploy-cloudflare-worker.yml"
   workflow_dispatch:
 
 concurrency:
