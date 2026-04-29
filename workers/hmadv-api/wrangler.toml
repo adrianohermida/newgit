@@ -30,8 +30,8 @@ bucket_name = "newgit-copilot-attachment"
 binding = "AI"
 
 # Cron jobs â€” limpeza de agendamentos expirados e sincronizaÃ§Ã£o diÃ¡ria
-[triggers]
-crons = ["0 7 * * *", "0 */6 * * *"]
+# [triggers]
+# crons = []
 
 # â”€â”€â”€ VariÃ¡veis pÃºblicas (nÃ£o-secretas) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 [vars]
