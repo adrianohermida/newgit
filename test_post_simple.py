@@ -1,0 +1,1 @@
+﻿import requests; r = requests.post('https://api.hermidamaia.adv.br/api/agendar', json={'nome': 'Teste', 'email': 'test@test.com', 'telefone': '11999999999', 'data': '2026-05-04', 'hora': '09:00'}, headers={'Content-Type': 'application/json'}, allow_redirects=False); print(f'Status: {r.status_code}'); print(f'Headers: {dict(r.headers)}'); print(f'Body: {r.text}')
