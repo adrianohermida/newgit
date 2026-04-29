@@ -121,14 +121,14 @@ export async function onRequestPost(context) {
     return jsonResponse(500, { ok: false, status: 'erro', message: 'Erro ao atualizar agendamento no Supabase.', detail: error.message });
   }
 
-  const integrationResult = await runAgendamentoStatusIntegrations(
+  context.waitUntil((async () => { try { const integrationResult = await runAgendamentoStatusIntegrations(
     env,
     supabase,
     { ...updated, remarcacao_clicked_at: nowIso },
     'rescheduled',
     { actionLinks: buildActionLinks(getSiteUrl(env), updated) }
   );
-  const integrationWarnings = integrationResult.warnings;
+  const integrationWarnings = integrationResult.warnings; } catch (err) { console.error(err); } })());
   if (integrationResult.zoomSnapshot) {
     updated = { ...updated, ...integrationResult.zoomSnapshot };
   }

@@ -126,7 +126,7 @@ export async function onRequestGet(context) {
   }
   let agendamentoConfirmado = updatedRows[0];
   let integrationWarnings = [];
-  const integrationResult = await runAgendamentoStatusIntegrations(
+  context.waitUntil((async () => { try { const integrationResult = await runAgendamentoStatusIntegrations(
     env,
     { supabaseUrl, supabaseKey },
     { ...agendamentoConfirmado, confirmation_clicked_at: confirmedAt },

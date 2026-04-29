@@ -115,14 +115,14 @@ export async function onRequestPost(context) {
     return jsonResponse(500, { ok: false, status: "erro", message: "Erro ao cancelar agendamento.", detail: error.message });
   }
 
-  const integrationResult = await runAgendamentoStatusIntegrations(
+  context.waitUntil((async () => { try { const integrationResult = await runAgendamentoStatusIntegrations(
     env,
     supabase,
     { ...updated, cancellation_clicked_at: cancelledAt },
     "cancelled",
     { actionLinks }
   );
-  const integrationWarnings = integrationResult.warnings;
+  const integrationWarnings = integrationResult.warnings; } catch (err) { console.error(err); } })());
 
   const dataFormatada = formatAgendamentoDate(updated.data, "12:00");
   const emailClienteHtml = `
