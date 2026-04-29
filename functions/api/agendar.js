@@ -261,7 +261,7 @@ export async function onRequestPost(context) {
     }
   }
 
-  let zoomSnapshot = null;
+  context.waitUntil((async () => {\n    try {\n  let zoomSnapshot = null;
   if (googleEventId) {
     const integrationResult = await runAgendamentoBookedIntegrations(
       env,
@@ -332,7 +332,7 @@ export async function onRequestPost(context) {
   await Promise.all([
     sendTransactionalEmail(env, email, 'Seu agendamento foi recebido', emailClienteHtml),
     sendTransactionalEmail(env, INTERNAL_RECIPIENTS, 'Novo agendamento recebido', emailInternoHtml),
-  ]);
+  ]);\n    } catch (err) { console.error(err); }\n  })());
 
   return new Response(JSON.stringify({
     ok: true,
