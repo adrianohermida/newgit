@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
 import AreaStep from "./steps/AreaStep";
 import DateStep from "./steps/DateStep";
@@ -6,13 +6,13 @@ import ClientStep from "./steps/ClientStep";
 import SuccessStep from "./steps/SuccessStep";
 import { formatDateKey } from "./dateUtils";
 
-// DEBUG: Log para garantir que o componente está sendo renderizado
+// DEBUG: Log para garantir que o componente estÃ¡ sendo renderizado
 if (typeof window !== "undefined") {
   console.log("[AgendamentoForm] Componente carregado");
 }
 const AREAS = [
-  { id: "superendividamento", title: "Superendividamento", desc: "Recuperação financeira e judicial" },
-  { id: "bancario", title: "Direito Bancário", desc: "Revisão de contratos e juros" },
+  { id: "superendividamento", title: "Superendividamento", desc: "RecuperaÃ§Ã£o financeira e judicial" },
+  { id: "bancario", title: "Direito BancÃ¡rio", desc: "RevisÃ£o de contratos e juros" },
   { id: "civil", title: "Direito Civil", desc: "Causas gerais e contratos" },
   { id: "outros", title: "Outros Assuntos", desc: "Consultoria diversificada" },
 ];
@@ -67,17 +67,17 @@ export default function AgendamentoForm() {
     return fallbackMessage;
   }
 
-  // Utilitário para obter a base da API (Cloudflare/produção ou local)
+  // UtilitÃ¡rio para obter a base da API (Cloudflare/produÃ§Ã£o ou local)
   function getApiBase() {
     if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-      // wrangler pages dev usa 8788 por padrão
+      // wrangler pages dev usa 8788 por padrÃ£o
       const port = window.location.port || "8788";
       return `http://localhost:${port}/api`;
     }
-    return "/api";
+    return "https://api.hermidamaia.adv.br/api";
   }
 
-  // Funções para navegação de mês
+  // FunÃ§Ãµes para navegaÃ§Ã£o de mÃªs
   function handlePrevMonth() {
     setCurrentMonth(prev => {
       const d = new Date(prev);
@@ -93,14 +93,14 @@ export default function AgendamentoForm() {
     });
   }
 
-  // Retorna todos os dias do mês atual para o calendário
+  // Retorna todos os dias do mÃªs atual para o calendÃ¡rio
   function getDaysInMonth() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const days = [];
-    // Preencher dias do mês anterior para alinhar o calendário
+    // Preencher dias do mÃªs anterior para alinhar o calendÃ¡rio
     for (let i = 0; i < firstDay.getDay(); i++) {
       days.push({ date: new Date(year, month, i - firstDay.getDay() + 1), isPrevMonth: true });
     }
@@ -110,7 +110,7 @@ export default function AgendamentoForm() {
     return days;
   }
 
-  // Retorna horários disponíveis para o dia selecionado
+  // Retorna horÃ¡rios disponÃ­veis para o dia selecionado
   function getAvailableTimes(date) {
     if (!date) return [];
     const dateStr = formatDateKey(date);
@@ -252,4 +252,6 @@ export default function AgendamentoForm() {
     </div>
   );
 }
+
+
 
