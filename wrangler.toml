@@ -5,9 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "out"
 
 # Rotas customizadas para o site principal
-routes = [
-	{ pattern = "hermidamaia.adv.br", custom_domain = true }
-]
+# routes = [
+# 	{ pattern = "hermidamaia.adv.br", custom_domain = true }
+# ]
 
 [ai]
 binding = "AI"

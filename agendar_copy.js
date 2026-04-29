@@ -1,11 +1,11 @@
-﻿import { getGoogleAccessToken } from '../lib/google-auth.js';
+import { getGoogleAccessToken } from '../lib/google-auth.js';
 import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
 import { getSupabaseBaseUrl, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
 import { buildActionLinks, formatAgendamentoDate, INTERNAL_RECIPIENTS, sendTransactionalEmail, getSiteUrl } from '../lib/agendamento-helpers.js';
 import { runAgendamentoBookedIntegrations } from '../lib/agendamento-integrations.js';
 
-// FunÃ§Ã£o simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
-// FunÃ§Ã£o para gerar uuidv4 (Cloudflare)
+// Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
+// Função para gerar uuidv4 (Cloudflare)
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -18,22 +18,22 @@ export async function onRequestPost(context) {
   const body = await request.json();
   const { nome, email, telefone, observacoes, area, data, hora } = body;
 
-  // ValidaÃ§Ã£o de campos obrigatÃ³rios
+  // Validação de campos obrigatórios
   const camposFaltando = [];
   if (!nome) camposFaltando.push('Nome');
   if (!email) camposFaltando.push('E-mail');
   if (!telefone) camposFaltando.push('Telefone');
-  if (!area) camposFaltando.push('Ãrea de interesse');
+  if (!area) camposFaltando.push('Área de interesse');
   if (!data) camposFaltando.push('Data');
   if (!hora) camposFaltando.push('Hora');
   if (camposFaltando.length > 0) {
     return new Response(JSON.stringify({
       ok: false,
-      error: `Por favor, preencha os seguintes campos obrigatÃ³rios: ${camposFaltando.join(', ')}.`
+      error: `Por favor, preencha os seguintes campos obrigatórios: ${camposFaltando.join(', ')}.`
     }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Checar se o slot estÃ¡ realmente disponÃ­vel no Google Calendar
+  // Checar se o slot está realmente disponível no Google Calendar
   const slotStart = `${data}T${hora}:00-03:00`;
   const slotEndHour = String(Number(hora.split(':')[0]) + 1).padStart(2, '0');
   const slotEnd = `${data}T${slotEndHour}:${hora.split(':')[1]}:00-03:00`;
@@ -77,10 +77,10 @@ export async function onRequestPost(context) {
   const freebusy = await freebusyResp.json();
   const isBusy = freebusy.calendars['primary'].busy.length > 0;
   if (isBusy) {
-    return new Response(JSON.stringify({ ok: false, error: 'HorÃ¡rio jÃ¡ estÃ¡ ocupado. Escolha outro.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ ok: false, error: 'Horário já está ocupado. Escolha outro.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Gerar ID Ãºnico e token de confirmaÃ§Ã£o
+  // Gerar ID único e token de confirmação
   const agendamentoId = uuidv4();
   const tokenConfirmacao = uuidv4();
   const tokenCancelamento = uuidv4();
@@ -89,7 +89,7 @@ export async function onRequestPost(context) {
   const adminTokenCancelamento = uuidv4();
   const adminTokenRemarcacao = uuidv4();
 
-  // Persistir no Supabase (inclui token de confirmaÃ§Ã£o)
+  // Persistir no Supabase (inclui token de confirmação)
   const supabaseUrl = getSupabaseBaseUrl(env);
   const supabaseKey = getSupabaseServerKey(env);
   const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
@@ -161,8 +161,8 @@ export async function onRequestPost(context) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      summary: `Consulta JurÃ­dica - ${area}`,
-      description: `Cliente: ${nome} (${email})\nTelefone: ${telefone}\nObservaÃ§Ãµes: ${observacoes}`,
+      summary: `Consulta Jurídica - ${area}`,
+      description: `Cliente: ${nome} (${email})\nTelefone: ${telefone}\nObservações: ${observacoes}`,
       start: { dateTime: slotStart, timeZone: 'America/Sao_Paulo' },
       end: { dateTime: slotEnd, timeZone: 'America/Sao_Paulo' },
       attendees: [{ email }],
@@ -172,7 +172,7 @@ export async function onRequestPost(context) {
     const errorDetail = await eventResp.text().catch(() => '');
     console.error('Google Calendar create event error:', errorDetail || eventResp.status);
 
-    // CompensaÃ§Ã£o: nÃ£o deixar registro pendente Ã³rfÃ£o se o evento nÃ£o foi criado.
+    // Compensação: não deixar registro pendente órfão se o evento não foi criado.
     const rollbackResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
       method: 'DELETE',
       headers: {
@@ -221,7 +221,7 @@ export async function onRequestPost(context) {
       const updateDetail = await updateResp.text().catch(() => '');
       console.error('Supabase update google_event_id error:', updateDetail || updateResp.status);
 
-      // CompensaÃ§Ã£o: remover o evento criado para nÃ£o deixar estado parcial entre Google e Supabase.
+      // Compensação: remover o evento criado para não deixar estado parcial entre Google e Supabase.
       const deleteEventResp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}`, {
         method: 'DELETE',
         headers: {
@@ -290,13 +290,13 @@ export async function onRequestPost(context) {
   const emailClienteHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#050706;color:#F4F1EA;padding:32px;border-radius:12px">
   <h2 style="color:#C5A059;margin-top:0">Pedido de Agendamento Recebido</h2>
-  <p>OlÃ¡, <strong>${nome}</strong>!</p>
-  <p>Recebemos seu pedido de consulta jurÃ­dica. Use os links abaixo para confirmar, cancelar ou remarcar seu horÃ¡rio com seguranÃ§a.</p>
+  <p>Olá, <strong>${nome}</strong>!</p>
+  <p>Recebemos seu pedido de consulta jurídica. Use os links abaixo para confirmar, cancelar ou remarcar seu horário com segurança.</p>
   <table style="width:100%;border-collapse:collapse;margin:24px 0">
-    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Ãrea</td><td style="padding:8px">${area}</td></tr>
+    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Área</td><td style="padding:8px">${area}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Data</td><td style="padding:8px">${dataFormatada}</td></tr>
-    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">HorÃ¡rio</td><td style="padding:8px">${hora}</td></tr>
-    ${zoomSnapshot?.zoom_join_url ? `<tr><td style="padding:8px;color:#C5A059;font-weight:bold">Sala virtual</td><td style="padding:8px"><a href="${zoomSnapshot.zoom_join_url}" style="color:#C5A059">Acessar reuniÃ£o no Zoom</a></td></tr>` : ''}
+    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Horário</td><td style="padding:8px">${hora}</td></tr>
+    ${zoomSnapshot?.zoom_join_url ? `<tr><td style="padding:8px;color:#C5A059;font-weight:bold">Sala virtual</td><td style="padding:8px"><a href="${zoomSnapshot.zoom_join_url}" style="color:#C5A059">Acessar reunião no Zoom</a></td></tr>` : ''}
   </table>
   <div style="margin:20px 0">
     <a href="${actionLinks.cliente.confirmar}" style="display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 8px 8px 0">Confirmar</a>
@@ -304,21 +304,21 @@ export async function onRequestPost(context) {
     <a href="${actionLinks.cliente.cancelar}" style="display:inline-block;background:#7f1d1d;color:#F4F1EA;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 0">Cancelar</a>
   </div>
   <p style="font-size:12px;color:#888;margin-top:24px">
-    Os links sÃ£o protegidos e vinculados ao seu agendamento. Se nÃ£o foi vocÃª, ignore este e-mail.
+    Os links são protegidos e vinculados ao seu agendamento. Se não foi você, ignore este e-mail.
   </p>
 </div>`;
 
   const emailInternoHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-  <h2>Novo Agendamento â€” ${area}</h2>
-  <p>Use os links abaixo para confirmar, cancelar ou remarcar este agendamento em nome do escritÃ³rio.</p>
+  <h2>Novo Agendamento — ${area}</h2>
+  <p>Use os links abaixo para confirmar, cancelar ou remarcar este agendamento em nome do escritório.</p>
   <table style="border-collapse:collapse;width:100%">
     <tr><td style="padding:6px;font-weight:bold">Nome</td><td style="padding:6px">${nome}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">E-mail</td><td style="padding:6px">${email}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">Telefone</td><td style="padding:6px">${telefone}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">Data</td><td style="padding:6px">${data}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">Hora</td><td style="padding:6px">${hora}</td></tr>
-    <tr><td style="padding:6px;font-weight:bold">ObservaÃ§Ãµes</td><td style="padding:6px">${observacoes || 'â€”'}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Observações</td><td style="padding:6px">${observacoes || '—'}</td></tr>
     ${zoomSnapshot?.zoom_join_url ? `<tr><td style="padding:6px;font-weight:bold">Zoom</td><td style="padding:6px"><a href="${zoomSnapshot.zoom_join_url}">${zoomSnapshot.zoom_join_url}</a></td></tr>` : ''}
   </table>
   <div style="margin:20px 0">
@@ -328,7 +328,7 @@ export async function onRequestPost(context) {
   </div>
 </div>`;
 
-  // Disparar ambos os e-mails em paralelo (nÃ£o bloqueia retorno ao cliente)
+  // Disparar ambos os e-mails em paralelo (não bloqueia retorno ao cliente)
   await Promise.all([
     sendTransactionalEmail(env, email, 'Seu agendamento foi recebido', emailClienteHtml),
     sendTransactionalEmail(env, INTERNAL_RECIPIENTS, 'Novo agendamento recebido', emailInternoHtml),
@@ -348,5 +348,3 @@ export async function onRequestPost(context) {
     headers: { 'Content-Type': 'application/json' },
   });
 }
-
-
