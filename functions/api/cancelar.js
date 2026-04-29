@@ -1,4 +1,4 @@
-import {
+﻿import {
   INTERNAL_RECIPIENTS,
   buildActionLinks,
   deleteGoogleEvent,
@@ -36,7 +36,7 @@ export async function onRequestGet(context) {
   try {
     const result = await fetchAgendamentoByToken(supabase.supabaseUrl, supabase.supabaseKey, token, TOKEN_MAPPINGS);
     if (!result) {
-      return jsonResponse(404, { ok: false, status: "erro", message: "Agendamento não encontrado para este link." });
+      return jsonResponse(404, { ok: false, status: "erro", message: "Agendamento n├úo encontrado para este link." });
     }
 
     const { row, actor } = result;
@@ -54,8 +54,8 @@ export async function onRequestGet(context) {
         dataFormatada: formatAgendamentoDate(row.data, "12:00"),
       },
       message: row.status === "cancelado"
-        ? "Este agendamento já foi cancelado anteriormente."
-        : "Confirme o cancelamento para liberar o horário.",
+        ? "Este agendamento j├í foi cancelado anteriormente."
+        : "Confirme o cancelamento para liberar o hor├írio.",
       wantsJson,
     });
   } catch (error) {
@@ -83,13 +83,13 @@ export async function onRequestPost(context) {
   }
 
   if (!result) {
-    return jsonResponse(404, { ok: false, status: "erro", message: "Agendamento não encontrado para este link." });
+    return jsonResponse(404, { ok: false, status: "erro", message: "Agendamento n├úo encontrado para este link." });
   }
 
   const { row, actor } = result;
   const actionLinks = buildActionLinks(getSiteUrl(env), row);
   if (row.status === "cancelado") {
-    return jsonResponse(200, { ok: true, status: "ja_cancelado", message: "Este agendamento já estava cancelado." });
+    return jsonResponse(200, { ok: true, status: "ja_cancelado", message: "Este agendamento j├í estava cancelado." });
   }
 
   try {
@@ -128,21 +128,21 @@ export async function onRequestPost(context) {
   const emailClienteHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#050706;color:#F4F1EA;padding:32px;border-radius:12px">
   <h2 style="color:#C5A059;margin-top:0">Agendamento Cancelado</h2>
-  <p>Olá, <strong>${updated.nome}</strong>!</p>
-  <p>Seu agendamento em ${dataFormatada}, às ${updated.hora}, foi cancelado com sucesso.</p>
-  <p style="font-size:13px;color:#aaa">Se precisar, você pode solicitar um novo horário em hermidamaia.adv.br/agendamento.</p>
+  <p>Ol├í, <strong>${updated.nome}</strong>!</p>
+  <p>Seu agendamento em ${dataFormatada}, ├ás ${updated.hora}, foi cancelado com sucesso.</p>
+  <p style="font-size:13px;color:#aaa">Se precisar, voc├¬ pode solicitar um novo hor├írio em hermidamaia.adv.br/agendamento.</p>
 </div>`;
 
   const emailInternoHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-  <h2>Agendamento Cancelado — ${updated.nome}</h2>
-  <p>Ação realizada por: <strong>${actor}</strong>.</p>
+  <h2>Agendamento Cancelado ÔÇö ${updated.nome}</h2>
+  <p>A├º├úo realizada por: <strong>${actor}</strong>.</p>
   <p>${updated.area} | ${updated.data} | ${updated.hora}</p>
 </div>`;
 
   await Promise.all([
     sendTransactionalEmail(env, updated.email, "Seu agendamento foi cancelado - Hermida Maia Advocacia", emailClienteHtml),
-    sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento cancelado — ${updated.nome}`, emailInternoHtml),
+    sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento cancelado ÔÇö ${updated.nome}`, emailInternoHtml),
   ]);
 
   return jsonResponse(200, {
