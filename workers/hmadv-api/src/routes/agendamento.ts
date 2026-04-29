@@ -101,3 +101,4 @@ export async function handleAgendamento(
   return jsonError('Rota de agendamento nÃ£o encontrada', 404);
 }
 
+
