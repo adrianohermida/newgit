@@ -1,15 +1,13 @@
-name = "hmadv-api"
+﻿name = "hmadv-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-31"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 
-# Domínio customizado — todas as chamadas a api.hermidamaia.adv.br chegam aqui
-routes = [
-  { pattern = "api.hermidamaia.adv.br/*", custom_domain = true }
-]
+# DomÃ­nio customizado â€” todas as chamadas a api.hermidamaia.adv.br chegam aqui
+# routes configuradas no Cloudflare Dashboard
 
-# ─── Bindings ────────────────────────────────────────────────────────────────
+# â”€â”€â”€ Bindings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 # Banco D1 compartilhado com o Pages (agendamentos, copilot, etc.)
 [[d1_databases]]
@@ -17,30 +15,30 @@ binding = "DB"
 database_name = "hmadv-process-ai"
 database_id = "1d61b217-289f-468d-9d29-40abb8a23a85"
 
-# KV — cache de documentação Cloudflare e outros
+# KV â€” cache de documentaÃ§Ã£o Cloudflare e outros
 [[kv_namespaces]]
 binding = "CLOUDFLARE_DOCS_KV"
 id = "3162a38a5bc24b85913891043f86d9c8"
 
-# R2 — anexos do Copilot
+# R2 â€” anexos do Copilot
 [[r2_buckets]]
 binding = "COPILOT_ATTACHMENTS_BUCKET"
 bucket_name = "newgit-copilot-attachment"
 
-# Workers AI — usado pelo Copilot e Dotobot
+# Workers AI â€” usado pelo Copilot e Dotobot
 [ai]
 binding = "AI"
 
-# Cron jobs — limpeza de agendamentos expirados e sincronização diária
+# Cron jobs â€” limpeza de agendamentos expirados e sincronizaÃ§Ã£o diÃ¡ria
 [triggers]
 crons = ["0 7 * * *", "0 */6 * * *"]
 
-# ─── Variáveis públicas (não-secretas) ───────────────────────────────────────
+# â”€â”€â”€ VariÃ¡veis pÃºblicas (nÃ£o-secretas) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 [vars]
 SITE_URL = "https://hermidamaia.adv.br"
 CLOUDFLARE_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 
-# ─── Secrets esperados (configurar via Dashboard ou wrangler secret put) ─────
+# â”€â”€â”€ Secrets esperados (configurar via Dashboard ou wrangler secret put) â”€â”€â”€â”€â”€
 # SUPABASE_URL
 # SUPABASE_ANON_KEY
 # SUPABASE_SERVICE_ROLE_KEY
