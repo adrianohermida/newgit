@@ -1,10 +1,11 @@
-/**
+﻿/**
  * Handler de rotas do Freshdesk.
  * Porta a Pages Function: freshdesk-ticket.
  */
 
 import type { Env } from '../env.d';
-import { methodNotAllowed, missingEnvResponse } from '../lib/response';
+import { methodNotAllowed } from '../lib/response';
+import { missingEnvResponse } from '../lib/env';
 
 function makeContext(request: Request, env: Env) {
   return { request, env, params: {}, next: async () => new Response('not found', { status: 404 }) };
