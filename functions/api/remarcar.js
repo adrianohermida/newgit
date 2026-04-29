@@ -1,4 +1,4 @@
-import {
+﻿import {
   INTERNAL_RECIPIENTS,
   buildActionLinks,
   ensureSlotAvailable,
@@ -24,7 +24,7 @@ export async function onRequestGet(context) {
   const token = url.searchParams.get('token')?.trim();
 
   if (!token) {
-    return jsonResponse(400, { ok: false, status: 'erro', message: 'Token de remarcação ausente.' });
+    return jsonResponse(400, { ok: false, status: 'erro', message: 'Token de remarca├º├úo ausente.' });
   }
 
   const supabase = getSupabaseContext(env);
@@ -35,7 +35,7 @@ export async function onRequestGet(context) {
   try {
     const result = await fetchAgendamentoByToken(supabase.supabaseUrl, supabase.supabaseKey, token, TOKEN_MAPPINGS);
     if (!result) {
-      return jsonResponse(404, { ok: false, status: 'erro', message: 'Agendamento não encontrado para este link.' });
+      return jsonResponse(404, { ok: false, status: 'erro', message: 'Agendamento n├úo encontrado para este link.' });
     }
 
     const { row, actor } = result;
@@ -52,10 +52,10 @@ export async function onRequestGet(context) {
         status: row.status,
         dataFormatada: formatAgendamentoDate(row.data, '12:00'),
       },
-      message: 'Escolha um novo horário disponível para concluir a remarcação.',
+      message: 'Escolha um novo hor├írio dispon├¡vel para concluir a remarca├º├úo.',
     });
   } catch (error) {
-    return jsonResponse(500, { ok: false, status: 'erro', message: 'Erro ao carregar dados da remarcação.', detail: error.message });
+    return jsonResponse(500, { ok: false, status: 'erro', message: 'Erro ao carregar dados da remarca├º├úo.', detail: error.message });
   }
 }
 
@@ -79,15 +79,15 @@ export async function onRequestPost(context) {
   }
 
   if (!result) {
-    return jsonResponse(404, { ok: false, status: 'erro', message: 'Agendamento não encontrado para este link.' });
+    return jsonResponse(404, { ok: false, status: 'erro', message: 'Agendamento n├úo encontrado para este link.' });
   }
 
   const { row, actor } = result;
   if (row.status === 'cancelado') {
-    return jsonResponse(409, { ok: false, status: 'erro', message: 'Agendamentos cancelados não podem ser remarcados.' });
+    return jsonResponse(409, { ok: false, status: 'erro', message: 'Agendamentos cancelados n├úo podem ser remarcados.' });
   }
   if (row.data === data && row.hora === hora) {
-    return jsonResponse(400, { ok: false, status: 'erro', message: 'Escolha um horário diferente do atual para remarcar.' });
+    return jsonResponse(400, { ok: false, status: 'erro', message: 'Escolha um hor├írio diferente do atual para remarcar.' });
   }
 
   const slotCheck = await ensureSlotAvailable(env, data, hora, row.google_event_id);
@@ -141,12 +141,12 @@ export async function onRequestPost(context) {
   const emailClienteHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#050706;color:#F4F1EA;padding:32px;border-radius:12px">
   <h2 style="color:#C5A059;margin-top:0">Agendamento Remarcado</h2>
-  <p>Olá, <strong>${updated.nome}</strong>!</p>
+  <p>Ol├í, <strong>${updated.nome}</strong>!</p>
   <p>Seu atendimento foi remarcado com sucesso.</p>
   <table style="width:100%;border-collapse:collapse;margin:24px 0">
-    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Horário anterior</td><td style="padding:8px">${originalDataFormatada} às ${row.hora}</td></tr>
-    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Novo horário</td><td style="padding:8px">${dataFormatada} às ${updated.hora}</td></tr>
-    ${updated.zoom_join_url ? `<tr><td style="padding:8px;color:#C5A059;font-weight:bold">Sala virtual</td><td style="padding:8px"><a href="${updated.zoom_join_url}" style="color:#C5A059">Entrar na reunião do Zoom</a></td></tr>` : ''}
+    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Hor├írio anterior</td><td style="padding:8px">${originalDataFormatada} ├ás ${row.hora}</td></tr>
+    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Novo hor├írio</td><td style="padding:8px">${dataFormatada} ├ás ${updated.hora}</td></tr>
+    ${updated.zoom_join_url ? `<tr><td style="padding:8px;color:#C5A059;font-weight:bold">Sala virtual</td><td style="padding:8px"><a href="${updated.zoom_join_url}" style="color:#C5A059">Entrar na reuni├úo do Zoom</a></td></tr>` : ''}
   </table>
   <div style="margin:20px 0">
     <a href="${actionLinks.cliente.confirmar}" style="display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 8px 8px 0">Confirmar</a>
@@ -156,15 +156,15 @@ export async function onRequestPost(context) {
 
   const emailInternoHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-  <h2>Agendamento Remarcado — ${updated.nome}</h2>
-  <p>Ação realizada por: <strong>${actor}</strong>.</p>
-  <p>Anterior: ${row.data} às ${row.hora}</p>
-  <p>Novo: ${updated.data} às ${updated.hora}</p>
+  <h2>Agendamento Remarcado ÔÇö ${updated.nome}</h2>
+  <p>A├º├úo realizada por: <strong>${actor}</strong>.</p>
+  <p>Anterior: ${row.data} ├ás ${row.hora}</p>
+  <p>Novo: ${updated.data} ├ás ${updated.hora}</p>
 </div>`;
 
   await Promise.all([
     sendTransactionalEmail(env, updated.email, 'Seu agendamento foi remarcado - Hermida Maia Advocacia', emailClienteHtml),
-    sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento remarcado — ${updated.nome}`, emailInternoHtml),
+    sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento remarcado ÔÇö ${updated.nome}`, emailInternoHtml),
   ]);
 
   return jsonResponse(200, {
