@@ -1,4 +1,4 @@
-// functions/_middleware.js
+﻿// functions/_middleware.js
 // Cloudflare Pages Middleware - valida variaveis de ambiente obrigatorias para /api/*
 // Executa antes de qualquer funcao em functions/api/
 
@@ -227,4 +227,13 @@ export async function onRequest(context) {
   }
 
   return next();
+}
+
+
+// Redirecionamento para o worker hmadv-api
+if (url.pathname.startsWith('/api/')) {
+  const apiUrl = new URL(url);
+  apiUrl.hostname = 'api.hermidamaia.adv.br';
+  const response = await fetch(new Request(apiUrl, request));
+  return response;
 }
