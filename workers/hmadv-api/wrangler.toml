@@ -1,4 +1,4 @@
-﻿name = "hmadv-api"
+name = "hmadv-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-31"
 compatibility_flags = ["nodejs_compat"]
@@ -39,7 +39,7 @@ SITE_URL = "https://hermidamaia.adv.br"
 CLOUDFLARE_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 
 # â”€â”€â”€ Secrets esperados (configurar via Dashboard ou wrangler secret put) â”€â”€â”€â”€â”€
-SUPABASE_URL = ""
+SUPABASE_URL = "https://sspvizogbcyigquqycsz.supabase.co"
 # SUPABASE_ANON_KEY
 # SUPABASE_SERVICE_ROLE_KEY
 # GOOGLE_CLIENT_ID
