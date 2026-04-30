@@ -1,7 +1,10 @@
 {
   "version": 1,
   "include": [
-    "/api/*"
+    "/api/*",
+    "/confirmar*",
+    "/cancelar*",
+    "/remarcar*"
   ],
   "exclude": [
     "/_next/static/*",
