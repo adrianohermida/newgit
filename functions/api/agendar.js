@@ -15,7 +15,8 @@ function uuidv4() {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const isDev = (env && (env.NODE_ENV === 'development' || env.ENV === 'dev' || env.ENV === 'development'));
+  // Sempre mostrar detalhes de erro e env para debug
+  const debugEnv = env;
   const body = await request.json();
   const { nome, email, telefone, observacoes, area, data, hora } = body;
 
@@ -151,7 +152,7 @@ export async function onRequestPost(context) {
       detail: errorDetail || `HTTP ${insertResp.status}`,
       stage: 'supabase_insert',
       migrationHint,
-      env: isDev ? env : undefined,
+      env: debugEnv,
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
@@ -193,7 +194,7 @@ export async function onRequestPost(context) {
       detail: errorDetail || `HTTP ${eventResp.status}`,
       stage: 'google_calendar_create',
       rollbackOk: rollbackResp.ok,
-      env: isDev ? env : undefined,
+      env: debugEnv,
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const eventData = await eventResp.json();
