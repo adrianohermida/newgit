@@ -17,6 +17,7 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   // Sempre mostrar detalhes de erro e env para debug
   const debugEnv = env;
+  console.log("[DEBUG] Handler agendar.js ATIVO - Versão de debug em execução");
   const body = await request.json();
   const { nome, email, telefone, observacoes, area, data, hora } = body;
 
