@@ -39,14 +39,14 @@ export function buildSlotBounds(data, hora) {
 export function buildActionLinks(siteUrl, row) {
   return {
     cliente: {
-      confirmar: `${siteUrl}/confirmar?token=${row.token_confirmacao}`,
-      cancelar: `${siteUrl}/cancelar?token=${row.token_cancelamento}`,
-      remarcar: `${siteUrl}/remarcar?token=${row.token_remarcacao}`,
+      confirmar: `${siteUrl}/api/confirmar?token=${row.token_confirmacao}`,
+      cancelar: `${siteUrl}/api/cancelar?token=${row.token_cancelamento}`,
+      remarcar: `${siteUrl}/api/remarcar?token=${row.token_remarcacao}`,
     },
     advogado: {
-      confirmar: `${siteUrl}/confirmar?token=${row.admin_token_confirmacao}`,
-      cancelar: `${siteUrl}/cancelar?token=${row.admin_token_cancelamento}`,
-      remarcar: `${siteUrl}/remarcar?token=${row.admin_token_remarcacao}`,
+      confirmar: `${siteUrl}/api/confirmar?token=${row.admin_token_confirmacao}`,
+      cancelar: `${siteUrl}/api/cancelar?token=${row.admin_token_cancelamento}`,
+      remarcar: `${siteUrl}/api/remarcar?token=${row.admin_token_remarcacao}`,
     },
   };
 }
