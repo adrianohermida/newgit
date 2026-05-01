@@ -18,8 +18,10 @@ export async function onRequestPost(context) {
   // Sempre mostrar detalhes de erro e env para debug
   const debugEnv = env;
   console.log("[DEBUG] Handler agendar.js ATIVO - Versão de debug em execução");
+  console.log("[DEBUG] Iniciando parse do body JSON");
   const body = await request.json();
   const { nome, email, telefone, observacoes, area, data, hora } = body;
+  console.log("[DEBUG] Body recebido:", body);
 
   // Validação de campos obrigatórios
   const camposFaltando = [];
@@ -41,6 +43,7 @@ export async function onRequestPost(context) {
   const slotEndHour = String(Number(hora.split(':')[0]) + 1).padStart(2, '0');
   const slotEnd = `${data}T${slotEndHour}:${hora.split(':')[1]}:00-03:00`;
   const slotStartDate = new Date(slotStart);
+  console.log("[DEBUG] Checando se slot é bookable");
   if (!isSlotBookable(slotStartDate)) {
     return new Response(JSON.stringify({
       ok: false,
@@ -54,13 +57,17 @@ export async function onRequestPost(context) {
   let accessToken;
   let authMeta;
   try {
+    console.log("[DEBUG] Solicitando access token do Google");
     authMeta = await getGoogleAccessToken(env);
     accessToken = authMeta.accessToken;
+    console.log("[DEBUG] Access token obtido");
   } catch (e) {
+    console.error("[ERRO] Falha ao obter access token do Google:", e);
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.', detail: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
   // 2. Consulta FreeBusy via REST API
+  console.log("[DEBUG] Consultando disponibilidade no Google Calendar");
   const freebusyResp = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
     method: 'POST',
     headers: {
@@ -75,15 +82,18 @@ export async function onRequestPost(context) {
     })
   });
   if (!freebusyResp.ok) {
+    console.error("[ERRO] Falha ao consultar disponibilidade no Google Calendar");
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao consultar disponibilidade.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const freebusy = await freebusyResp.json();
   const isBusy = freebusy.calendars['primary'].busy.length > 0;
+  console.log("[DEBUG] Resultado freebusy:", freebusy);
   if (isBusy) {
     return new Response(JSON.stringify({ ok: false, error: 'Horário já está ocupado. Escolha outro.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
   }
 
   // Gerar ID único e token de confirmação
+  console.log("[DEBUG] Slot disponível, gerando tokens e IDs");
   const agendamentoId = uuidv4();
   const tokenConfirmacao = uuidv4();
   const tokenCancelamento = uuidv4();
@@ -93,6 +103,7 @@ export async function onRequestPost(context) {
   const adminTokenRemarcacao = uuidv4();
 
   // Persistir no Supabase (inclui token de confirmação)
+  console.log("[DEBUG] Obtendo variáveis do Supabase");
   const supabaseUrl = getSupabaseBaseUrl(env);
   const supabaseKey = getSupabaseServerKey(env);
   const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
@@ -113,6 +124,7 @@ export async function onRequestPost(context) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const nowIso = new Date().toISOString();
+  console.log("[DEBUG] Inserindo agendamento no Supabase");
   const insertResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos`, {
     method: 'POST',
     headers: {
@@ -142,6 +154,7 @@ export async function onRequestPost(context) {
     })
   });
   if (!insertResp.ok) {
+    console.error("[ERRO] Falha ao inserir agendamento no Supabase");
     const errorDetail = await insertResp.text().catch(() => '');
     console.error('Supabase insert error:', errorDetail || insertResp.status);
     const migrationHint = errorDetail.includes("admin_token_cancelamento")
@@ -158,6 +171,7 @@ export async function onRequestPost(context) {
   }
 
   // Criar evento no Google Calendar
+  console.log("[DEBUG] Criando evento no Google Calendar");
   const eventResp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events`, {
     method: 'POST',
     headers: {
@@ -173,6 +187,7 @@ export async function onRequestPost(context) {
     })
   });
   if (!eventResp.ok) {
+    console.error("[ERRO] Falha ao criar evento no Google Calendar");
     const errorDetail = await eventResp.text().catch(() => '');
     console.error('Google Calendar create event error:', errorDetail || eventResp.status);
 
@@ -199,6 +214,7 @@ export async function onRequestPost(context) {
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const eventData = await eventResp.json();
+  console.log("[DEBUG] Evento criado:", eventData);
   const googleEventId = eventData.id || null;
   const integrationWarnings = [];
   const siteUrl = getSiteUrl(env);
@@ -213,6 +229,7 @@ export async function onRequestPost(context) {
 
   // Atualizar registro no Supabase com o ID do evento do Google Calendar
   if (googleEventId) {
+    console.log("[DEBUG] Executando integrações pós-agendamento (Zoom, Freshsales, etc.)");
     const updateResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
       method: 'PATCH',
       headers: {
@@ -334,11 +351,13 @@ export async function onRequestPost(context) {
 </div>`;
 
   // Disparar ambos os e-mails em paralelo (não bloqueia retorno ao cliente)
+  console.log("[DEBUG] Enviando e-mails de confirmação");
   await Promise.all([
     sendTransactionalEmail(env, email, 'Seu agendamento foi recebido', emailClienteHtml),
     sendTransactionalEmail(env, INTERNAL_RECIPIENTS, 'Novo agendamento recebido', emailInternoHtml),
   ]);
 
+  console.log("[DEBUG] Agendamento concluído com sucesso");
   return new Response(JSON.stringify({
     ok: true,
     eventId: eventData.id,
