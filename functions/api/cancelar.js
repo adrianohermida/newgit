@@ -178,8 +178,9 @@ export async function onRequestGet(context) {
   await Promise.all([
     sendTransactionalEmail(env, agendamentoConfirmado.email, 'Sua consulta estÃ¡ confirmada - Hermida Maia Advocacia', emailClienteHtml),
     sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento confirmado â€” ${agendamentoConfirmado.nome}`, `${emailEscritorioHtml}<p style="font-family:sans-serif">AÃ§Ã£o realizada por: <strong>${actor}</strong>.</p>`),
-  ]);
-
+  export async function onRequest(context) {
+    return onRequestGet(context);
+  }
   if (wantsJson) {
     return jsonResponse(200, {
       ok: true,
