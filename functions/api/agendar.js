@@ -32,6 +32,7 @@ export async function onRequestPost(context) {
   if (!data) camposFaltando.push('Data');
   if (!hora) camposFaltando.push('Hora');
   if (camposFaltando.length > 0) {
+    console.warn(`[BLOQUEIO] Campos obrigatórios faltando: ${camposFaltando.join(', ')}`);
     return new Response(JSON.stringify({
       ok: false,
       error: `Por favor, preencha os seguintes campos obrigatórios: ${camposFaltando.join(', ')}.`
@@ -45,6 +46,7 @@ export async function onRequestPost(context) {
   const slotStartDate = new Date(slotStart);
   console.log("[DEBUG] Checando se slot é bookable");
   if (!isSlotBookable(slotStartDate)) {
+    console.warn(`[BLOQUEIO] Slot não bookable: antecedência mínima não respeitada. Data/hora: ${slotStart}`);
     return new Response(JSON.stringify({
       ok: false,
       error: `Agendamentos devem respeitar antecedencia minima de ${MINIMUM_LEAD_HOURS} horas.`,
@@ -89,6 +91,7 @@ export async function onRequestPost(context) {
   const isBusy = freebusy.calendars['primary'].busy.length > 0;
   console.log("[DEBUG] Resultado freebusy:", freebusy);
   if (isBusy) {
+    console.warn(`[BLOQUEIO] Slot ocupado no Google Calendar: ${slotStart} - ${slotEnd}`);
     return new Response(JSON.stringify({ ok: false, error: 'Horário já está ocupado. Escolha outro.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
   }
 
