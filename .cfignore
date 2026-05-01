@@ -1,0 +1,3 @@
+# Ignorar arquivos grandes e dumps locais
+*.sql
+docs/tpu/assuntos/dump_dados.sql
